@@ -1,0 +1,152 @@
+"""Finding and measuring the things on the surface.
+
+Measurement convention, which matters more than the code: an edge is taken at
+**half the particle's height**. An AFM tip is not a point, so every edge in an
+image is a ramp several nanometres wide, and where you call the edge decides
+the size you report. Half-height is the usual convention and it is roughly
+unbiased for a ramp; thresholding near the background instead would inflate
+every dimension by the tip radius.
+
+Dimensions come from the particle's own principal axes rather than from the
+image axes, for the same reason as in the trajectory analysis: an object lying
+at 40 degrees has no reason to be measured along the scan direction.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+
+from dobladilo.imaging.heightmap import HeightMap
+
+#: A particle must stand at least this far above the background to be counted,
+#: in multiples of the background noise.
+DETECT_SIGMA = 4.0
+
+#: And must cover at least this many pixels, which keeps single noisy pixels
+#: and tip debris out of the statistics.
+MIN_PIXELS = 20
+
+
+@dataclass(frozen=True)
+class Particle:
+    label: int
+    centre_px: tuple[float, float]
+    length_nm: float
+    width_nm: float
+    height_nm: float
+    area_nm2: float
+    angle_deg: float
+    touches_edge: bool
+
+    @property
+    def aspect(self) -> float:
+        return self.length_nm / self.width_nm if self.width_nm else float("inf")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            **{
+                k: (round(v, 2) if isinstance(v, float) else v)
+                for k, v in dataclasses.asdict(self).items()
+            },
+            "centre_px": [round(v, 1) for v in self.centre_px],
+            "aspect": round(self.aspect, 2),
+        }
+
+
+def _label(mask: np.ndarray) -> tuple[np.ndarray, int]:
+    from scipy import ndimage
+
+    labels, count = ndimage.label(mask)
+    return labels, int(count)
+
+
+def _interior(pixels: np.ndarray) -> np.ndarray:
+    """The particle minus its edge ring, chosen geometrically.
+
+    Selecting the interior by HEIGHT looks equivalent and is not. Any
+    height-based cut is computed from a noisy image, so with more noise the cut
+    moves up and then selects the upper part of the noise distribution: the
+    median of what survives climbs with the noise, which is the bias this is
+    replacing. Eroding the mask drops the sloping edge without consulting a
+    single height value, so the median of the interior is the plateau.
+    """
+    from scipy import ndimage
+
+    for erosions in (3, 2, 1):
+        eroded = ndimage.binary_erosion(pixels, iterations=erosions)
+        if eroded.sum() >= 10:
+            return eroded
+    return pixels
+
+
+def _measure(
+    heights: np.ndarray, pixels: np.ndarray, pixel_nm: float, label: int, shape: tuple[int, int]
+) -> Particle:
+    coordinates = np.column_stack(np.nonzero(pixels)).astype(float)
+    centre = coordinates.mean(axis=0)
+    centred = coordinates - centre
+
+    # Same principal-axis treatment as the trajectory analysis: measure the
+    # object along itself, not along the scan.
+    _, _, axes = np.linalg.svd(centred, full_matrices=False)
+    projected = centred @ axes.T
+    extents = projected.max(axis=0) - projected.min(axis=0)
+    long_px, short_px = float(extents.max()), float(extents.min())
+
+    rows, cols = shape
+    touches = bool(
+        coordinates[:, 0].min() < 1
+        or coordinates[:, 1].min() < 1
+        or coordinates[:, 0].max() > rows - 2
+        or coordinates[:, 1].max() > cols - 2
+    )
+    # Height is the median over the eroded interior. A high percentile of all
+    # the particle's pixels looks robust and is not: with 0.12 nm of noise the
+    # 90th percentile of a flat 2.00 nm plateau sits at 2.15, so the estimator
+    # reads 7% high on every particle in every image.
+    height = float(np.median(heights[_interior(pixels)]))
+
+    return Particle(
+        label=label,
+        centre_px=(float(centre[0]), float(centre[1])),
+        length_nm=long_px * pixel_nm,
+        width_nm=short_px * pixel_nm,
+        height_nm=height,
+        area_nm2=float(pixels.sum()) * pixel_nm**2,
+        angle_deg=float(np.rad2deg(np.arctan2(axes[0][0], axes[0][1])) % 180),
+        touches_edge=touches,
+    )
+
+
+def find_particles(
+    image: HeightMap,
+    background: np.ndarray,
+    *,
+    detect_sigma: float = DETECT_SIGMA,
+    min_pixels: int = MIN_PIXELS,
+) -> list[Particle]:
+    """Everything standing proud of the surface, measured at half its height."""
+    heights = image.heights_nm
+    noise = float(heights[background].std())
+    seeds, _ = _label(heights > detect_sigma * noise)
+
+    particles: list[Particle] = []
+    for label in range(1, int(seeds.max()) + 1):
+        seed = seeds == label
+        if seed.sum() < min_pixels:
+            continue
+        # Re-threshold this particle at half ITS own height, so a tall
+        # aggregate and a 2 nm sheet are both measured at their own half-way
+        # point rather than at one global level.
+        peak = float(np.percentile(heights[seed], 95))
+        grown, _ = _label(heights > peak / 2.0)
+        this = grown == np.bincount(grown[seed]).argmax() if grown[seed].size else seed
+        if this.sum() < min_pixels:
+            continue
+        particles.append(_measure(heights, this, image.pixel_nm, label, image.shape))
+
+    return particles

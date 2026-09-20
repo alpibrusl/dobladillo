@@ -21,7 +21,12 @@ design = ["scadnano==0.21.1"]
 # Thermodynamics. The default backend must be fully open source; primer3-py is
 # GPLv2, so it stays optional to keep the core permissively licensed.
 thermo = ["primer3-py>=2.0"]
-dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11"]
+# The AFM module is meant to be usable on its own, by a lab that has no
+# interest in scadnano or oxDNA. So its dependencies live here rather than in
+# the core, and the measurement code takes a plain height map rather than
+# anything this project defines.
+imaging = ["scipy>=1.11"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "scipy>=1.11"]
 
 [project.scripts]
 dobladilo = "dobladilo.cli:app"

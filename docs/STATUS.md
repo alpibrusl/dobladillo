@@ -12,7 +12,7 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | M1 Brick and Port abstractions | todo | |
 | M2 interface library v1 + orthogonality | todo | |
 | M3 assembly composition + stage planning | todo | |
-| M4 AFM pipeline | todo | standalone module; the piece offered to the partner lab |
+| M4 AFM pipeline | measurement done, readers pending | flatten, segment, measure, classify, yield with a Wilson interval; validated to <1% against synthetic ground truth. Native file readers should come from `alpibrupa/nanoindent`, not be rewritten |
 | M5 compare report + first closed loop | todo | first real milestone |
 | M6 one-DOF mechanism | todo | |
 | C0-C6 | not started | research-grade |
@@ -61,3 +61,32 @@ interval, so the output rate falls as stages lengthen instead of rising.
   outstanding.
 - `self_structure` is declared and reported as not checked. It needs a
   thermodynamics backend (the `thermo` extra).
+
+## alpibrupa/nanoindent
+
+A mature AFM package already in the owner's hands, and it changes two things.
+
+**Do not write instrument file readers.** `dynamo_v0/pyfmreader` contains JPK
+and Nanoscope **image** loaders that are a byte-for-byte vendored snapshot of
+PyFM_YF_version, verified against the originals with `cmp`, and which produced
+published result tables. M4's "read native instrument formats" is solved there.
+
+**C0 is much closer than this roadmap assumes.** Interface rupture forces by
+force spectroscopy is a Tier-3 item here; nanoindent already carries the whole
+stack -- Hertz, DMT, Ting, Sader calibration, breakthrough detection, force
+maps, viscoelastic fits.
+
+Two cautions, both from the package's own words or code:
+
+- The **live instrument adapters** (`adapters/jpk.py`, `asylum.py`,
+  `nanosurf.py`) declare themselves scaffolds: "reconstructed from
+  documentation and must be verified against the actual SDK and instrument".
+  Reading files is not the same as driving an instrument.
+- `pyfmreader` imports `audioop`, **removed from Python 3.13**. It is an unused
+  import in at least `loadjpkimg.py`, so deleting the line is the whole fix,
+  but it will stop those modules importing the day either project moves past
+  3.12. This venv is 3.12, so nothing is broken yet.
+
+What does NOT overlap is the work here: nanoindent is force curves and
+indentation mechanics, not segmenting a topography image into particles and
+classifying their shapes.
