@@ -254,8 +254,8 @@ monomer vs dimer counting.
 manual measurement within 5%; yield numbers reproducible across scans. **HG**
 Support both conventional AFM (static, in air or liquid) and HS-AFM movie
 stacks; for stacks, track particles across frames and emit per-particle time
-series. Read native instrument file formats rather than requiring exported
-images. **Deliver as a standalone, separately usable module.**
+series. Read the partner lab's native file formats (Bruker, JPK/Bruker
+NanoWizard, Nanosurf, ASD for HS-AFM) rather than requiring exported images. **Deliver as a standalone, separately usable module.**
 
 **M5. Compare report + first closed loop.** Report joining predicted
 observables with measured ones, writing results back into the registry.
@@ -315,6 +315,18 @@ estimates, salt/pH/light switches, annotated with measured switching times.
 | Closed loop | compare report, registry update | agent, reviewed by human |
 
 No Tier-2 item is "done" on software alone if it carries an HG.
+
+## 9a. Companion documents
+
+- `APPLICATIONS.md` — what to build with the toolchain: drive modalities, design
+  primitives, applications by domain with feasibility grades, and an honest
+  answer to the nano-FPGA question.
+- `HAMILTONIAN.md` — the deep dive on one selected line, `APPLICATIONS.md` item
+  C2: designing a Hamiltonian in origami and measuring the gap between the
+  designed and realised one.
+
+Both carry the same rule as this document: they are context for prioritisation.
+Neither contains collaborator names, and the sequencing in section 9 governs.
 
 ## 10. Risks and open questions
 
