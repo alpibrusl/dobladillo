@@ -136,4 +136,11 @@ def two_spin_coupling(probabilities: dict[tuple[int, int], float]) -> float:
     mm = probabilities[(-1, -1)]
     pm = probabilities[(+1, -1)]
     mp = probabilities[(-1, +1)]
+    if min(pp, mm, pm, mp) <= 0.0:
+        # A state that never appeared makes the log-odds infinite, not
+        # undefined. Returning a NaN would let an unmeasurable construct flow
+        # silently into a median; an infinity says what happened, and the
+        # caller can decide that a coupling too strong to leave any molecule in
+        # one corner is a coupling that was not measured.
+        return float("inf") if pm * mp == 0 else float("-inf")
     return 0.25 * float(np.log(pp * mm / (pm * mp)))
