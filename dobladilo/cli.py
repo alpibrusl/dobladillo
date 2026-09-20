@@ -500,6 +500,96 @@ def sim_bundle(
     emitter.result(job.as_dict(), body)
 
 
+@sim_app.command("check")
+def sim_check(
+    run_dir: Path = typer.Argument(..., help="A finished run directory."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Is this run something whose numbers mean anything? Exits non-zero if not."""
+    from dobladilo.analysis.runs import check_run
+
+    out = Emitter(as_json)
+    if not run_dir.is_dir():
+        out.fail(f"no such directory: {run_dir}", kind="missing_directory", code=2)
+        return
+    check = check_run(run_dir)
+    rows = [("directory", str(run_dir)), ("usable as a result", "yes" if check.ok else "NO")]
+    for key, value in check.metadata.get("steps", {}).items():
+        rows.append((key, f"{value:,}"))
+    body = "run check\n" + _table(rows)
+    for problem in check.problems:
+        body += f"\n  PROBLEM  {problem}"
+    out.result(check.as_dict(), body)
+    if not check.ok:
+        raise typer.Exit(1)
+
+
+@app.command("analyse")
+def analyse_run(
+    run_dir: Path = typer.Argument(..., help="A finished run directory."),
+    skip: int = typer.Option(0, help="Frames to discard as equilibration."),
+    out_dir: Path | None = OUT_OPTION,
+    allow_test_mode: bool = typer.Option(
+        False, "--allow-test-mode", help="Analyse a smoke test anyway. It is not a result."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Turn a finished run into observables with experimental counterparts.
+
+    Refuses a run that has not passed its check, because a trajectory from an
+    unfinished or test-mode bundle produces numbers that look exactly like
+    real ones.
+    """
+    import json as _json
+
+    from dobladilo.analysis.observables import analyse, oxview_overlay
+    from dobladilo.analysis.runs import NotAResult, load_run
+
+    emitter = Emitter(as_json)
+    if not run_dir.is_dir():
+        emitter.fail(f"no such directory: {run_dir}", kind="missing_directory", code=2)
+        return
+    try:
+        frames, check = load_run(run_dir, skip=skip, allow_test_mode=allow_test_mode)
+    except NotAResult as e:
+        emitter.fail(str(e), kind="not_a_result")
+        return
+    except ValueError as e:
+        emitter.fail(str(e), kind="unusable_trajectory")
+        return
+
+    report = analyse(frames)
+    payload = report.as_dict()
+    payload["conditions"] = check.metadata.get("model", {})
+    payload["is_smoke_test"] = bool(check.metadata.get("test_mode"))
+
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "observables.json").write_text(_json.dumps(payload, indent=2))
+        (out_dir / "rmsf_overlay.json").write_text(_json.dumps(oxview_overlay(report.rmsf_nm)))
+        payload["files"] = {
+            "observables": str(out_dir / "observables.json"),
+            "rmsf_overlay": str(out_dir / "rmsf_overlay.json"),
+        }
+
+    dims = payload["dimensions_nm"]
+    rows = [
+        ("frames", f"{report.frames} (steps {report.first_step:,}-{report.last_step:,})"),
+        ("longest", f"{dims['longest']['mean']:.1f} +- {dims['longest']['sd']:.2f} nm"),
+        ("middle", f"{dims['middle']['mean']:.1f} +- {dims['middle']['sd']:.2f} nm"),
+        ("shortest", f"{dims['shortest']['mean']:.1f} +- {dims['shortest']['sd']:.2f} nm"),
+        ("out of plane", f"{payload['planarity_nm']['mean']:.2f} nm RMS"),
+        ("axis bend", f"{payload['bend_nm']['mean']:.2f} nm"),
+        ("RMSF", f"mean {payload['rmsf_nm']['mean']:.2f}, max {payload['rmsf_nm']['max']:.2f} nm"),
+        ("salt", f"{payload['conditions'].get('salt_concentration_m')} M Na+ (Mg2+ proxy)"),
+    ]
+    rows.extend((f"wrote {k}", v) for k, v in payload.get("files", {}).items())
+    body = "observables\n" + _table(rows)
+    if payload["is_smoke_test"]:
+        body += "\n\n  THESE ARE NOT RESULTS: the run is a smoke test, analysed under protest."
+    emitter.result(payload, body)
+
+
 @app.command()
 def describe(as_json: bool = JSON_OPTION) -> None:
     """Emit the command surface, for an agent to read instead of `--help`.

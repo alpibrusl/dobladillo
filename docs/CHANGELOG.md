@@ -28,3 +28,7 @@
   `dobladilo sim bundle`. The relaxation follows oxDNA's own documented
   procedure, which differs from DESIGN.md section 3 in its first stage; the
   difference is recorded in every bundle's metadata.
+- Q5. Trajectory parsing without oxDNA, dimensions by principal axes, RMSF with
+  superimposition, planarity, axis bend, and an oxView overlay.
+  `dobladilo analyse`, plus `dobladilo sim check`, which refuses to let a
+  smoke-test trajectory be analysed as a result.

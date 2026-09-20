@@ -8,7 +8,7 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | Q2 design-rule validator | done | six rules, each with a seeded failing design; `dobladilo lint`. Caught a real defect in the rectangle. `self_structure` declared unimplemented, not silently passing |
 | Q3 lab outputs | done | IDT bulk CSV and plate xlsx, both validated; pooling map, pipetting sheet, protocol with Mg screen; cost estimate with assumptions |
 | Q4 oxDNA job bundle | done | all four stages run to completion on CPU in test mode, zero errors. The GPU production run remains the human gate |
-| Q5 baseline analysis | todo | needs Q4's trajectories |
+| Q5 baseline analysis | done (pending a real trajectory) | parser, dimensions, RMSF, planarity, bend, oxView overlay; `dobladilo analyse`. A long CPU run is under way to give it something that counts as a result |
 | M1 Brick and Port abstractions | todo | |
 | M2 interface library v1 + orthogonality | todo | |
 | M3 assembly composition + stage planning | todo | |

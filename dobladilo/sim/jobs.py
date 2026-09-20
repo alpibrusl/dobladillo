@@ -307,6 +307,7 @@ def write_job_bundle(
     part: str,
     backend: str = "CUDA",
     test_mode: bool = False,
+    steps_override: dict[str, int] | None = None,
     salt_m: float = OXDNA_NA_PROXY_M[0],
     temperature: str = DEFAULT_TEMPERATURE,
 ) -> JobBundle:
@@ -315,6 +316,12 @@ def write_job_bundle(
     `test_mode` shortens every stage so the whole chain can be exercised on a
     CPU in minutes. It is for proving the bundle is well formed, never for
     producing a trajectory to analyse, and the metadata says so.
+
+    `steps_override` sets the stage lengths explicitly, for the case neither
+    default covers: a run long enough to analyse but short enough to finish on
+    a CPU overnight. A bundle built this way is a real run and its metadata
+    does not claim otherwise, but it says how long it was, because "short" is
+    a property a reader of the results needs.
     """
     if backend not in {"CPU", "CUDA"}:
         raise ValueError(f"backend must be CPU or CUDA, got {backend!r}")
@@ -335,6 +342,16 @@ def write_job_bundle(
         if test_mode
         else {"steps_mc": 1000, "steps_relax": 1_000_000, "steps_production": 100_000_000}
     )
+    if steps_override:
+        unknown = set(steps_override) - set(steps)
+        if unknown:
+            raise ValueError(f"unknown stage(s): {', '.join(sorted(unknown))}")
+        if steps_override.get("steps_relax", MIN_RELAX_STEPS) < MIN_RELAX_STEPS:
+            raise ValueError(
+                f"steps_relax below the measured floor of {MIN_RELAX_STEPS}; "
+                "production will refuse to start on the result"
+            )
+        steps = {**steps, **steps_override}
 
     for stage in stages(
         name=name,
@@ -382,6 +399,7 @@ def write_job_bundle(
             ),
         },
         "test_mode": test_mode,
+        "steps": dict(steps),
         "status": "not run",
         "owed_by_human": (
             "This bundle has been generated and checked for structure, not executed. "

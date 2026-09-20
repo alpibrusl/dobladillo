@@ -42,7 +42,12 @@ extend-immutable-calls = ["typer.Option", "typer.Argument"]
 testpaths = ["tests"]
 
 [tool.mypy]
-python_version = "3.11"
+# 3.12 rather than the 3.11 the package supports at run time: numpy's bundled
+# stubs use 3.12-only `type` statement syntax, so type-checking against 3.11
+# fails inside numpy before it reaches our code. Nothing here uses 3.12-only
+# syntax, so requires-python stays at 3.11; this is the checker's target, not
+# the package's floor.
+python_version = "3.12"
 strict = true
 
 [[tool.mypy.overrides]]
