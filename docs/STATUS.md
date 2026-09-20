@@ -7,7 +7,7 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | Q1 project skeleton + scadnano round trip | done | both parts build, export to cadnano v2 and round-trip; accounting exact; counts pinned |
 | Q2 design-rule validator | done | six rules, each with a seeded failing design; `dobladilo lint`. Caught a real defect in the rectangle. `self_structure` declared unimplemented, not silently passing |
 | Q3 lab outputs | done | IDT bulk CSV and plate xlsx, both validated; pooling map, pipetting sheet, protocol with Mg screen; cost estimate with assumptions |
-| Q4 oxDNA job bundle | bundle done, run partly verified | stages 1-3 run to completion on CPU; stage 4 correctly refuses an under-relaxed structure. See below |
+| Q4 oxDNA job bundle | done | all four stages run to completion on CPU in test mode, zero errors. The GPU production run remains the human gate |
 | Q5 baseline analysis | todo | needs Q4's trajectories |
 | M1 Brick and Port abstractions | todo | |
 | M2 interface library v1 + orthogonality | todo | |
@@ -20,7 +20,11 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
-## Q4: what the CPU run showed
+## Q4: verified, and what it took
+
+**All four stages now run to completion on CPU in test mode**, with zero errors and
+every configuration and trajectory produced. Getting there took two fixes, both
+of which only appeared by executing the bundle rather than inspecting it.
 
 oxDNA was built here from v3.7.0, CPU only (this is an Apple M4 Max: no CUDA,
 and oxDNA's GPU backend is CUDA; a Metal backend exists only as an unmerged
