@@ -39,6 +39,21 @@ STRUT_STAPLES = 8
 #: From `lab.plates.DEFAULT_PRICE_PER_BASE`, at the 32 nt typical staple.
 COST_PER_STAPLE_EUR = 3.2
 
+#: A fluorophore-modified oligo costs roughly fifty times a plain one. NOT a
+#: quote: dye, scale, purification and supplier all move it, and HPLC
+#: purification is usually required for FRET work, which is most of the cost.
+COST_PER_MODIFIED_OLIGO_EUR = 150.0
+
+#: FRET pairs per construct, and whether they sit on the shared core.
+#:
+#: They do, and it is worth a sentence because it decides Stage 0's budget.
+#: HAMILTONIAN.md section 3.1 puts the donor and acceptor **across the hinge
+#: joint**, and the joint is core geometry, not latch. So the pair is ordered
+#: ONCE for the whole series rather than once per construct. Two modified
+#: oligos instead of twenty is EUR 300 instead of EUR 3000, which would
+#: otherwise have tripled the stage.
+FRET_OLIGOS_ON_CORE = 2
+
 #: Tightened from the source document's ~1 kT. This project's noise-floor
 #: measurement shows a designed 1 kT coupling comes back with a median error
 #: near 0.85 kT when construct-to-construct scatter is 1 kT -- which fails
@@ -78,9 +93,16 @@ class Series:
     def total_staples(self) -> int:
         return self.core_staples + self.variant_staples
 
+    #: Modified oligos this series needs, all of them on the shared core.
+    modified_oligos: int = 0
+
+    @property
+    def modified_cost_eur(self) -> float:
+        return round(self.modified_oligos * COST_PER_MODIFIED_OLIGO_EUR, 0)
+
     @property
     def cost_eur(self) -> float:
-        return round(self.total_staples * COST_PER_STAPLE_EUR, 0)
+        return round(self.total_staples * COST_PER_STAPLE_EUR + self.modified_cost_eur, 0)
 
     @property
     def cost_without_sharing_eur(self) -> float:
@@ -95,6 +117,8 @@ class Series:
             "core_staples": self.core_staples,
             "variant_staples": self.variant_staples,
             "total_staples": self.total_staples,
+            "modified_oligos": self.modified_oligos,
+            "modified_oligo_cost_eur": self.modified_cost_eur,
             "estimated_cost_eur": self.cost_eur,
             "cost_if_not_shared_eur": self.cost_without_sharing_eur,
             "saved_by_sharing_eur": round(self.cost_without_sharing_eur - self.cost_eur, 0),
@@ -127,6 +151,7 @@ def stage0(*, lengths_bp: tuple[int, ...] = (5, 6, 7, 8, 9, 10), gc_variants: in
         purpose="dG_eff against latch design, and the construct-to-construct scatter",
         constructs=tuple(constructs),
         core_staples=CORE_STAPLES_SINGLE_HINGE,
+        modified_oligos=FRET_OLIGOS_ON_CORE,
         controls=(
             "at least 3 independent folds of every construct, to separate folding "
             "variance from synthesis variance",
@@ -140,6 +165,9 @@ def stage0(*, lengths_bp: tuple[int, ...] = (5, 6, 7, 8, 9, 10), gc_variants: in
             "Stage 1 cannot then meet its own criterion.",
             "the GC axis is swept at a fixed 8 bp length so length and composition "
             "do not move together and become unattributable",
+            "the FRET pair sits across the hinge joint, which is core geometry, so "
+            "two modified oligos serve the whole series rather than two per "
+            "construct: EUR 300 instead of EUR 3000",
         ),
     )
 
@@ -191,6 +219,9 @@ def stage1(*, bias_levels: tuple[float, ...] = (-2.0, 0.0, 2.0)) -> Series:
         purpose="measure J, and verify it is constant as h1 and h2 are varied",
         constructs=tuple(constructs),
         core_staples=CORE_STAPLES_TWO_HINGE,
+        # Two colour pairs, because Stage 1 needs the joint distribution of two
+        # spins and one pair cannot resolve which hinge flipped.
+        modified_oligos=2 * FRET_OLIGOS_ON_CORE,
         controls=(
             "an UNCOUPLED pair at every bias setting: two hinges far apart on the "
             "same plate, no strut. Any correlation measured there is an artefact, "
