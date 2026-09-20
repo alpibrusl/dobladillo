@@ -137,6 +137,27 @@ def count_deletions(design: sc.Design) -> int:
     )
 
 
+def label_for_order(
+    strand: sc.Strand, *, name: str, scale: str, purification: str, plate: str, well: str
+) -> None:
+    """Attach the name and vendor fields an order needs.
+
+    `vendor_fields` is a plain attribute, not a setter, and there is no
+    `set_vendor_fields` despite `set_name` existing next to it. Assigning it
+    directly belongs here rather than in the lab code.
+    """
+    strand.set_name(name)
+    strand.vendor_fields = sc.VendorFields(
+        scale=scale, purification=purification, plate=plate, well=well
+    )
+
+
+def idt_bulk_rows(design: sc.Design) -> list[str]:
+    """The IDT bulk-upload text, split into rows."""
+    text: str = design.to_idt_bulk_input_format(warn_duplicate_name=True)
+    return text.splitlines()
+
+
 def read_design(path: Path) -> sc.Design:
     """Load a design written by scadnano, or by us."""
     return sc.Design.from_scadnano_file(str(path))

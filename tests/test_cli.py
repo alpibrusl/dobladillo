@@ -49,6 +49,7 @@ def test_unknown_command_is_an_error() -> None:
         ["build", "bundle"],
         ["build", "rectangle"],
         ["rules"],
+        ["lab", "protocol", "bundle"],
     ],
 )
 def test_json_mode_emits_exactly_one_object(argv: list[str]) -> None:
@@ -137,9 +138,7 @@ def test_lint_on_a_missing_file_is_a_clean_error() -> None:
 
 def test_lint_rejects_an_unknown_rule(tmp_path: Path) -> None:
     runner.invoke(app, ["build", "bundle", "--out", str(tmp_path), "--name", "b"])
-    result = runner.invoke(
-        app, ["lint", str(tmp_path / "b.sc"), "--rule", "nope", "--json"]
-    )
+    result = runner.invoke(app, ["lint", str(tmp_path / "b.sc"), "--rule", "nope", "--json"])
     assert json.loads(result.stdout)["error"]["kind"] == "unknown_rule"
 
 
@@ -162,6 +161,34 @@ def test_cli_defaults_match_the_generators() -> None:
 
     bund = next(c for c in payload["commands"] if c["command"] == "build bundle")
     assert {o["name"]: o["default"] for o in bund["options"]}["length"] == bundle.DEFAULT_LENGTH
+
+
+def test_lab_order_validates_what_it_writes(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["lab", "order", "bundle", "--out", str(tmp_path), "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["valid"] is True
+    assert payload["problems"] == []
+    assert set(payload["files"]) == {"idt_bulk_csv", "idt_plate_xlsx"}
+
+
+def test_lab_order_rejects_an_unsupported_plate() -> None:
+    result = runner.invoke(app, ["lab", "order", "bundle", "--plate", "48", "--json"])
+    assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters"
+
+
+def test_lab_order_rejects_an_unknown_part() -> None:
+    result = runner.invoke(app, ["lab", "order", "triangle", "--json"])
+    assert json.loads(result.stdout)["error"]["kind"] == "unknown_part"
+
+
+def test_lab_protocol_matches_the_lattice(tmp_path: Path) -> None:
+    """A square-lattice plate is 2D and folds fast; a honeycomb bundle is 3D."""
+    flat = json.loads(runner.invoke(app, ["lab", "protocol", "rectangle", "--json"]).stdout)
+    solid = json.loads(runner.invoke(app, ["lab", "protocol", "bundle", "--json"]).stdout)
+    assert flat["anneal"]["ramp"]["rate_unit"] == "C/min"
+    assert solid["anneal"]["ramp"]["rate_unit"] == "C/h"
+    assert solid["anneal"]["total_hours"] > flat["anneal"]["total_hours"]
 
 
 def test_human_mode_is_not_json() -> None:

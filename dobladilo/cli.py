@@ -245,6 +245,12 @@ def build_bundle(
     _build(out=emitter, part=part, directory=out_dir, name=name, verify=verify)
 
 
+lab_app = typer.Typer(help="What the bench needs: plates, pooling, protocol.", no_args_is_help=True)
+app.add_typer(lab_app, name="lab")
+
+PART_ARGUMENT = typer.Argument(..., help="Which part: rectangle or bundle.")
+PLATE_OPTION = typer.Option(96, "--plate", help="Well plate format: 96 or 384.")
+
 LIMIT_OPTION = typer.Option(20, "--limit", help="Most findings to list. 0 for all.")
 ONLY_OPTION = typer.Option(None, "--rule", help="Run only this rule. Repeatable.")
 
@@ -322,6 +328,123 @@ def lint(
 
     if not report.ok:
         raise typer.Exit(1)
+
+
+def _make_part(which: str, out: Emitter) -> Any:
+    if which == "rectangle":
+        from dobladilo.parts.rectangle import rothemund_rectangle
+
+        return rothemund_rectangle()
+    if which == "bundle":
+        from dobladilo.parts.bundle import six_helix_bundle
+
+        return six_helix_bundle()
+    out.fail(f"unknown part {which!r}; use rectangle or bundle", kind="unknown_part")
+    return None
+
+
+@lab_app.command("order")
+def lab_order(
+    part: str = PART_ARGUMENT,
+    out_dir: Path | None = OUT_OPTION,
+    plate: int = PLATE_OPTION,
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Plates, pooling map and cost for ordering a part's staples.
+
+    Validates what it writes rather than trusting that no exception means a
+    file IDT would accept.
+    """
+    from dobladilo.lab import plates as lab
+
+    emitter = Emitter(as_json)
+    if plate not in (96, 384):
+        emitter.fail(f"plate must be 96 or 384, got {plate}", kind="invalid_parameters")
+        return
+    built = _make_part(part, emitter)
+    layout = lab.name_and_assign_wells(built.design, plate_type=plate)
+
+    problems = lab.validate_bulk_csv(lab.bulk_csv_rows(built.design))
+    payload: dict[str, Any] = {
+        "part": part,
+        **layout.as_dict(),
+        "pooling": layout.pooling_map(),
+        "pipetting": lab.pipetting_sheet(layout),
+        "problems": [p.as_dict() for p in problems],
+    }
+
+    if out_dir is not None:
+        written = lab.write_order_files(
+            built.design, directory=out_dir, name=part, plate_type=plate
+        )
+        problems += lab.validate_plate_workbook(written["idt_plate_xlsx"], plate_type=plate)
+        payload["problems"] = [p.as_dict() for p in problems]
+        payload["files"] = {k: str(v) for k, v in written.items()}
+
+    payload["valid"] = not problems
+
+    cost = layout.cost
+    rows = [
+        ("plates", f"{len(layout.plates)} x {plate}-well: {', '.join(layout.plates)}"),
+        ("staples", str(len(layout.wells))),
+        ("total bases", f"{cost.total_nt:,}"),
+        ("estimated cost", f"{cost.total:,.2f} at {cost.price_per_base}/base"),
+        ("order files valid", "yes" if not problems else f"NO, {len(problems)} problems"),
+    ]
+    rows.extend((f"wrote {k}", v) for k, v in payload.get("files", {}).items())
+    body = f"{part}: staple order\n" + _table(rows)
+    body += "\n\n  Cost assumptions:\n" + _table([("-", a) for a in cost.assumptions])
+    for problem in problems[:10]:
+        body += f"\n  PROBLEM {problem.where}: {problem.message}"
+    emitter.result(payload, body)
+
+    if problems:
+        raise typer.Exit(1)
+
+
+@lab_app.command("protocol")
+def lab_protocol(
+    part: str = PART_ARGUMENT,
+    volume_ul: float = typer.Option(50.0, help="Volume of each folding reaction."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """The folding protocol sheet, with the magnesium screen laid out."""
+    from dobladilo.lab.protocol import folding_protocol
+
+    emitter = Emitter(as_json)
+    built = _make_part(part, emitter)
+    info = built.as_dict()
+    sheet = folding_protocol(
+        part_name=part,
+        dimensionality="2D" if info["lattice"] == "square" else "3D",
+        scaffold_variant=info["scaffold"]["variant"],
+        reaction_volume_ul=volume_ul,
+    )
+
+    anneal = sheet["anneal"]
+    rows = [
+        (
+            "buffer",
+            f"{sheet['buffer']['tris_mm']} mM Tris, "
+            f"{sheet['buffer']['edta_mm']} mM EDTA, pH {sheet['buffer']['ph']}",
+        ),
+        ("Mg2+ screen", ", ".join(f"{m:g}" for m in sheet["magnesium_screen_mm"]) + " mM"),
+        ("reactions", f"{len(sheet['reactions'])} x {volume_ul:g} ul"),
+        ("hold", f"{anneal['hold']['temperature_c']} C for {anneal['hold']['minutes']:g} min"),
+        (
+            "ramp",
+            f"{anneal['ramp']['from_c']} to {anneal['ramp']['to_c']} C "
+            f"at {anneal['ramp']['rate']:g} {anneal['ramp']['rate_unit']}",
+        ),
+        ("total", f"{anneal['total_hours']} h"),
+        ("purification", " / ".join(sheet["purification"])),
+    ]
+    body = f"{part}: folding protocol\n" + _table(rows)
+    body += "\n\n  Record for each reaction:\n" + _table(
+        [("-", r) for r in sheet["record_for_each_reaction"]]
+    )
+    body += f"\n\n  {sheet['note']}"
+    emitter.result(sheet, body)
 
 
 @app.command()

@@ -49,5 +49,5 @@ strict = true
 # scadnano ships no py.typed marker, so everything crossing that boundary is
 # Any. The adapter converts at the edge rather than letting it spread; this
 # only stops mypy complaining that the import itself is untyped.
-module = "scadnano.*"
+module = ["scadnano.*", "openpyxl.*"]
 ignore_missing_imports = true

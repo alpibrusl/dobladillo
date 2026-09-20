@@ -19,3 +19,7 @@
 - Q2 complete. Six composable design-rule checks with structured findings,
   `dobladilo lint` and `dobladilo rules`. Running them found a real defect in
   the rectangle, now fixed.
+- Q3 complete. IDT bulk CSV and plate spreadsheet, both validated rather than
+  assumed; pooling map; pipetting sheet; folding protocol with the magnesium
+  screen; cost estimate that carries its assumptions. `dobladilo lab order`
+  and `dobladilo lab protocol`.

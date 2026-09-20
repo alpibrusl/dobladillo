@@ -6,8 +6,8 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 |---|---|---|
 | Q1 project skeleton + scadnano round trip | done | both parts build, export to cadnano v2 and round-trip; accounting exact; counts pinned |
 | Q2 design-rule validator | done | six rules, each with a seeded failing design; `dobladilo lint`. Caught a real defect in the rectangle. `self_structure` declared unimplemented, not silently passing |
-| Q3 lab outputs | next | scadnano already exports IDT bulk and plate formats |
-| Q4 oxDNA job bundle | todo | carries a human gate: GPU run |
+| Q3 lab outputs | done | IDT bulk CSV and plate xlsx, both validated; pooling map, pipetting sheet, protocol with Mg screen; cost estimate with assumptions |
+| Q4 oxDNA job bundle | next | carries a human gate: the GPU run |
 | Q5 baseline analysis | todo | needs Q4's trajectories |
 | M1 Brick and Port abstractions | todo | |
 | M2 interface library v1 + orthogonality | todo | |
