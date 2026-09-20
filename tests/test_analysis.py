@@ -228,6 +228,22 @@ def test_a_directory_that_is_not_a_bundle_is_refused(tmp_path) -> None:
 # ------------------------------------------------------------------ report
 
 
+def test_plots_are_written_and_are_not_empty(tmp_path) -> None:
+    """Q5 asks for plots, and the convergence one earns its place: a dimension
+    still drifting at the last frame has not equilibrated, and its mean is a
+    number about the journey rather than the destination. That is visible in a
+    line and invisible in a mean."""
+    from dobladilo.analysis.plots import write_plots
+
+    rng = np.random.default_rng(4)
+    shape = _slab(nx=25, ny=10, nz=2)
+    frames = [_frame(shape + rng.normal(0, 0.15, shape.shape), s * 100) for s in range(4)]
+    written = write_plots(frames, directory=tmp_path, title="synthetic")
+    assert set(written) == {"structure", "convergence"}
+    for path in written.values():
+        assert path.stat().st_size > 5000
+
+
 def test_report_carries_the_spread_not_just_the_mean() -> None:
     """An AFM histogram has a width, so the prediction needs one too."""
     rng = np.random.default_rng(3)

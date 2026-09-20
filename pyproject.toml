@@ -8,6 +8,10 @@ dependencies = [
     "typer>=0.12",
     "pyyaml>=6.0",
     "numpy>=1.26",
+    # Q5's acceptance criterion asks for plots alongside the JSON, so this is
+    # part of the deliverable rather than a convenience. BSD, so it does not
+    # compromise the permissive-licence goal the way primer3-py would.
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
