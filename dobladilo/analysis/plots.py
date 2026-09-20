@@ -19,6 +19,8 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.axes import Axes  # noqa: E402
+from matplotlib.figure import Figure  # noqa: E402
 import numpy as np  # noqa: E402
 
 from dobladilo.analysis.observables import principal_extents_nm, rmsf_nm  # noqa: E402
@@ -34,7 +36,7 @@ ACCENT = "#9C5412"
 COOL = "#2C635C"
 
 
-def _style(ax: plt.Axes) -> None:
+def _style(ax: Axes) -> None:
     ax.set_facecolor("white")
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
@@ -46,7 +48,7 @@ def _style(ax: plt.Axes) -> None:
     ax.title.set_color(INK)
 
 
-def structure_figure(frames: Sequence[Frame], *, title: str) -> plt.Figure:
+def structure_figure(frames: Sequence[Frame], *, title: str) -> Figure:
     """The object seen along its own axes, coloured by how much it moves.
 
     Two views because one is never enough: along the long axis you see the
@@ -91,7 +93,7 @@ def structure_figure(frames: Sequence[Frame], *, title: str) -> plt.Figure:
     return fig
 
 
-def convergence_figure(frames: Sequence[Frame], *, title: str) -> plt.Figure:
+def convergence_figure(frames: Sequence[Frame], *, title: str) -> Figure:
     """Dimensions and energy against simulation step.
 
     This is the plot that says whether the run is long enough. A dimension
