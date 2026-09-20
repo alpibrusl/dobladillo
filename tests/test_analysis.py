@@ -254,3 +254,25 @@ def test_report_carries_the_spread_not_just_the_mean() -> None:
     for axis in ("longest", "middle", "shortest"):
         assert report["dimensions_nm"][axis]["sd"] > 0
     assert report["dimensions_nm"]["longest"]["mean"] > report["dimensions_nm"]["middle"]["mean"]
+
+
+def test_a_thin_trajectory_says_so() -> None:
+    """The overnight run produced four frames because production inherited the
+    relaxation checkpoint count. Nothing in the report said the numbers were
+    four-sample statistics, which is how a thin result becomes a wrong one."""
+    from dobladilo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF, analyse
+
+    rng = np.random.default_rng(7)
+
+    def frames(n: int) -> list:
+        return [_frame(_slab(rng=rng), step=i * 1000) for i in range(n)]
+
+    thin = analyse(frames(4))
+    assert thin.undersampled
+    assert thin.as_dict()["undersampled"] is True
+    # 1/sqrt(2*3) = 0.408
+    assert thin.as_dict()["rmsf_nm"]["relative_standard_error"] == pytest.approx(0.408, abs=0.001)
+
+    thick = analyse(frames(FRAMES_FOR_A_TRUSTWORTHY_RMSF))
+    assert not thick.undersampled
+    assert thick.as_dict()["rmsf_nm"]["relative_standard_error"] < 0.11

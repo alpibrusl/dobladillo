@@ -45,13 +45,27 @@ TRAP_R0 = 1.2
 #: Folding and imaging happen near room temperature; production runs there.
 DEFAULT_TEMPERATURE = "20C"
 
-#: Configurations to write per stage. A configuration of a 14k-nucleotide
-#: structure is about 4 MB, and oxDNA aborts a run that sustains more than
-#: 1 MB/s of output. Printing "every steps/10" tripped that guard on the short
-#: test stages: ten snapshots of a fast-running stage is a torrent. Keeping the
-#: COUNT fixed rather than the interval makes the output rate fall as stages
-#: get longer, which is the right way round.
-CONFIGURATIONS_PER_STAGE = 4
+#: Configurations to write per relaxation stage. A configuration of a
+#: 14k-nucleotide structure is about 4 MB, and oxDNA aborts a run that sustains
+#: more than 1 MB/s of output. Printing "every steps/10" tripped that guard on
+#: the short test stages: ten snapshots of a fast-running stage is a torrent.
+#: Keeping the COUNT fixed rather than the interval makes the output rate fall
+#: as stages get longer, which is the right way round.
+#:
+#: Relaxation only needs enough snapshots to see that it worked, so four is
+#: plenty. Production is different and must not use this -- see below.
+CHECKPOINTS_PER_RELAXATION_STAGE = 4
+
+#: Production is the sampling stage, and a fixed count of four would make every
+#: observable downstream a four-sample statistic: an RMSF from four frames has
+#: a standard error near 40% and `analysis.observables` will report it without
+#: complaint. So production fixes the STEPS PER SAMPLE instead, which scales
+#: with run length in the direction that matters -- a longer run yields more
+#: samples rather than rarer ones -- and is bounded at both ends so a short
+#: test stage still cannot flood the output guard.
+PRODUCTION_STEPS_PER_SAMPLE = 5_000
+MIN_PRODUCTION_SAMPLES = 4
+MAX_PRODUCTION_SAMPLES = 400
 
 #: Energy lines are a few dozen bytes, so they can be frequent enough to plot.
 ENERGY_POINTS_PER_STAGE = 100
@@ -113,6 +127,12 @@ def _interval(steps: int, points: int) -> int:
     return max(1, steps // max(1, points))
 
 
+def _production_samples(steps: int) -> int:
+    """How many configurations a production run of this length should write."""
+    wanted = steps // PRODUCTION_STEPS_PER_SAMPLE
+    return max(MIN_PRODUCTION_SAMPLES, min(MAX_PRODUCTION_SAMPLES, wanted))
+
+
 def _common(
     *, name: str, conf_in: str, conf_out: str, trajectory: str, salt_m: float, temperature: str
 ) -> dict[str, Any]:
@@ -158,7 +178,7 @@ def stages(
                 "max_backbone_force": MAX_BACKBONE_FORCE,
                 "max_backbone_force_far": MAX_BACKBONE_FORCE_FAR,
                 "external_forces": 0,
-                "print_conf_interval": _interval(steps_mc, CONFIGURATIONS_PER_STAGE),
+                "print_conf_interval": _interval(steps_mc, CHECKPOINTS_PER_RELAXATION_STAGE),
                 "print_energy_every": _interval(steps_mc, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,
@@ -188,7 +208,7 @@ def stages(
                 "external_forces": 1,
                 "external_forces_file": "traps.txt",
                 "refresh_vel": 1,
-                "print_conf_interval": _interval(steps_relax, CONFIGURATIONS_PER_STAGE),
+                "print_conf_interval": _interval(steps_relax, CHECKPOINTS_PER_RELAXATION_STAGE),
                 "print_energy_every": _interval(steps_relax, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,
@@ -216,7 +236,7 @@ def stages(
                 "max_backbone_force_far": MAX_BACKBONE_FORCE_FAR,
                 "external_forces": 0,
                 "refresh_vel": 1,
-                "print_conf_interval": _interval(steps_relax, CONFIGURATIONS_PER_STAGE),
+                "print_conf_interval": _interval(steps_relax, CHECKPOINTS_PER_RELAXATION_STAGE),
                 "print_energy_every": _interval(steps_relax, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,
@@ -242,7 +262,9 @@ def stages(
                 "steps": steps_production,
                 "external_forces": 0,
                 "refresh_vel": 1,
-                "print_conf_interval": _interval(steps_production, CONFIGURATIONS_PER_STAGE),
+                "print_conf_interval": _interval(
+                    steps_production, _production_samples(steps_production)
+                ),
                 "print_energy_every": _interval(steps_production, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,

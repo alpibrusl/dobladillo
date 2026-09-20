@@ -19,7 +19,8 @@ from dobladilo import _scadnano as ad
 from dobladilo.parts.bundle import six_helix_bundle
 from dobladilo.parts.rectangle import rothemund_rectangle
 from dobladilo.sim.jobs import (
-    CONFIGURATIONS_PER_STAGE,
+    CHECKPOINTS_PER_RELAXATION_STAGE,
+    MIN_PRODUCTION_SAMPLES,
     MIN_RELAX_STEPS,
     mutual_traps,
     write_job_bundle,
@@ -157,7 +158,14 @@ def test_every_stage_records_the_salt(bundle) -> None:
         assert "interaction_type = DNA2" in text
 
 
-def test_each_stage_writes_a_bounded_number_of_configurations(bundle) -> None:
+def _samples(directory, stage: str) -> int:
+    text = (directory / f"input_{stage}").read_text()
+    steps = int(re.search(r"^steps = (\d+)$", text, re.M).group(1))
+    interval = int(re.search(r"^print_conf_interval = (\d+)$", text, re.M).group(1))
+    return steps // interval
+
+
+def test_relaxation_stages_write_a_bounded_number_of_configurations(bundle) -> None:
     """oxDNA aborts a run that sustains more than 1 MB/s of output.
 
     A configuration of this structure is about 4 MB, so an interval fixed as a
@@ -166,11 +174,29 @@ def test_each_stage_writes_a_bounded_number_of_configurations(bundle) -> None:
     much data" -- an abort that says nothing about the physics and costs a run.
     Fixing the COUNT instead makes the rate fall as stages lengthen.
     """
-    for stage in ("01_mc", "02_md_trapped", "03_md_released", "04_production"):
-        text = (bundle.directory / f"input_{stage}").read_text()
-        steps = int(re.search(r"^steps = (\d+)$", text, re.M).group(1))
-        interval = int(re.search(r"^print_conf_interval = (\d+)$", text, re.M).group(1))
-        assert steps // interval <= CONFIGURATIONS_PER_STAGE
+    for stage in ("01_mc", "02_md_trapped", "03_md_released"):
+        assert _samples(bundle.directory, stage) <= CHECKPOINTS_PER_RELAXATION_STAGE
+
+
+def test_a_short_production_stage_still_cannot_flood_the_output_guard(bundle) -> None:
+    """Test mode runs production for a couple of thousand steps in seconds. A
+    fixed sample count would be fine here and a fixed interval would not; the
+    floor is what keeps the short case behaving like the old fixed count."""
+    assert _samples(bundle.directory, "04_production") <= MIN_PRODUCTION_SAMPLES
+
+
+def test_a_real_production_run_yields_enough_frames_to_analyse() -> None:
+    """The bug this replaces: production inherited the relaxation count of
+    four, so an overnight run produced four frames and `analysis.observables`
+    reported an RMSF from them without complaint. Four frames carry a standard
+    error near 40%.
+
+    A million steps is the length of an actual production run here.
+    """
+    from dobladilo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF
+    from dobladilo.sim.jobs import _production_samples
+
+    assert _production_samples(1_000_000) >= FRAMES_FOR_A_TRUSTWORTHY_RMSF
 
 
 def test_test_mode_keeps_the_measured_relaxation_floor(bundle) -> None:

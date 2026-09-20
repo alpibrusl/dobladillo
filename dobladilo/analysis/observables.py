@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
@@ -148,6 +148,14 @@ def axis_bend_nm(positions_nm: np.ndarray, *, bins: int = 20) -> float:
     return float(np.linalg.norm(perpendicular, axis=1).max())
 
 
+#: Frames below which an RMSF should not be quoted without a warning.
+#: Derived, not chosen: the relative standard error of a spread estimated from
+#: n independent samples is about 1/sqrt(2(n-1)), so 10% needs n = 51. It is
+#: optimistic even so, because MD frames are correlated and the effective
+#: sample size is below the frame count; treat it as a floor, not a target.
+FRAMES_FOR_A_TRUSTWORTHY_RMSF: Final = 50
+
+
 @dataclass(frozen=True)
 class Report:
     frames: int
@@ -160,9 +168,20 @@ class Report:
     rmsf_nm: np.ndarray
     potential_energy: Spread
 
+    @property
+    def undersampled(self) -> bool:
+        """Whether the spreads in this report are worth believing.
+
+        A four-frame trajectory produces an RMSF, a standard deviation and a
+        confident-looking dictionary. Saying so here is the difference between
+        a thin result and a wrong one.
+        """
+        return self.frames < FRAMES_FOR_A_TRUSTWORTHY_RMSF
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "frames": self.frames,
+            "undersampled": self.undersampled,
             "steps": {"first": self.first_step, "last": self.last_step},
             "nucleotides": self.nucleotides,
             "dimensions_nm": {k: v.as_dict() for k, v in self.dimensions_nm.items()},
@@ -172,6 +191,9 @@ class Report:
                 "mean": round(float(self.rmsf_nm.mean()), 3),
                 "max": round(float(self.rmsf_nm.max()), 3),
                 "per_nucleotide": "written separately as an oxView overlay",
+                "relative_standard_error": (
+                    round((2 * (self.frames - 1)) ** -0.5, 3) if self.frames > 1 else None
+                ),
             },
             "potential_energy_per_nucleotide": self.potential_energy.as_dict(),
         }
