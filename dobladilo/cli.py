@@ -339,7 +339,15 @@ def _make_part(which: str, out: Emitter) -> Any:
         from dobladilo.parts.bundle import six_helix_bundle
 
         return six_helix_bundle()
-    out.fail(f"unknown part {which!r}; use rectangle or bundle", kind="unknown_part")
+    if which in ("twist-corrected", "twist-uncorrected"):
+        from dobladilo.parts.twist_pair import twist_pair
+
+        pair = twist_pair()
+        return pair.corrected if which == "twist-corrected" else pair.uncorrected
+    out.fail(
+        f"unknown part {which!r}; use rectangle, bundle, twist-corrected or twist-uncorrected",
+        kind="unknown_part",
+    )
     return None
 
 
@@ -588,6 +596,42 @@ def analyse_run(
     if payload["is_smoke_test"]:
         body += "\n\n  THESE ARE NOT RESULTS: the run is a smoke test, analysed under protest."
     emitter.result(payload, body)
+
+
+@app.command("twist-pair")
+def twist_pair_command(as_json: bool = JSON_OPTION) -> None:
+    """The matched pair that tests whether the twist correction does anything."""
+    from dobladilo.lab.plates import name_and_assign_wells
+    from dobladilo.parts.twist_pair import twist_pair
+
+    out = Emitter(as_json)
+    pair = twist_pair()
+    payload = pair.as_dict()
+    cost: dict[str, float] = {
+        arm: name_and_assign_wells(getattr(pair, arm).design).cost.total
+        for arm in ("corrected", "uncorrected")
+    }
+    cost["total"] = sum(cost.values())
+    payload["cost"] = cost
+
+    geometry = payload["geometry"]
+    rows = [
+        ("geometry", f"{geometry['helices']} helices x {geometry['length_bp']} bp"),
+        (
+            "size",
+            f"{geometry['approx_nm']['width']:.0f} x {geometry['approx_nm']['height']:.0f} nm",
+        ),
+        ("differs only in", payload["differs_only_in"]),
+        (
+            "predicted twist",
+            f"{payload['predicted_twist_of_uncorrected_deg']:.0f} deg, uncorrected",
+        ),
+        ("corrected", f"{payload['arms']['corrected']['deletions']} deletions, lies flat"),
+        ("uncorrected", "no deletions, cannot lie flat"),
+        ("cost", f"{payload['cost']['total']:.0f} for both arms"),
+    ]
+    body = "twist pair\n" + _table(rows) + f"\n\n  Readout: {payload['readout']}"
+    out.result(payload, body)
 
 
 @app.command()
