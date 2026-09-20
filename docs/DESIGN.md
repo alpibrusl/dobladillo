@@ -4,12 +4,17 @@ Status: draft v0.3. Audience: an implementing coding agent, plus the owner,
 who runs the GPU jobs and the wet-lab work.
 
 > **Section 9 of the source document is deliberately not reproduced here.** It
-> records named collaborators and how to sequence an approach to them. It is
-> personal information and strategy, it belongs outside the repository, and the
-> source document itself marks it as context for prioritisation rather than a
-> task list. The operational consequence it carries is already captured below:
-> **prioritise Q1-Q5 plus M4 over everything else**, and do not contact anyone
-> or draft outreach.
+> records specific collaborations -- who to approach, in what order, and what
+> each side gains -- which is strategy and personal information, and belongs
+> outside the repository. The source document itself marks it as context for
+> prioritisation rather than a task list.
+>
+> Published work is cited normally in section 12, including work by people who
+> appear in that section: a paper is a paper. What is omitted is the
+> collaboration framing around it, never the science.
+>
+> The operational consequence of section 9 is kept: **prioritise Q1-Q5 plus M4
+> over everything else**, and do not contact anyone or draft outreach.
 
 ## 1. Purpose
 
@@ -363,3 +368,15 @@ To fetch and verify, not to trust from memory.
 - Casuso, Redondo-Morata, Rico, *Phil. Trans. R. Soc. A* 2020: biological
   physics by high-speed AFM.
 - Marras et al., *PNAS* 2015: DNA origami mechanisms (hinges, sliders).
+- Bellot et al.: modification-free isothermal origami morphing by programmable
+  staple-strand competition, with high-yield 2D and 3D transformations and
+  **orthogonal reconfiguration of independent subdomains within a single
+  scaffold** -- essentially the interface-orthogonality problem of item M2.
+  Also an origami honeycomb 2D lattice as an imaging scaffold for cryo-EM.
+  Fetch exact citations.
+- Santiago, Simmel and co-workers: controlling and measuring linear and
+  rotational motion of origami driven by external fields, with solution-phase
+  readouts (nanoimpact electrochemistry, single-particle tracking on lipid
+  bilayers). The motivation matters to this project: TEM and AFM require
+  surface immobilisation and are therefore rather static, which is the same
+  limitation items M6 and C3 run into. Fetch exact citations.
