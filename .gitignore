@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Simulation trajectories and microscopy images: large, and produced outside
+# the repo by a human. Referenced by path, never committed.
+data/sim/
+data/img/
+*.dat
+*.tiff
+*.mrc

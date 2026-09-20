@@ -1,0 +1,41 @@
+[project]
+name = "dobladilo"
+version = "0.0.1"
+description = "A scriptable toolchain for DNA origami bricks: design, simulate, fold, measure, compare."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# scadnano is the design data model. Pinned: its API moves, and DESIGN.md s10
+# lists that drift as a known risk, so every call goes through an adapter.
+design = ["scadnano==0.21.1"]
+# Thermodynamics. The default backend must be fully open source; primer3-py is
+# GPLv2, so it stays optional to keep the core permissively licensed.
+thermo = ["primer3-py>=2.0"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11"]
+
+[project.scripts]
+dobladilo = "dobladilo.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
