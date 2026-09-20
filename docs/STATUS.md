@@ -66,7 +66,9 @@ as ambition without evidence.
 - **#2 the bistable hinge** — the one part three documents converge on, and the
   first whose prediction is a distribution rather than a shape.
 - **#3 calibrated nanomechanical test objects** — the offer to the AFM partner,
-  and much cheaper than the roadmap assumes now that nanoindent exists.
+  and much cheaper than the roadmap assumes now that nanoindent exists. The
+  experiment is `docs/PLATE_INDENTATION.md`; the offer turned out to be a
+  better one than planned, because the calibration is modulus-independent.
 - **#4 AFM ingest** — M4's remaining half, with no file readers to write.
 
 Not opened, and why:
@@ -122,3 +124,26 @@ Two cautions, both from the package's own words or code:
 What does NOT overlap is the work here: nanoindent is force curves and
 indentation mechanics, not segmenting a topography image into particles and
 classifying their shapes.
+
+### What has been adapted
+
+`dobladilo.mechanics` (one module, no mechanics in it) supplies the piece
+nanoindent cannot know — the thickness a given design folds into — and hands
+the plate over. It reports thickness, the thin-film parameter and the regime
+with nothing installed, because those are geometry; forces and correction
+factors need nanoindent, and say so.
+
+It produced epic #3's experiment and one result that was not expected: a Hertz
+fit on a single-layer origami plate on mica reads **5.06x** the true modulus,
+the error is exactly independent of that modulus, and no plate thick enough to
+escape it is worth folding. `docs/PLATE_INDENTATION.md`.
+
+`docs/methodology_msnl_bio_dc.md` over there is a journal-style methods section
+for the same simulation on a 6.2 nm film. It is close enough to a three-layer
+plate to serve as the draft of ours with the geometry changed, and its
+reference list is the one this work should cite.
+
+`tests/test_mechanics.py` skips its six solver tests when nanoindent is absent,
+which is every CI run. The pinned factors in `MEASURED_FACTORS` are what stops
+that being silent: run the suite anywhere nanoindent is importable and a
+drifted pin fails.

@@ -26,6 +26,11 @@ thermo = ["primer3-py>=2.0"]
 # the core, and the measurement code takes a plain height map rather than
 # anything this project defines.
 imaging = ["scipy>=1.11"]
+# Indentation mechanics. alpibrupa/nanoindent is private and not on an index,
+# so this extra cannot install it; it is declared to record the dependency and
+# to keep `dobladilo.mechanics` honest about needing something it cannot pull.
+# Install nanoindent from its own checkout. See mechanics.NANOINDENT_NOTE.
+mechanics = []
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "scipy>=1.11"]
 
 [project.scripts]
@@ -63,5 +68,5 @@ strict = true
 # scadnano ships no py.typed marker, so everything crossing that boundary is
 # Any. The adapter converts at the edge rather than letting it spread; this
 # only stops mypy complaining that the import itself is untyped.
-module = ["scadnano.*", "openpyxl.*", "scipy.*"]
+module = ["scadnano.*", "openpyxl.*", "scipy.*", "nanoindent.*"]
 ignore_missing_imports = true

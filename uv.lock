@@ -312,7 +312,7 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'imaging'", specifier = ">=1.11" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["design", "thermo", "imaging", "dev"]
+provides-extras = ["design", "thermo", "imaging", "mechanics", "dev"]
 
 [[package]]
 name = "et-xmlfile"
