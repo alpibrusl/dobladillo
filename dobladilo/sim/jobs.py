@@ -1,0 +1,382 @@
+"""A self-contained oxDNA job bundle: everything a run needs, in one directory.
+
+The point of a bundle is that the machine running it needs nothing from here.
+Topology, starting configuration, an input file per relaxation stage, the
+external forces, a run script and a metadata file all sit together, so the
+directory can be copied to a GPU box and started.
+
+The relaxation follows oxDNA's own documented procedure, which differs from the
+four steps DESIGN.md section 3 describes, and the difference is recorded rather
+than smoothed over. The design document calls stage one "energy minimisation";
+oxDNA has no such sim_type -- its documented first stage is Monte Carlo with
+capped backbone forces, which does the same job of resolving overlaps that need
+only small displacements. The stages here are MC, then MD holding the base
+pairs with mutual traps, then the same MD with the traps released, then
+production.
+
+Nothing here runs anything. Producing a bundle is not evidence that a
+simulation happened; the metadata says what is still owed.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from dobladilo import _scadnano as ad
+from dobladilo.constants import OXDNA_NA_PROXY_M
+from dobladilo.units import OXDNA_LENGTH_UNIT_NM
+
+if TYPE_CHECKING:
+    import scadnano as sc
+
+#: Backbone force caps for the relaxation stages, from oxDNA's relaxation
+#: guide. They stop a badly placed nucleotide from being flung across the box.
+MAX_BACKBONE_FORCE = 5.0
+MAX_BACKBONE_FORCE_FAR = 10.0
+
+#: Mutual trap stiffness and equilibrium separation, in oxDNA units. r0 = 1.2
+#: is roughly the distance between paired bases.
+TRAP_STIFF = 1.0
+TRAP_R0 = 1.2
+
+#: Folding and imaging happen near room temperature; production runs there.
+DEFAULT_TEMPERATURE = "20C"
+
+
+@dataclass(frozen=True)
+class Stage:
+    name: str
+    options: dict[str, Any]
+    comment: str
+
+    def render(self) -> str:
+        lines = [f"# {self.comment}", ""]
+        lines += [f"{k} = {v}" for k, v in self.options.items()]
+        return "\n".join(lines) + "\n"
+
+
+def mutual_traps(design: sc.Design) -> tuple[str, int]:
+    """An external forces file holding every base pair together.
+
+    Two blocks per pair, not one. oxDNA's reference particle feels no force, so
+    a trap defined in one direction pulls one nucleotide towards a partner that
+    is free to drift away from it; the coupling is only mutual if both
+    directions are written.
+    """
+    index = ad.nucleotide_indices(design)
+    blocks: list[str] = []
+    pairs = 0
+    for helix, offsets in design.base_pairs().items():
+        for offset in offsets:
+            a = index.get((helix, offset, True))
+            b = index.get((helix, offset, False))
+            if a is None or b is None:
+                continue
+            pairs += 1
+            for particle, reference in ((a, b), (b, a)):
+                blocks.append(
+                    "{\n"
+                    "type = mutual_trap\n"
+                    f"particle = {particle}\n"
+                    f"ref_particle = {reference}\n"
+                    f"stiff = {TRAP_STIFF}\n"
+                    f"r0 = {TRAP_R0}\n"
+                    "PBC = 1\n"
+                    "}\n"
+                )
+    return "\n".join(blocks), pairs
+
+
+def _common(
+    *, name: str, conf_in: str, conf_out: str, trajectory: str, salt_m: float, temperature: str
+) -> dict[str, Any]:
+    return {
+        "interaction_type": "DNA2",
+        # Mandatory for DNA2, and the reason it is mandatory matters here:
+        # oxDNA2 has no explicit Mg2+, so this is a monovalent proxy and every
+        # result must carry it. See the metadata file.
+        "salt_concentration": salt_m,
+        "T": temperature,
+        "topology": f"{name}.top",
+        "conf_file": conf_in,
+        "lastconf_file": conf_out,
+        "trajectory_file": trajectory,
+        "energy_file": f"energy_{Path(trajectory).stem}.dat",
+        "time_scale": "linear",
+        "restart_step_counter": 1,
+        "verlet_skin": 0.2,
+    }
+
+
+def stages(
+    *,
+    name: str,
+    steps_mc: int,
+    steps_relax: int,
+    steps_production: int,
+    salt_m: float,
+    temperature: str,
+    backend: str,
+    print_every: int,
+) -> list[Stage]:
+    """The four stages, in the order they must run."""
+    return [
+        Stage(
+            "01_mc",
+            {
+                "backend": "CPU",  # the guide is explicit that this stage is CPU
+                "sim_type": "MC",
+                "ensemble": "NVT",
+                "delta_translation": 0.1,
+                "delta_rotation": 0.1,
+                "steps": steps_mc,
+                "max_backbone_force": MAX_BACKBONE_FORCE,
+                "max_backbone_force_far": MAX_BACKBONE_FORCE_FAR,
+                "external_forces": 0,
+                "print_conf_interval": max(1, steps_mc // 10),
+                "print_energy_every": max(1, steps_mc // 10),
+                **_common(
+                    name=name,
+                    conf_in=f"{name}.dat",
+                    conf_out="conf_01_mc.dat",
+                    trajectory="traj_01_mc.dat",
+                    salt_m=salt_m,
+                    temperature=temperature,
+                ),
+            },
+            "Stage 1: Monte Carlo, resolving overlaps that need only small moves. "
+            "DESIGN.md calls this energy minimisation; oxDNA has no such sim_type "
+            "and its documented equivalent is this.",
+        ),
+        Stage(
+            "02_md_trapped",
+            {
+                "backend": backend,
+                "sim_type": "MD",
+                "dt": 0.002,
+                "thermostat": "bussi",
+                "bussi_tau": 1000,
+                "newtonian_steps": 53,
+                "steps": steps_relax,
+                "max_backbone_force": MAX_BACKBONE_FORCE,
+                "max_backbone_force_far": MAX_BACKBONE_FORCE_FAR,
+                "external_forces": 1,
+                "external_forces_file": "traps.txt",
+                "refresh_vel": 1,
+                "print_conf_interval": max(1, steps_relax // 10),
+                "print_energy_every": max(1, steps_relax // 10),
+                **_common(
+                    name=name,
+                    conf_in="conf_01_mc.dat",
+                    conf_out="conf_02_md_trapped.dat",
+                    trajectory="traj_02_md_trapped.dat",
+                    salt_m=salt_m,
+                    temperature=temperature,
+                ),
+            },
+            "Stage 2: MD with every base pair held by a mutual trap, so large "
+            "displacements can relax without the structure coming unpaired.",
+        ),
+        Stage(
+            "03_md_released",
+            {
+                "backend": backend,
+                "sim_type": "MD",
+                "dt": 0.002,
+                "thermostat": "bussi",
+                "bussi_tau": 1000,
+                "newtonian_steps": 53,
+                "steps": steps_relax,
+                "max_backbone_force": MAX_BACKBONE_FORCE,
+                "max_backbone_force_far": MAX_BACKBONE_FORCE_FAR,
+                "external_forces": 0,
+                "refresh_vel": 1,
+                "print_conf_interval": max(1, steps_relax // 10),
+                "print_energy_every": max(1, steps_relax // 10),
+                **_common(
+                    name=name,
+                    conf_in="conf_02_md_trapped.dat",
+                    conf_out="conf_03_md_released.dat",
+                    trajectory="traj_03_md_released.dat",
+                    salt_m=salt_m,
+                    temperature=temperature,
+                ),
+            },
+            "Stage 3: the traps released, force caps still on. If the structure "
+            "is going to fall apart, it does so here rather than in production.",
+        ),
+        Stage(
+            "04_production",
+            {
+                "backend": backend,
+                "sim_type": "MD",
+                "dt": 0.003,
+                "thermostat": "bussi",
+                "bussi_tau": 1000,
+                "newtonian_steps": 53,
+                "steps": steps_production,
+                "external_forces": 0,
+                "refresh_vel": 1,
+                "print_conf_interval": max(1, steps_production // 100),
+                "print_energy_every": max(1, steps_production // 1000),
+                **_common(
+                    name=name,
+                    conf_in="conf_03_md_released.dat",
+                    conf_out="conf_04_production.dat",
+                    trajectory="traj_04_production.dat",
+                    salt_m=salt_m,
+                    temperature=temperature,
+                ),
+            },
+            "Stage 4: production. No force caps: this is the trajectory that "
+            "gets analysed, so nothing artificial should be acting on it.",
+        ),
+    ]
+
+
+RUN_SCRIPT = """#!/bin/sh
+# Run the stages in order, stopping at the first failure.
+#
+# Each stage starts from the previous stage's last configuration, so running
+# them out of order, or skipping one, silently analyses something other than
+# what the protocol describes.
+set -eu
+
+OXDNA=${OXDNA:-oxDNA}
+command -v "$OXDNA" >/dev/null || {
+    echo "oxDNA not found. Set OXDNA to its path." >&2
+    exit 127
+}
+
+for stage in 01_mc 02_md_trapped 03_md_released 04_production; do
+    echo "=== $stage ==="
+    "$OXDNA" "input_$stage" || { echo "stage $stage failed" >&2; exit 1; }
+done
+echo "all stages finished"
+"""
+
+
+@dataclass(frozen=True)
+class JobBundle:
+    directory: Path
+    files: dict[str, Path]
+    nucleotides: int
+    trapped_pairs: int
+    metadata: dict[str, Any]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "directory": str(self.directory),
+            "files": {k: str(v) for k, v in self.files.items()},
+            "nucleotides": self.nucleotides,
+            "trapped_pairs": self.trapped_pairs,
+            "metadata": self.metadata,
+        }
+
+
+def write_job_bundle(
+    design: sc.Design,
+    *,
+    directory: Path,
+    name: str,
+    part: str,
+    backend: str = "CUDA",
+    test_mode: bool = False,
+    salt_m: float = OXDNA_NA_PROXY_M[0],
+    temperature: str = DEFAULT_TEMPERATURE,
+) -> JobBundle:
+    """Write the bundle. Runs nothing.
+
+    `test_mode` shortens every stage so the whole chain can be exercised on a
+    CPU in minutes. It is for proving the bundle is well formed, never for
+    producing a trajectory to analyse, and the metadata says so.
+    """
+    if backend not in {"CPU", "CUDA"}:
+        raise ValueError(f"backend must be CPU or CUDA, got {backend!r}")
+
+    directory.mkdir(parents=True, exist_ok=True)
+    files = ad.write_oxdna_files(design, directory=directory, name=name)
+
+    traps_text, pairs = mutual_traps(design)
+    traps = directory / "traps.txt"
+    traps.write_text(traps_text)
+    files["traps"] = traps
+
+    steps = (
+        {"steps_mc": 100, "steps_relax": 1000, "steps_production": 1000}
+        if test_mode
+        else {"steps_mc": 1000, "steps_relax": 1_000_000, "steps_production": 100_000_000}
+    )
+    print_every = 10 if test_mode else 10_000
+
+    for stage in stages(
+        name=name,
+        salt_m=salt_m,
+        temperature=temperature,
+        backend="CPU" if test_mode else backend,
+        print_every=print_every,
+        **steps,
+    ):
+        path = directory / f"input_{stage.name}"
+        path.write_text(stage.render())
+        files[f"input_{stage.name}"] = path
+
+    run = directory / "run.sh"
+    run.write_text(RUN_SCRIPT)
+    run.chmod(0o755)
+    files["run"] = run
+
+    nucleotides = len(ad.topology_bases(files["topology"]))
+    metadata = {
+        "part": part,
+        "design_name": name,
+        "nucleotides": nucleotides,
+        "trapped_pairs": pairs,
+        "model": {
+            "interaction_type": "DNA2",
+            "salt_concentration_m": salt_m,
+            "salt_note": (
+                "oxDNA2 has no explicit Mg2+. This is a monovalent proxy, and a "
+                "prediction made at this value is not comparable to one made at "
+                "another, nor directly to a measurement in a magnesium buffer."
+            ),
+            "temperature": temperature,
+        },
+        "units": {
+            "length_unit_nm": OXDNA_LENGTH_UNIT_NM,
+            "note": "convert with dobladilo.units, never inline",
+        },
+        "protocol": {
+            "stages": ["01_mc", "02_md_trapped", "03_md_released", "04_production"],
+            "source": "oxDNA relaxation guide",
+            "deviation_from_design_doc": (
+                "DESIGN.md section 3 calls stage 1 energy minimisation. oxDNA has no "
+                "such sim_type; its documented first stage is Monte Carlo with capped "
+                "backbone forces, which is what is written here."
+            ),
+        },
+        "test_mode": test_mode,
+        "status": "not run",
+        "owed_by_human": (
+            "This bundle has been generated and checked for structure, not executed. "
+            "Run it and place the results in data/sim/<design>/ before anything "
+            "downstream treats them as real."
+            if not test_mode
+            else "Test mode: short stages to prove the bundle runs end to end. The "
+            "trajectory it produces is not a result and must not be analysed."
+        ),
+    }
+    meta = directory / "metadata.json"
+    meta.write_text(json.dumps(metadata, indent=2))
+    files["metadata"] = meta
+
+    return JobBundle(
+        directory=directory,
+        files=files,
+        nucleotides=nucleotides,
+        trapped_pairs=pairs,
+        metadata=metadata,
+    )

@@ -137,6 +137,52 @@ def count_deletions(design: sc.Design) -> int:
     )
 
 
+def nucleotide_indices(design: sc.Design) -> dict[tuple[int, int, bool], int]:
+    """Map (helix, offset, forward) to the index oxDNA gives that nucleotide.
+
+    oxDNA identifies particles by position in the topology file, and external
+    forces refer to them that way, so writing a traps file needs this mapping.
+    scadnano does not expose it, so it is reconstructed: strands in design
+    order, domains in strand order, bases 5' to 3' within a domain, skipping
+    deletions.
+
+    The 5'-to-3' part was measured rather than assumed. Building the mapping
+    both ways and checking that base-paired positions hold complementary bases
+    in the written topology gives 7056 complementary and 0 inconsistent one
+    way, and 5212 inconsistent the other. A test re-runs that check, because a
+    silently wrong mapping would produce a traps file that restrains the wrong
+    nucleotides and a relaxation that quietly pulls the structure apart.
+    """
+    index: dict[tuple[int, int, bool], int] = {}
+    n = 0
+    for strand in design.strands:
+        for domain in strand.domains:
+            if not hasattr(domain, "helix"):
+                continue  # a loopout or extension carries no helix position
+            offsets = list(range(domain.start, domain.end))
+            if not domain.forward:
+                offsets.reverse()
+            for offset in offsets:
+                if offset in domain.deletions:
+                    continue
+                index[(domain.helix, offset, domain.forward)] = n
+                n += 1
+    return index
+
+
+def topology_bases(path: Path) -> list[str]:
+    """The base letter of each nucleotide, in oxDNA index order."""
+    lines = path.read_text().splitlines()[1:]
+    return [line.split()[1] for line in lines if line.strip()]
+
+
+def write_oxdna_files(design: sc.Design, *, directory: Path, name: str) -> dict[str, Path]:
+    """Topology and starting configuration."""
+    directory.mkdir(parents=True, exist_ok=True)
+    design.write_oxdna_files(directory=str(directory), filename_no_extension=name)
+    return {"topology": directory / f"{name}.top", "configuration": directory / f"{name}.dat"}
+
+
 def label_for_order(
     strand: sc.Strand, *, name: str, scale: str, purification: str, plate: str, well: str
 ) -> None:

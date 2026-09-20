@@ -28,6 +28,7 @@ uv run dobladilo lint build/rect/rect.sc
 uv run dobladilo rules               # what is checked, and what knowingly is not
 uv run dobladilo lab order rectangle --out build/order
 uv run dobladilo lab protocol rectangle
+uv run dobladilo sim bundle bundle --out build/sim --test
 ```
 
 ### For agents

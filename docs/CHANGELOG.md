@@ -23,3 +23,8 @@
   assumed; pooling map; pipetting sheet; folding protocol with the magnesium
   screen; cost estimate that carries its assumptions. `dobladilo lab order`
   and `dobladilo lab protocol`.
+- Q4. Self-contained oxDNA job bundles: topology, configuration, mutual traps,
+  an input file per relaxation stage, a run script and metadata.
+  `dobladilo sim bundle`. The relaxation follows oxDNA's own documented
+  procedure, which differs from DESIGN.md section 3 in its first stage; the
+  difference is recorded in every bundle's metadata.

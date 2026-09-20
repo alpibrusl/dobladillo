@@ -191,6 +191,24 @@ def test_lab_protocol_matches_the_lattice(tmp_path: Path) -> None:
     assert solid["anneal"]["total_hours"] > flat["anneal"]["total_hours"]
 
 
+def test_sim_bundle_says_it_has_not_run(tmp_path: Path) -> None:
+    """A generated bundle must never look like a finished simulation."""
+    result = runner.invoke(
+        app, ["sim", "bundle", "bundle", "--out", str(tmp_path), "--test", "--json"]
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["metadata"]["status"] == "not run"
+    assert payload["trapped_pairs"] > 0
+
+
+def test_sim_bundle_rejects_a_backend_oxdna_does_not_have(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app, ["sim", "bundle", "bundle", "--out", str(tmp_path), "--backend", "Metal", "--json"]
+    )
+    assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters"
+
+
 def test_human_mode_is_not_json() -> None:
     """The two shapes are generated from one structure; neither leaks."""
     result = runner.invoke(app, ["version"])

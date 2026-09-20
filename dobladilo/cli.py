@@ -447,6 +447,59 @@ def lab_protocol(
     emitter.result(sheet, body)
 
 
+sim_app = typer.Typer(help="Simulation job bundles.", no_args_is_help=True)
+app.add_typer(sim_app, name="sim")
+
+
+@sim_app.command("bundle")
+def sim_bundle(
+    part: str = PART_ARGUMENT,
+    out_dir: Path = typer.Option(..., "--out", help="Directory to write the bundle into."),
+    backend: str = typer.Option("CUDA", help="oxDNA backend for the real run: CPU or CUDA."),
+    test_mode: bool = typer.Option(
+        False, "--test", help="Short stages, CPU, to prove the bundle runs end to end."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Write a self-contained oxDNA job bundle. Runs nothing.
+
+    The bundle is generated and checked for structure; executing it is the
+    human's job, on a machine with the backend it asks for. The metadata says
+    so, so nothing downstream can mistake a bundle for a result.
+    """
+    from dobladilo.sim.jobs import write_job_bundle
+
+    emitter = Emitter(as_json)
+    built = _make_part(part, emitter)
+    try:
+        job = write_job_bundle(
+            built.design,
+            directory=out_dir,
+            name=part,
+            part=part,
+            backend=backend,
+            test_mode=test_mode,
+        )
+    except ValueError as e:
+        emitter.fail(str(e), kind="invalid_parameters")
+        return
+
+    meta = job.metadata
+    rows = [
+        ("directory", str(job.directory)),
+        ("nucleotides", f"{job.nucleotides:,}"),
+        ("trapped pairs", f"{job.trapped_pairs:,}"),
+        ("stages", " -> ".join(meta["protocol"]["stages"])),
+        ("backend", "CPU (test mode)" if test_mode else backend),
+        ("salt proxy", f"{meta['model']['salt_concentration_m']} M Na+"),
+        ("status", meta["status"]),
+    ]
+    body = f"{part}: oxDNA job bundle\n" + _table(rows)
+    body += f"\n\n  {meta['owed_by_human']}"
+    body += f"\n\n  Protocol note: {meta['protocol']['deviation_from_design_doc']}"
+    emitter.result(job.as_dict(), body)
+
+
 @app.command()
 def describe(as_json: bool = JSON_OPTION) -> None:
     """Emit the command surface, for an agent to read instead of `--help`.
