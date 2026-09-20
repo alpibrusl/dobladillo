@@ -53,6 +53,38 @@ steps/10, which on a short stage is a torrent. oxDNA aborts above 1 MB/s. The
 bundle now fixes the NUMBER of configurations per stage rather than the
 interval, so the output rate falls as stages lengthen instead of rising.
 
+## Epics
+
+Opened after reading `APPLICATIONS.md` and `HAMILTONIAN.md`. Four, deliberately:
+those documents contain a great deal that is worth doing eventually, and
+`DESIGN.md` §9 warns in its own words that a many-tier plan with no data reads
+as ambition without evidence.
+
+- **#1 the theory pipeline and its synthetic-data gate** — do this first. Pure
+  software, runs here, and it is the gate on tens of thousands of euros of
+  oligos.
+- **#2 the bistable hinge** — the one part three documents converge on, and the
+  first whose prediction is a distribution rather than a shape.
+- **#3 calibrated nanomechanical test objects** — the offer to the AFM partner,
+  and much cheaper than the roadmap assumes now that nanoindent exists.
+- **#4 AFM ingest** — M4's remaining half, with no file readers to write.
+
+Not opened, and why:
+
+- **`APPLICATIONS.md` tiers B and C** (therapeutics, metamaterials, nanopores,
+  lithography, the information ratchet) need partners and instruments that do
+  not exist yet. An epic for each would be a wish list.
+- **`HAMILTONIAN.md` stages 2 to 4** are gated on wet-lab results AND on a
+  molecular biology partner for the ligation chemistry, who the document itself
+  says should be recruited during stage 1. Opening them now would schedule work
+  behind a person who has not been asked.
+- **The nano-FPGA question** (`APPLICATIONS.md` §5) is an answered question, not
+  a task. The answer is no, and the document explains why: there is no signal
+  restoration, so depth cannot cascade.
+- **Ch4, thermophoretic separation** is first on the applications shortlist and
+  genuinely self-serving, but it is a wet-lab technique with almost no software
+  content. Worth doing; not worth an epic here.
+
 ## Known gaps
 
 - Q2's acceptance criterion says the rules must pass on **published reference
