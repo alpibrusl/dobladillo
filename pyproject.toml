@@ -20,6 +20,11 @@ dependencies = [
 design = ["scadnano==0.21.1"]
 # Thermodynamics. The default backend must be fully open source; primer3-py is
 # GPLv2, so it stays optional to keep the core permissively licensed.
+# Thermodynamics. dobladilo.sequence.thermo implements the SantaLucia 1998
+# nearest-neighbour table directly -- published numbers, not anyone's code --
+# so the core needs nothing. primer3-py is GPLv2 and stays optional; it is
+# here as the independent implementation the tests check that table against,
+# which is the only way a single mistranscribed parameter would ever show up.
 thermo = ["primer3-py>=2.0"]
 # The AFM module is meant to be usable on its own, by a lab that has no
 # interest in scadnano or oxDNA. So its dependencies live here rather than in
