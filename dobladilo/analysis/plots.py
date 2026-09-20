@@ -19,9 +19,9 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
-import numpy as np  # noqa: E402
 
 from dobladilo.analysis.observables import principal_extents_nm, rmsf_nm  # noqa: E402
 
