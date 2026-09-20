@@ -50,7 +50,7 @@ def test_rectangle_every_scaffold_base_is_paired_exactly_once(rectangle) -> None
 
 
 def test_rectangle_staple_count_and_lengths_are_pinned(rectangle) -> None:
-    assert rectangle.staple_count == 216
+    assert rectangle.staple_count == 220
     assert set(rectangle.staple_lengths) == {30, 32}
 
 
@@ -102,9 +102,17 @@ def test_rectangle_rejects_geometry_that_would_not_tile() -> None:
         rothemund_rectangle(helices=23)
 
 
+def test_rectangle_rejects_an_odd_number_of_blocks() -> None:
+    """288 tiles as 32-blocks but gives nine of them, and the ninth puts a
+    staple crossover exactly on the scaffold's turn. Caught by the rule
+    checker, so the generator refuses it rather than emitting it again."""
+    with pytest.raises(ValueError, match="odd number of blocks"):
+        rothemund_rectangle(length=288)
+
+
 def test_rectangle_refuses_to_outrun_the_scaffold() -> None:
     with pytest.raises(ValueError, match="scaffold"):
-        rothemund_rectangle(helices=24, length=320)
+        rothemund_rectangle(helices=24, length=384)
 
 
 # --------------------------------------------------------------------- bundle

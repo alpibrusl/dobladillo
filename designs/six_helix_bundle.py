@@ -16,7 +16,7 @@ NAME = "six_helix_bundle"
 
 
 def main(directory: Path) -> int:
-    part = six_helix_bundle(length=1176)
+    part = six_helix_bundle()
     written = ad.write_all(part.design, directory=directory, name=NAME)
     summary = part.as_dict() | {"files": {k: str(v) for k, v in written.items()}}
     print(json.dumps(summary, indent=2))

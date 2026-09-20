@@ -27,6 +27,8 @@ import typer
 
 from dobladilo import __version__
 from dobladilo import _scadnano as ad
+from dobladilo.parts import bundle as _bundle
+from dobladilo.parts import rectangle as _rectangle
 
 app = typer.Typer(help="DNA origami brick toolchain.", no_args_is_help=True)
 build_app = typer.Typer(help="Generate a part and write its files.", no_args_is_help=True)
@@ -190,8 +192,12 @@ def _build(
 
 @build_app.command("rectangle")
 def build_rectangle(
-    helices: int = typer.Option(24, help="Number of helices. Must be even."),
-    length: int = typer.Option(288, help="Bases per helix. Must be a multiple of 32."),
+    helices: int = typer.Option(
+        _rectangle.DEFAULT_HELICES, help="Number of helices. Must be even."
+    ),
+    length: int = typer.Option(
+        _rectangle.DEFAULT_LENGTH, help="Bases per helix. Must be a multiple of 64."
+    ),
     scaffold: str = typer.Option("p7249", help="M13 variant."),
     twist_corrected: bool = typer.Option(True, help="Delete one base every 64 to cancel twist."),
     out_dir: Path | None = OUT_OPTION,
@@ -218,7 +224,9 @@ def build_rectangle(
 
 @build_app.command("bundle")
 def build_bundle(
-    length: int = typer.Option(1176, help="Bases per helix. Must be a multiple of 42."),
+    length: int = typer.Option(
+        _bundle.DEFAULT_LENGTH, help="Bases per helix. Must be a multiple of 42."
+    ),
     scaffold: str = typer.Option("p7249", help="M13 variant."),
     out_dir: Path | None = OUT_OPTION,
     name: str = typer.Option("bundle", help="Base name for the written files."),
@@ -235,6 +243,85 @@ def build_bundle(
         emitter.fail(str(e), kind="invalid_parameters")
         return
     _build(out=emitter, part=part, directory=out_dir, name=name, verify=verify)
+
+
+LIMIT_OPTION = typer.Option(20, "--limit", help="Most findings to list. 0 for all.")
+ONLY_OPTION = typer.Option(None, "--rule", help="Run only this rule. Repeatable.")
+
+
+@app.command()
+def rules(as_json: bool = JSON_OPTION) -> None:
+    """List the design rules, and what is knowingly not checked."""
+    from dobladilo.routing.rules import RULES, UNIMPLEMENTED
+
+    out = Emitter(as_json)
+    out.result(
+        {
+            "rules": [{"name": r.name, "summary": r.summary} for r in RULES],
+            "not_checked": [{"rule": n, "why": w} for n, w in UNIMPLEMENTED],
+        },
+        "Rules:\n"
+        + _table([(r.name, r.summary) for r in RULES])
+        + "\n\nNot checked:\n"
+        + _table([(n, w) for n, w in UNIMPLEMENTED]),
+    )
+
+
+@app.command()
+def lint(
+    design_file: Path = typer.Argument(..., help="A .sc design file."),
+    only: list[str] | None = ONLY_OPTION,
+    limit: int = LIMIT_OPTION,
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Check a design against the rules. Exits non-zero on a hard violation.
+
+    Warnings never change the exit code: they are preferences that published
+    designs break routinely, and a lint that fails on them would just be
+    switched off.
+    """
+    from dobladilo.routing.rules import lint as run_lint
+
+    out = Emitter(as_json)
+    if not design_file.is_file():
+        out.fail(f"no such file: {design_file}", kind="missing_file", code=2)
+        return
+    try:
+        design = ad.read_design(design_file)
+    except Exception as e:  # scadnano raises several unrelated types
+        out.fail(f"could not read {design_file}: {e}", kind="unreadable_design", code=2)
+        return
+
+    try:
+        report = run_lint(design, only=only or None)
+    except ValueError as e:
+        out.fail(str(e), kind="unknown_rule")
+        return
+
+    payload = report.as_dict(limit=None if limit == 0 else limit)
+    payload["design"] = str(design_file)
+
+    counts = payload["counts"]
+    head = (
+        f"{design_file}: {counts['violations']} violations, {counts['warnings']} warnings"
+        if report.violations
+        else f"{design_file}: clean"
+    )
+    lines = [head]
+    if payload["by_rule"]:
+        lines.append(_table([(k, str(v)) for k, v in payload["by_rule"].items()]))
+    for finding in payload["findings"]:
+        where = f"helix {finding['helix']} offset {finding['offset']}"
+        lines.append(
+            f"  {finding['severity']:9s} {finding['rule']:20s} {finding['message']} [{where}]"
+        )
+    if payload["truncated"]:
+        lines.append("  ... more not shown; raise --limit (0 for all)")
+    lines.append("  not checked: " + ", ".join(e["rule"] for e in payload["not_checked"]))
+    out.result(payload, "\n".join(lines))
+
+    if not report.ok:
+        raise typer.Exit(1)
 
 
 @app.command()

@@ -24,6 +24,8 @@ uv sync --extra dev --extra design
 uv run dobladilo build rectangle --out build/rect --verify
 uv run dobladilo build bundle --length 1176 --out build/6hb
 uv run dobladilo geometry            # where our constants and scadnano's differ
+uv run dobladilo lint build/rect/rect.sc
+uv run dobladilo rules               # what is checked, and what knowingly is not
 ```
 
 ### For agents

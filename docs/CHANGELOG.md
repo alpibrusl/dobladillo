@@ -16,3 +16,6 @@
   scripts; exports to scadnano, cadnano v2 and oxView.
 - CLI with a `--json` mode and a `describe` command, so an agent can discover
   and call it without scraping `--help`.
+- Q2 complete. Six composable design-rule checks with structured findings,
+  `dobladilo lint` and `dobladilo rules`. Running them found a real defect in
+  the rectangle, now fixed.

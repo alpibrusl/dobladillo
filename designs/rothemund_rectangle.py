@@ -1,4 +1,4 @@
-"""The reference rectangle: 24 helices, square lattice, twist-corrected.
+"""The reference rectangle: 22 helices, square lattice, twist-corrected.
 
 One script per design, deterministic, per DESIGN.md section 6. Run it and the
 same files come out every time; nothing here is hand-edited afterwards.
@@ -19,7 +19,7 @@ NAME = "rothemund_rectangle"
 
 
 def main(directory: Path) -> int:
-    part = rothemund_rectangle(helices=24, length=288, twist_corrected=True)
+    part = rothemund_rectangle(twist_corrected=True)
     written = ad.write_all(part.design, directory=directory, name=NAME)
     summary = part.as_dict() | {"files": {k: str(v) for k, v in written.items()}}
     print(json.dumps(summary, indent=2))

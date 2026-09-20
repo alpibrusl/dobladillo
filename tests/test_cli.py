@@ -48,6 +48,7 @@ def test_unknown_command_is_an_error() -> None:
         ["describe"],
         ["build", "bundle"],
         ["build", "rectangle"],
+        ["rules"],
     ],
 )
 def test_json_mode_emits_exactly_one_object(argv: list[str]) -> None:
@@ -102,6 +103,65 @@ def test_build_writes_the_three_export_formats(tmp_path: Path) -> None:
 def test_verify_reports_the_cadnano_roundtrip() -> None:
     result = runner.invoke(app, ["build", "bundle", "--verify", "--json"])
     assert json.loads(result.stdout)["cadnano_v2_roundtrip"] is True
+
+
+def test_lint_passes_a_clean_design_and_exits_zero(tmp_path: Path) -> None:
+    runner.invoke(app, ["build", "bundle", "--out", str(tmp_path), "--name", "b"])
+    result = runner.invoke(app, ["lint", str(tmp_path / "b.sc"), "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["counts"]["violations"] == 0
+
+
+def test_lint_does_not_fail_on_warnings_alone(tmp_path: Path) -> None:
+    """Warnings are preferences. A lint that failed on them would be turned off."""
+    runner.invoke(app, ["build", "rectangle", "--out", str(tmp_path), "--name", "r"])
+    result = runner.invoke(app, ["lint", str(tmp_path / "r.sc"), "--json"])
+    payload = json.loads(result.stdout)
+    assert payload["counts"]["warnings"] > 0
+    assert result.exit_code == 0
+
+
+def test_lint_reports_what_it_did_not_check(tmp_path: Path) -> None:
+    runner.invoke(app, ["build", "bundle", "--out", str(tmp_path), "--name", "b"])
+    payload = json.loads(runner.invoke(app, ["lint", str(tmp_path / "b.sc"), "--json"]).stdout)
+    assert payload["not_checked"]
+
+
+def test_lint_on_a_missing_file_is_a_clean_error() -> None:
+    result = runner.invoke(app, ["lint", "nowhere.sc", "--json"])
+    assert result.exit_code == 2
+    assert json.loads(result.stdout)["error"]["kind"] == "missing_file"
+
+
+def test_lint_rejects_an_unknown_rule(tmp_path: Path) -> None:
+    runner.invoke(app, ["build", "bundle", "--out", str(tmp_path), "--name", "b"])
+    result = runner.invoke(
+        app, ["lint", str(tmp_path / "b.sc"), "--rule", "nope", "--json"]
+    )
+    assert json.loads(result.stdout)["error"]["kind"] == "unknown_rule"
+
+
+def test_rules_command_lists_every_rule() -> None:
+    from dobladilo.routing.rules import RULES
+
+    payload = json.loads(runner.invoke(app, ["rules", "--json"]).stdout)
+    assert {r["name"] for r in payload["rules"]} == {r.name for r in RULES}
+
+
+def test_cli_defaults_match_the_generators() -> None:
+    """The CLI must not restate a default. It did once, and went stale."""
+    from dobladilo.parts import bundle, rectangle
+
+    payload = json.loads(runner.invoke(app, ["describe", "--json"]).stdout)
+    rect = next(c for c in payload["commands"] if c["command"] == "build rectangle")
+    options = {o["name"]: o["default"] for o in rect["options"]}
+    assert options["helices"] == rectangle.DEFAULT_HELICES
+    assert options["length"] == rectangle.DEFAULT_LENGTH
+
+    bund = next(c for c in payload["commands"] if c["command"] == "build bundle")
+    assert {o["name"]: o["default"] for o in bund["options"]}["length"] == bundle.DEFAULT_LENGTH
 
 
 def test_human_mode_is_not_json() -> None:

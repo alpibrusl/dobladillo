@@ -17,6 +17,16 @@ the helices are stitched to both neighbours rather than falling apart into
 independent two-helix ribbons. The outermost helices are left uncovered on
 alternate blocks, and take a single 32 nt edge staple there.
 
+Why the length must be a multiple of 64, not just 32. The scaffold turns at the
+far end of the raster, and it turns there for the even-numbered helix pairs
+(0,1), (2,3) and so on. If the number of staple blocks is odd, the last block
+is an even one, so those same pairs also carry a staple crossover at that exact
+offset -- zero clearance from the scaffold turn, against a rule that asks for
+five bases. With an even number of blocks the last block belongs to the odd
+pairs, whose scaffold turns are at the opposite end, and the collision cannot
+happen. This was found by the rule checker on the first version of this file,
+not by reasoning ahead.
+
 Twist correction. The square lattice puts crossovers every 8 bp and calls 32 bp
 three turns, which implies 10.67 bp/turn against B-DNA's relaxed 10.5, so the
 object acquires a right-handed global twist. Deleting one base every 64 fixes
@@ -42,6 +52,12 @@ DOMAIN_NT = 16
 
 #: A block is one full pairing cycle: two staples deep on each pair.
 BLOCK_NT = 2 * DOMAIN_NT
+
+#: Defaults, defined here rather than restated in the CLI. Stating them twice
+#: is how the CLI ended up offering a length the generator had just started
+#: rejecting.
+DEFAULT_HELICES = 22
+DEFAULT_LENGTH = 320
 
 
 @dataclass(frozen=True)
@@ -161,23 +177,27 @@ def _add_twist_correction(design: sc.Design, *, helices: int, length: int) -> in
 
 def rothemund_rectangle(
     *,
-    helices: int = 24,
-    length: int = 288,
+    helices: int = DEFAULT_HELICES,
+    length: int = DEFAULT_LENGTH,
     scaffold_variant: str = "p7249",
     scaffold_rotation: int = 5587,
     twist_corrected: bool = True,
 ) -> Rectangle:
     """Build the rectangle.
 
-    Defaults route 6912 of M13mp18's 7249 bases; the remainder folds as an
+    Defaults route 7040 of M13mp18's 7249 bases; the remainder folds as an
     unpaired loop and is reported rather than quietly dropped.
 
-    `length` must be a multiple of 32 so the staple blocks tile exactly, and
-    `helices` must be even so the alternating pairing has no odd helix left
-    over on every block.
+    `length` must be a multiple of 64: of 32 so the staple blocks tile exactly,
+    and of 64 so there is an even number of them, which is what keeps a staple
+    crossover off the scaffold's turn at the far end. `helices` must be even so
+    the alternating pairing has no odd helix left over on every block.
     """
-    if length % BLOCK_NT:
-        raise ValueError(f"length must be a multiple of {BLOCK_NT}, got {length}")
+    if length % (2 * BLOCK_NT):
+        raise ValueError(
+            f"length must be a multiple of {2 * BLOCK_NT}, got {length}; an odd number "
+            "of blocks puts a staple crossover on the scaffold turn at the far end"
+        )
     if helices % 2:
         raise ValueError(f"helices must be even, got {helices}")
 

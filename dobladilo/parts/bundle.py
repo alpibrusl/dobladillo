@@ -52,6 +52,9 @@ DOMAIN_NT = 3 * Lattice.HONEYCOMB_CROSSOVER_BP  # 21
 #: One full pairing cycle.
 BLOCK_NT = 2 * DOMAIN_NT  # 42
 
+#: Default, defined here rather than restated in the CLI.
+DEFAULT_LENGTH = 1176
+
 
 @dataclass(frozen=True)
 class Bundle:
@@ -130,7 +133,7 @@ def _add_staples(design: sc.Design, *, length: int) -> None:
 
 def six_helix_bundle(
     *,
-    length: int = 1176,
+    length: int = DEFAULT_LENGTH,
     scaffold_variant: str = "p7249",
     scaffold_rotation: int = 5587,
 ) -> Bundle:

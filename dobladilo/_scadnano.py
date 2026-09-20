@@ -137,6 +137,11 @@ def count_deletions(design: sc.Design) -> int:
     )
 
 
+def read_design(path: Path) -> sc.Design:
+    """Load a design written by scadnano, or by us."""
+    return sc.Design.from_scadnano_file(str(path))
+
+
 def write_all(design: sc.Design, *, directory: Path, name: str) -> dict[str, Path]:
     """Write every format Q1 needs, and say where each went.
 
