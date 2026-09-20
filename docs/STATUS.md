@@ -4,8 +4,8 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 
 | Item | State | Notes |
 |---|---|---|
-| Q1 project skeleton + scadnano round trip | in progress | skeleton, constants, CI done; scadnano round trip not started |
-| Q2 design-rule validator | todo | thresholds already in `constants.py` |
+| Q1 project skeleton + scadnano round trip | done | both parts build, export to cadnano v2 and round-trip; accounting exact; counts pinned |
+| Q2 design-rule validator | next | thresholds already in `constants.py`; `dobladilo lint` is the CLI surface |
 | Q3 lab outputs | todo | |
 | Q4 oxDNA job bundle | todo | carries a human gate: GPU run |
 | Q5 baseline analysis | todo | needs Q4's trajectories |

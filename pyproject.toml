@@ -33,9 +33,21 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.flake8-bugbear]
+# typer declares CLI options as call results in argument defaults. That is the
+# library's interface, not the mutable-default bug B008 is looking for.
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+[[tool.mypy.overrides]]
+# scadnano ships no py.typed marker, so everything crossing that boundary is
+# Any. The adapter converts at the edge rather than letting it spread; this
+# only stops mypy complaining that the import itself is untyped.
+module = "scadnano.*"
+ignore_missing_imports = true

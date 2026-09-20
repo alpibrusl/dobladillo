@@ -11,3 +11,8 @@
 - Design document transcribed as `docs/DESIGN.md`. Its collaborator section is
   omitted: that is strategy and personal information. Published work stays
   cited normally, including papers by people named there.
+- Q1 complete. `_scadnano.py` adapter; `parts.rectangle` (square lattice,
+  twist-corrected) and `parts.bundle` (honeycomb six-helix ring); design
+  scripts; exports to scadnano, cadnano v2 and oxView.
+- CLI with a `--json` mode and a `describe` command, so an agent can discover
+  and call it without scraping `--help`.

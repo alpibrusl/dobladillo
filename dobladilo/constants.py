@@ -16,6 +16,14 @@ from typing import Final
 # ---------------------------------------------------------------- geometry
 
 #: Rise per base pair in B-DNA, nm.
+#:
+#: scadnano's own Geometry uses 0.332. Both are defensible B-DNA values, but
+#: they differ by 2.4%, which propagates straight into any predicted dimension.
+#: The rule is: anything compared against a scadnano- or oxDNA-derived number
+#: uses THEIR value, read from the library at run time (see `_scadnano.GEOMETRY`
+#: and `Rectangle.dimensions_nm`); this constant is the literature figure the
+#: design document quotes. A test pins the gap so that a change on either side
+#: is noticed rather than absorbed.
 RISE_PER_BP_NM: Final = 0.34
 
 #: Helical repeat of relaxed B-DNA, bp per turn.
@@ -55,13 +63,30 @@ class Lattice:
 #: Effective helical repeat imposed by the square lattice's crossover period.
 SQUARE_LATTICE_EFFECTIVE_REPEAT_BP: Final = Lattice.SQUARE_PERIOD_BP / 3.0
 
+#: Delete one base every this many, to cancel the square lattice's overwinding.
+#:
+#: Derivation. The lattice calls a 64-base span 6 turns (32 bp = 3 turns). Left
+#: alone, 64 bases of relaxed B-DNA want 64/10.5 = 6.095 turns, and that excess
+#: is the global right-handed twist. Remove one base and 63/10.5 = 6.000 turns
+#: exactly, which is what the lattice demands. 64 is the shortest period where
+#: a whole-base deletion lands exactly; 32 would overshoot (31/10.5 = 2.952
+#: against 3).
+#:
+#: Caveat, flagged rather than resolved: published square-lattice designs also
+#: use a 48-base period, which does NOT cancel exactly (47/10.5 = 4.476 against
+#: the lattice's 4.5). Whether the residual matters is an empirical question
+#: this project is meant to answer, not assume.
+SQUARE_TWIST_CORRECTION_PERIOD_BP: Final = 64
+
 # --------------------------------------------------------------- scaffolds
 
 #: Scaffold lengths in nt. Sequences live in dobladilo/data/scaffolds/.
+#: Cross-checked against scadnano's own M13 variants at test time.
 SCAFFOLD_LENGTHS_NT: Final = {
-    "M13mp18": 7249,
+    "p7249": 7249,  # M13mp18
     "p7560": 7560,
     "p8064": 8064,
+    "p8634": 8634,
 }
 
 # ------------------------------------------------------------- staple rules
