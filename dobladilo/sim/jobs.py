@@ -45,6 +45,24 @@ TRAP_R0 = 1.2
 #: Folding and imaging happen near room temperature; production runs there.
 DEFAULT_TEMPERATURE = "20C"
 
+#: Configurations to write per stage. A configuration of a 14k-nucleotide
+#: structure is about 4 MB, and oxDNA aborts a run that sustains more than
+#: 1 MB/s of output. Printing "every steps/10" tripped that guard on the short
+#: test stages: ten snapshots of a fast-running stage is a torrent. Keeping the
+#: COUNT fixed rather than the interval makes the output rate fall as stages
+#: get longer, which is the right way round.
+CONFIGURATIONS_PER_STAGE = 4
+
+#: Energy lines are a few dozen bytes, so they can be frequent enough to plot.
+ENERGY_POINTS_PER_STAGE = 100
+
+#: Trapped MD steps needed before production will accept the structure.
+#: Measured, not chosen: at 1000 steps production refuses the six-helix bundle
+#: with "Distance between bonded neighbors ... exceeds acceptable values", and
+#: at 20000 that error is gone. The real run uses far more; this is the floor
+#: below which a bundle cannot even start its production stage.
+MIN_RELAX_STEPS = 20_000
+
 
 @dataclass(frozen=True)
 class Stage:
@@ -90,6 +108,11 @@ def mutual_traps(design: sc.Design) -> tuple[str, int]:
     return "\n".join(blocks), pairs
 
 
+def _interval(steps: int, points: int) -> int:
+    """How often to print so that roughly `points` are written in `steps`."""
+    return max(1, steps // max(1, points))
+
+
 def _common(
     *, name: str, conf_in: str, conf_out: str, trajectory: str, salt_m: float, temperature: str
 ) -> dict[str, Any]:
@@ -120,7 +143,6 @@ def stages(
     salt_m: float,
     temperature: str,
     backend: str,
-    print_every: int,
 ) -> list[Stage]:
     """The four stages, in the order they must run."""
     return [
@@ -136,8 +158,8 @@ def stages(
                 "max_backbone_force": MAX_BACKBONE_FORCE,
                 "max_backbone_force_far": MAX_BACKBONE_FORCE_FAR,
                 "external_forces": 0,
-                "print_conf_interval": max(1, steps_mc // 10),
-                "print_energy_every": max(1, steps_mc // 10),
+                "print_conf_interval": _interval(steps_mc, CONFIGURATIONS_PER_STAGE),
+                "print_energy_every": _interval(steps_mc, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,
                     conf_in=f"{name}.dat",
@@ -166,8 +188,8 @@ def stages(
                 "external_forces": 1,
                 "external_forces_file": "traps.txt",
                 "refresh_vel": 1,
-                "print_conf_interval": max(1, steps_relax // 10),
-                "print_energy_every": max(1, steps_relax // 10),
+                "print_conf_interval": _interval(steps_relax, CONFIGURATIONS_PER_STAGE),
+                "print_energy_every": _interval(steps_relax, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,
                     conf_in="conf_01_mc.dat",
@@ -194,8 +216,8 @@ def stages(
                 "max_backbone_force_far": MAX_BACKBONE_FORCE_FAR,
                 "external_forces": 0,
                 "refresh_vel": 1,
-                "print_conf_interval": max(1, steps_relax // 10),
-                "print_energy_every": max(1, steps_relax // 10),
+                "print_conf_interval": _interval(steps_relax, CONFIGURATIONS_PER_STAGE),
+                "print_energy_every": _interval(steps_relax, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,
                     conf_in="conf_02_md_trapped.dat",
@@ -220,8 +242,8 @@ def stages(
                 "steps": steps_production,
                 "external_forces": 0,
                 "refresh_vel": 1,
-                "print_conf_interval": max(1, steps_production // 100),
-                "print_energy_every": max(1, steps_production // 1000),
+                "print_conf_interval": _interval(steps_production, CONFIGURATIONS_PER_STAGE),
+                "print_energy_every": _interval(steps_production, ENERGY_POINTS_PER_STAGE),
                 **_common(
                     name=name,
                     conf_in="conf_03_md_released.dat",
@@ -305,19 +327,20 @@ def write_job_bundle(
     traps.write_text(traps_text)
     files["traps"] = traps
 
+    # Test mode is short everywhere EXCEPT the trapped relaxation, which has a
+    # measured floor: below it production refuses to start at all, so a
+    # "shorter" test would only ever prove that it fails.
     steps = (
-        {"steps_mc": 100, "steps_relax": 1000, "steps_production": 1000}
+        {"steps_mc": 1000, "steps_relax": MIN_RELAX_STEPS, "steps_production": 2000}
         if test_mode
         else {"steps_mc": 1000, "steps_relax": 1_000_000, "steps_production": 100_000_000}
     )
-    print_every = 10 if test_mode else 10_000
 
     for stage in stages(
         name=name,
         salt_m=salt_m,
         temperature=temperature,
         backend="CPU" if test_mode else backend,
-        print_every=print_every,
         **steps,
     ):
         path = directory / f"input_{stage.name}"

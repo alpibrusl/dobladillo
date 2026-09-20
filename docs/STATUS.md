@@ -38,10 +38,16 @@ That is oxDNA behaving correctly, not a malformed bundle. Stages 1 to 3 carry
 carries none, so it refuses to start on a structure the short test-mode
 relaxation has not finished relaxing. The lesson is worth keeping: **the
 documented relaxation is not a formality, and how much of it a structure needs
-is measurable rather than assumable.** How many steps are actually required is
-being measured; until that number is known, test mode should be understood as
-proving the bundle is well formed, which it does, and not as proving the
-protocol is long enough.
+is measurable rather than assumable.** How many steps are actually required was then measured: at 1000 trapped MD
+steps production refuses, at **20000** that error is gone. Test mode now uses
+that floor, since a shorter test would only ever prove that production fails.
+
+Raising it surfaced a second, unrelated defect. Production then died with
+"Aborting because the program is generating too much data (1.47 MB/s)": a
+configuration of this structure is about 4 MB and the stages printed one every
+steps/10, which on a short stage is a torrent. oxDNA aborts above 1 MB/s. The
+bundle now fixes the NUMBER of configurations per stage rather than the
+interval, so the output rate falls as stages lengthen instead of rising.
 
 ## Known gaps
 

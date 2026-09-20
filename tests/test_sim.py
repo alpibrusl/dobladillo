@@ -18,7 +18,12 @@ import pytest
 from dobladilo import _scadnano as ad
 from dobladilo.parts.bundle import six_helix_bundle
 from dobladilo.parts.rectangle import rothemund_rectangle
-from dobladilo.sim.jobs import mutual_traps, write_job_bundle
+from dobladilo.sim.jobs import (
+    CONFIGURATIONS_PER_STAGE,
+    MIN_RELAX_STEPS,
+    mutual_traps,
+    write_job_bundle,
+)
 
 COMPLEMENT = {"A": "T", "T": "A", "G": "C", "C": "G"}
 
@@ -150,6 +155,35 @@ def test_every_stage_records_the_salt(bundle) -> None:
         text = (bundle.directory / f"input_{stage}").read_text()
         assert "salt_concentration = 0.5" in text
         assert "interaction_type = DNA2" in text
+
+
+def test_each_stage_writes_a_bounded_number_of_configurations(bundle) -> None:
+    """oxDNA aborts a run that sustains more than 1 MB/s of output.
+
+    A configuration of this structure is about 4 MB, so an interval fixed as a
+    fraction of the step count turns a short stage into a torrent: the first
+    version printed every steps/10 and production died with "generating too
+    much data" -- an abort that says nothing about the physics and costs a run.
+    Fixing the COUNT instead makes the rate fall as stages lengthen.
+    """
+    for stage in ("01_mc", "02_md_trapped", "03_md_released", "04_production"):
+        text = (bundle.directory / f"input_{stage}").read_text()
+        steps = int(re.search(r"^steps = (\d+)$", text, re.M).group(1))
+        interval = int(re.search(r"^print_conf_interval = (\d+)$", text, re.M).group(1))
+        assert steps // interval <= CONFIGURATIONS_PER_STAGE
+
+
+def test_test_mode_keeps_the_measured_relaxation_floor(bundle) -> None:
+    """Below this, production refuses to start, so a shorter test would only
+    ever prove that it fails.
+
+    Measured on this structure: at 1000 trapped steps oxDNA stops production
+    with "Distance between bonded neighbors ... exceeds acceptable values"; at
+    20000 that error is gone.
+    """
+    trapped = (bundle.directory / "input_02_md_trapped").read_text()
+    steps = int(re.search(r"^steps = (\d+)$", trapped, re.M).group(1))
+    assert steps >= MIN_RELAX_STEPS
 
 
 def test_metadata_says_the_simulation_has_not_run(bundle) -> None:
