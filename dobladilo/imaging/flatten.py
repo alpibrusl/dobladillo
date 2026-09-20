@@ -34,7 +34,8 @@ def _plane_fit(heights: np.ndarray, mask: np.ndarray) -> np.ndarray:
     yy, xx = np.mgrid[0:rows, 0:cols]
     design = np.column_stack([xx[mask].ravel(), yy[mask].ravel(), np.ones(int(mask.sum()))])
     coefficients, *_ = np.linalg.lstsq(design, heights[mask].ravel(), rcond=None)
-    return coefficients[0] * xx + coefficients[1] * yy + coefficients[2]
+    plane: np.ndarray = coefficients[0] * xx + coefficients[1] * yy + coefficients[2]
+    return plane
 
 
 def _line_level(heights: np.ndarray, mask: np.ndarray) -> np.ndarray:

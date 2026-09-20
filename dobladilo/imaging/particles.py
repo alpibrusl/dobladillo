@@ -77,7 +77,7 @@ def _interior(pixels: np.ndarray) -> np.ndarray:
     from scipy import ndimage
 
     for erosions in (3, 2, 1):
-        eroded = ndimage.binary_erosion(pixels, iterations=erosions)
+        eroded: np.ndarray = ndimage.binary_erosion(pixels, iterations=erosions)
         if eroded.sum() >= 10:
             return eroded
     return pixels
