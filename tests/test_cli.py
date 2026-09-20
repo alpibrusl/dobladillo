@@ -209,6 +209,46 @@ def test_sim_bundle_rejects_a_backend_oxdna_does_not_have(tmp_path: Path) -> Non
     assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters"
 
 
+def test_build_pair_writes_both_arms(tmp_path: Path) -> None:
+    """One command, because the arms are only evidence together: building them
+    separately invites building them at different times from different
+    parameters, which is what the experiment must not do."""
+    result = runner.invoke(app, ["build", "pair", "--out", str(tmp_path), "--json"])
+    assert result.exit_code == 0
+    arms = json.loads(result.stdout)["arms"]
+    assert set(arms) == {"corrected", "uncorrected"}
+    for arm in arms.values():
+        assert set(arm["files"]) == {"scadnano", "cadnano_v2", "oxview"}
+
+
+def test_the_skill_file_lists_every_command() -> None:
+    """Generated from the live surface, so it cannot drift from what the tool
+    accepts. A hand-written list is stale the day a command is added."""
+    skill = runner.invoke(app, ["skill"]).stdout
+    listed = json.loads(runner.invoke(app, ["describe", "--json"]).stdout)["commands"]
+    for command in listed:
+        if command["command"] in ("describe", "version", "skill"):
+            continue
+        assert f"`dobladilo {command['command']}`" in skill, command["command"]
+
+
+def test_the_skill_carries_the_working_rules() -> None:
+    """A command list alone would let an agent produce numbers from a bundle
+    that was never run."""
+    skill = runner.invoke(app, ["skill"]).stdout
+    assert skill.startswith("---\nname: dobladilo")
+    assert "Never present a generated artefact as a result" in skill
+    assert "--allow-test-mode" in skill
+
+
+def test_every_part_name_the_cli_accepts_actually_builds() -> None:
+    """lab order and sim bundle take a part name; a name one accepts and the
+    other does not is the kind of gap nobody notices until it fails."""
+    for part in ("rectangle", "bundle", "twist-corrected", "twist-uncorrected"):
+        result = runner.invoke(app, ["lab", "order", part, "--json"])
+        assert result.exit_code == 0, part
+
+
 def test_human_mode_is_not_json() -> None:
     """The two shapes are generated from one structure; neither leaks."""
     result = runner.invoke(app, ["version"])

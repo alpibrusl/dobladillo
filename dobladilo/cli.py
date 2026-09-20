@@ -598,6 +598,50 @@ def analyse_run(
     emitter.result(payload, body)
 
 
+@build_app.command("pair")
+def build_pair(
+    out_dir: Path | None = OUT_OPTION,
+    verify: bool = typer.Option(False, help="Also check the cadnano v2 round trip."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Both arms of the twist pair, written side by side.
+
+    One command rather than two, because the arms are only evidence together:
+    building them separately invites building them at different times, from
+    different parameters, which is exactly what the experiment must not do.
+    """
+    from dobladilo.parts.twist_pair import twist_pair
+
+    emitter = Emitter(as_json)
+    pair = twist_pair()
+    payload: dict[str, Any] = pair.as_dict()
+
+    for name, arm in (("corrected", pair.corrected), ("uncorrected", pair.uncorrected)):
+        if verify:
+            payload["arms"][name]["cadnano_v2_roundtrip"] = ad.roundtrips_through_cadnano_v2(
+                arm.design
+            )
+        if out_dir is not None:
+            written = ad.write_all(arm.design, directory=out_dir / name, name=name)
+            payload["arms"][name]["files"] = {k: str(v) for k, v in written.items()}
+
+    geometry = payload["geometry"]
+    rows = [
+        ("geometry", f"{geometry['helices']} helices x {geometry['length_bp']} bp"),
+        ("differs only in", payload["differs_only_in"]),
+        (
+            "predicted twist",
+            f"{payload['predicted_twist_of_uncorrected_deg']:.0f} deg, uncorrected arm",
+        ),
+    ]
+    for name in ("corrected", "uncorrected"):
+        arm_info = payload["arms"][name]
+        rows.append((name, f"{arm_info['staples']} staples, {arm_info['deletions']} deletions"))
+        for key, value in arm_info.get("files", {}).items():
+            rows.append((f"  {name} {key}", value))
+    emitter.result(payload, "twist pair\n" + _table(rows))
+
+
 @app.command("twist-pair")
 def twist_pair_command(as_json: bool = JSON_OPTION) -> None:
     """The matched pair that tests whether the twist correction does anything."""
@@ -696,6 +740,94 @@ def describe(as_json: bool = JSON_OPTION) -> None:
     }
     human = "Commands:\n" + _table([(c["command"], c["summary"]) for c in commands])
     out.result(payload, human)
+
+
+SKILL_DISCIPLINE = """\
+## Working rules
+
+These matter more than the command list. The toolchain is built so that a
+mistake here is refused rather than absorbed, but an agent that fights the
+refusals can still produce nonsense.
+
+1. **Never present a generated artefact as a result.** A job bundle is not a
+   simulation; an order file is not a folded sample. Every bundle's metadata
+   says `status: not run`, and `analyse` refuses a run that has not passed
+   `sim check`. Do not pass `--allow-test-mode` to get a number.
+2. **Every command takes `--json`.** Use it. stdout is then exactly one JSON
+   object, failures included, with a stable `error.kind` and a non-zero exit.
+3. **Conditions travel with numbers.** oxDNA2 has no explicit magnesium, so a
+   prediction made at one proxy salt is not comparable to one made at another,
+   nor directly to a measurement in a magnesium buffer. Never join two
+   observables without checking their conditions.
+4. **Respect the human gates.** Simulation runs on a machine with CUDA;
+   folding and imaging happen in a lab. If `data/` lacks what a task needs,
+   produce the bundle or request sheet and stop with a clear note of what is
+   owed.
+5. **Physical constants live in `dobladilo/constants.py`**, each with its
+   source. Do not inline a number; if one is wrong, change it there.
+6. **Run `dobladilo lint` before anything expensive.** Hard violations block
+   ordering and simulating for a reason: both cost money or days.
+"""
+
+
+def _skill_markdown() -> str:
+    """The skill file, generated from the live command surface.
+
+    Generated rather than written so it cannot drift from what the tool
+    actually accepts -- the same reason `describe` walks the app.
+    """
+    cli = typer.main.get_command(app)
+    lines: list[str] = []
+
+    def walk(group: Any, prefix: list[str]) -> None:
+        for name, cmd in sorted(group.commands.items()):
+            path = [*prefix, name]
+            if hasattr(cmd, "commands"):
+                walk(cmd, path)
+                continue
+            help_text = (cmd.help or "").strip()
+            summary = help_text.splitlines()[0] if help_text else ""
+            lines.append(f"- `dobladilo {' '.join(path)}` — {summary}")
+
+    walk(cli, [])
+    commands = "\n".join(lines)
+    return f"""---
+name: dobladilo
+description: "Design, simulate and order DNA origami bricks. Commands: build, \
+lint, lab, sim, analyse…"
+---
+
+# dobladilo
+
+> Auto-generated skill file for dobladilo v{__version__}
+> Re-generate with: `dobladilo skill > SKILL.md`
+
+A scriptable toolchain for DNA origami bricks: design a structure, check it
+against the design rules, produce what the lab needs to order and fold it,
+bundle an oxDNA job, and turn a finished run into observables that have
+experimental counterparts.
+
+## Available commands
+
+{commands}
+
+Every command accepts `--json`. Start with `dobladilo describe --json`, which
+emits the whole surface with options, types and defaults.
+
+{SKILL_DISCIPLINE}
+## Where things are
+
+- `docs/DESIGN.md` — the design document: what this is for and why.
+- `docs/STATUS.md` — roadmap state and known gaps.
+- `docs/PIPELINE.md` — how design, simulation, assembly, imaging and analysis fit.
+- `AGENTS.md` — the same working rules, in the repository.
+"""
+
+
+@app.command("skill")
+def skill() -> None:
+    """Print a SKILL.md for this tool, generated from its own commands."""
+    typer.echo(_skill_markdown(), nl=False)
 
 
 if __name__ == "__main__":

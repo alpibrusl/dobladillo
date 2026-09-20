@@ -21,14 +21,19 @@ uv sync --extra dev --extra design
 ## Use
 
 ```bash
-uv run dobladilo build rectangle --out build/rect --verify
-uv run dobladilo build bundle --length 1176 --out build/6hb
-uv run dobladilo geometry            # where our constants and scadnano's differ
-uv run dobladilo lint build/rect/rect.sc
-uv run dobladilo rules               # what is checked, and what knowingly is not
-uv run dobladilo lab order rectangle --out build/order
-uv run dobladilo lab protocol rectangle
-uv run dobladilo sim bundle bundle --out build/sim --test
+uv run dobladilo analyse                    # turn a finished run into observables with experimental counterparts
+uv run dobladilo build bundle               # a six-helix bundle on the honeycomb lattice
+uv run dobladilo build pair                 # both arms of the twist pair, written side by side
+uv run dobladilo build rectangle            # a rothemund-style rectangle on the square lattice
+uv run dobladilo geometry                   # show the geometry constants, and where this project disagrees
+uv run dobladilo lab order                  # plates, pooling map and cost for ordering a part's staples
+uv run dobladilo lab protocol               # the folding protocol sheet, with the magnesium screen laid out
+uv run dobladilo lint                       # check a design against the rules. exits non-zero on a hard violation
+uv run dobladilo rules                      # list the design rules, and what is knowingly not checked
+uv run dobladilo scaffolds                  # list the scaffold strands available, asked of scadnano directly
+uv run dobladilo sim bundle                 # write a self-contained oxdna job bundle. runs nothing
+uv run dobladilo sim check                  # is this run something whose numbers mean anything? exits non-zero if not
+uv run dobladilo twist-pair                 # the matched pair that tests whether the twist correction does anything
 ```
 
 ### For agents
@@ -45,6 +50,13 @@ cannot fall out of date with what the tool actually accepts.
 ```bash
 uv run dobladilo describe --json
 uv run dobladilo build bundle --json | jq .scaffold
+```
+
+There is also a skill file, generated from the command surface so it cannot
+drift from what the tool accepts:
+
+```bash
+uv run dobladilo skill > ~/.claude/skills/dobladilo/SKILL.md
 ```
 
 ## Principles
