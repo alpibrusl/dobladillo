@@ -28,6 +28,7 @@ import typer
 from dobladilo import __version__
 from dobladilo import _scadnano as ad
 from dobladilo.parts import bundle as _bundle
+from dobladilo.parts import hinge as _hinge
 from dobladilo.parts import rectangle as _rectangle
 
 app = typer.Typer(help="DNA origami brick toolchain.", no_args_is_help=True)
@@ -162,10 +163,14 @@ def _build(
         payload["files"] = {k: str(v) for k, v in written.items()}
 
     scaffold = payload["scaffold"]
+    # A hinge names its helices and length per arm, because it has two of each.
+    helices = payload.get("helices", payload.get("arm_helices"))
+    length_bp = payload.get("length_bp", payload.get("arm_length_bp"))
+    dimensions = payload.get("approx_dimensions_nm") or payload["approx_arm_dimensions_nm"]
     rows = [
         ("lattice", payload["lattice"]),
-        ("helices", str(payload["helices"])),
-        ("length", f"{payload['length_bp']} bp"),
+        ("helices", str(helices)),
+        ("length", f"{length_bp} bp" + (" per arm" if "arm_length_bp" in payload else "")),
         (
             "scaffold",
             f"{scaffold['variant']}, {scaffold['routed_nt']:,} of "
@@ -179,7 +184,19 @@ def _build(
     ]
     if scaffold["deletions"]:
         rows.append(("deletions", f"{scaffold['deletions']} (twist correction)"))
-    for key, value in payload["approx_dimensions_nm"].items():
+    if "joint_nt" in payload:
+        latch = payload["latch"]
+        rows.append(("joint", f"{payload['joint_nt']} unpaired nt per helix"))
+        rows.append(
+            (
+                "latch",
+                f"{latch['sequence']} ({latch['length_bp']} bp, "
+                f"{latch['gc_fraction']:.0%} GC) on helix {latch['helix']}",
+            )
+        )
+        rows.append(("predicted field", f"{payload['predicted_field_kt']} kT, sequence only"))
+        rows.append(("conformational offset", payload["conformational_offset"]))
+    for key, value in dimensions.items():
         rows.append((f"{key} (nm)", str(value)))
     if "cadnano_v2_roundtrip" in payload:
         ok = payload["cadnano_v2_roundtrip"]
@@ -213,6 +230,46 @@ def build_rectangle(
         part = rothemund_rectangle(
             helices=helices,
             length=length,
+            scaffold_variant=scaffold,
+            twist_corrected=twist_corrected,
+        )
+    except ValueError as e:
+        emitter.fail(str(e), kind="invalid_parameters")
+        return
+    _build(out=emitter, part=part, directory=out_dir, name=name, verify=verify)
+
+
+@build_app.command("hinge")
+def build_hinge(
+    arm_helices: int = typer.Option(
+        _hinge.DEFAULT_ARM_HELICES, help="Helices per arm. Must be even."
+    ),
+    arm_length: int = typer.Option(
+        _hinge.DEFAULT_ARM_LENGTH, help="Bases per arm. Must be a multiple of 64."
+    ),
+    joint: int = typer.Option(
+        _hinge.DEFAULT_JOINT_NT, help="Unpaired scaffold bases per helix at the joint."
+    ),
+    latch: str = typer.Option(_hinge.DEFAULT_LATCH, help="Latch sequence, 5' to 3'."),
+    latch_helix: int = typer.Option(_hinge.DEFAULT_LATCH_HELIX, help="Helix the latch hangs from."),
+    scaffold: str = typer.Option("p7249", help="M13 variant."),
+    twist_corrected: bool = typer.Option(True, help="Delete one base every 64 to cancel twist."),
+    out_dir: Path | None = OUT_OPTION,
+    name: str = typer.Option("hinge", help="Base name for the written files."),
+    verify: bool = typer.Option(False, help="Also check the cadnano v2 round trip."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """A bistable hinge: two arms, a single-stranded joint, and a latch."""
+    from dobladilo.parts.hinge import bistable_hinge
+
+    emitter = Emitter(as_json)
+    try:
+        part = bistable_hinge(
+            arm_helices=arm_helices,
+            arm_length=arm_length,
+            joint_nt=joint,
+            latch_sequence=latch,
+            latch_helix=latch_helix,
             scaffold_variant=scaffold,
             twist_corrected=twist_corrected,
         )
@@ -640,6 +697,27 @@ def build_pair(
         for key, value in arm_info.get("files", {}).items():
             rows.append((f"  {name} {key}", value))
     emitter.result(payload, "twist pair\n" + _table(rows))
+
+
+@app.command("bracket")
+def bracket_command(as_json: bool = JSON_OPTION) -> None:
+    """The latch ladder that guarantees Stage 0 lands in its measurement window."""
+    from dobladilo.hamiltonian.bracket import ladder
+
+    rungs = ladder()
+    low, high = rungs.offset_range_kt
+    payload = {
+        "window_kt": round(rungs.window_kt, 3),
+        "rungs": [
+            {"sequence": r.sequence, "length_bp": r.length_bp, "field_kt": round(r.field_kt, 2)}
+            for r in rungs.rungs
+        ],
+        "largest_gap_kt": round(rungs.largest_gap_kt, 3),
+        "covers_its_range": rungs.covers_its_range,
+        "measurable_conformational_offset_kt": [round(low, 1), round(high, 1)],
+    }
+    rows = [(r.sequence, f"{r.length_bp} bp, h = {r.field_kt:.2f} kT") for r in rungs.rungs]
+    Emitter(as_json).result(payload, rungs.summary() + "\n" + _table(rows))
 
 
 @app.command("twist-pair")

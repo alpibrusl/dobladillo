@@ -19,8 +19,11 @@ than from the source document, and both are flagged where they occur.
 from __future__ import annotations
 
 import itertools
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
+
+from dobladilo.hamiltonian.bracket import Ladder, ladder
 
 #: Staples in the shared core of a single-hinge construct: everything except
 #: the latches. Ordered once and reused by every variant in the stage.
@@ -82,6 +85,11 @@ class Series:
     purpose: str
     constructs: tuple[Construct, ...]
     core_staples: int
+
+    #: Which shared core this series folds. Two series naming the same core
+    #: order it once between them, which is the whole point of having one; a
+    #: programme total that adds both core counts is off by a core.
+    core_id: str = "single-hinge"
     controls: tuple[str, ...] = field(default_factory=tuple)
     notes: tuple[str, ...] = field(default_factory=tuple)
 
@@ -122,9 +130,94 @@ class Series:
             "estimated_cost_eur": self.cost_eur,
             "cost_if_not_shared_eur": self.cost_without_sharing_eur,
             "saved_by_sharing_eur": round(self.cost_without_sharing_eur - self.cost_eur, 0),
+            "core_id": self.core_id,
             "controls": list(self.controls),
             "notes": list(self.notes),
         }
+
+
+def programme_cost_eur(series: Sequence[Series]) -> dict[str, Any]:
+    """Cost of running several series, counting each shared core once.
+
+    Adding `Series.cost_eur` across stages double-counts every core two stages
+    have in common -- which is exactly the sharing the series are designed
+    around, so the naive total contradicts the reason the design is affordable.
+    """
+    cores: dict[str, int] = {}
+    modified: dict[str, int] = {}
+    variant = 0
+    for one in series:
+        cores[one.core_id] = max(cores.get(one.core_id, 0), one.core_staples)
+        modified[one.core_id] = max(modified.get(one.core_id, 0), one.modified_oligos)
+        variant += one.variant_staples
+
+    core_staples = sum(cores.values())
+    modified_oligos = sum(modified.values())
+    core_cost = core_staples * COST_PER_STAPLE_EUR + modified_oligos * COST_PER_MODIFIED_OLIGO_EUR
+    return {
+        "stages": [one.stage for one in series],
+        "cores": sorted(cores),
+        "core_staples": core_staples,
+        "variant_staples": variant,
+        "modified_oligos": modified_oligos,
+        "total_eur": round(core_cost + variant * COST_PER_STAPLE_EUR, 0),
+        "naive_sum_of_stages_eur": round(sum(one.cost_eur for one in series), 0),
+    }
+
+
+def bracketing(*, series_ladder: Ladder | None = None) -> Series:
+    """Stage 0's missing first step: find out where the measurement window is.
+
+    Stage 0 sweeps latch length and GC content, which moves the sequence part
+    of the bias. The measurable bias also carries the conformational cost of
+    closing the hinge -- unpredictable, identical across constructs sharing a
+    core, and the very thing Stage 0 exists to measure. It slides the whole
+    sweep bodily before any construct is read.
+
+    A FRET probability is informative only for about three kT of bias. So a ten
+    construct sweep spanning six kT, shifted by an unknown offset, can land
+    entirely outside the window, in which case every construct reads p = 0 or
+    p = 1 and the stage returns nothing for its EUR 1324. This was not visible
+    in the prose; it came out of computing the predicted fields.
+
+    These rungs are spaced no wider than the window, so whatever the offset is
+    within the range they cover, one of them reads informatively. That one
+    locates the offset and Stage 0's real sweep is placed around it.
+    """
+    rungs = (series_ladder or ladder()).rungs
+    constructs = tuple(
+        Construct(
+            name=f"bracket-{rung.length_bp}bp-{rung.sequence}",
+            varies={
+                "latch_sequence": rung.sequence,
+                "latch_length_bp": rung.length_bp,
+                "predicted_field_kt": round(rung.field_kt, 2),
+            },
+            variant_staples=LATCH_STAPLES,
+        )
+        for rung in rungs
+    )
+    return Series(
+        stage="bracketing",
+        purpose=(
+            "Locate the conformational offset, so that Stage 0's sweep is placed inside "
+            "the window where a probability carries information rather than beside it"
+        ),
+        constructs=constructs,
+        core_staples=CORE_STAPLES_SINGLE_HINGE,
+        modified_oligos=FRET_OLIGOS_ON_CORE,
+        controls=(
+            "The same FRET calibration as Stage 0: this is a probability measurement and "
+            "inherits every systematic of one.",
+        ),
+        notes=(
+            "Run before ordering Stage 0, not alongside it. Its output is which latch to "
+            "centre the sweep on; ordering both at once throws that away.",
+            "A run where no rung reads informatively is not a failed measurement. It says "
+            "the offset is outside the reachable range, and the joint length, not the "
+            "latch, is what has to change.",
+        ),
+    )
 
 
 def stage0(*, lengths_bp: tuple[int, ...] = (5, 6, 7, 8, 9, 10), gc_variants: int = 4) -> Series:
@@ -219,6 +312,7 @@ def stage1(*, bias_levels: tuple[float, ...] = (-2.0, 0.0, 2.0)) -> Series:
         purpose="measure J, and verify it is constant as h1 and h2 are varied",
         constructs=tuple(constructs),
         core_staples=CORE_STAPLES_TWO_HINGE,
+        core_id="two-hinge",
         # Two colour pairs, because Stage 1 needs the joint distribution of two
         # spins and one pair cannot resolve which hinge flipped.
         modified_oligos=2 * FRET_OLIGOS_ON_CORE,
@@ -246,4 +340,4 @@ def stage1(*, bias_levels: tuple[float, ...] = (-2.0, 0.0, 2.0)) -> Series:
 
 
 def all_series() -> list[Series]:
-    return [stage0(), stage1()]
+    return [bracketing(), stage0(), stage1()]

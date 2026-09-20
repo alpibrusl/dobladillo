@@ -14,7 +14,7 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | M3 assembly composition + stage planning | todo | |
 | M4 AFM pipeline | measurement done, readers pending | flatten, segment, measure, classify, yield with a Wilson interval; validated to <1% against synthetic ground truth. Native file readers should come from `alpibrupa/nanoindent`, not be rewritten |
 | M5 compare report + first closed loop | todo | first real milestone |
-| M6 one-DOF mechanism | todo | |
+| M6 one-DOF mechanism | part built | `parts/hinge.py`: two arms, ssDNA joint, latch. Lints clean. Whether the latch geometrically reaches is for oxDNA, and is stated rather than assumed |
 | C0-C6 | not started | research-grade |
 
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
@@ -64,7 +64,10 @@ as ambition without evidence.
   software, runs here, and it is the gate on tens of thousands of euros of
   oligos.
 - **#2 the bistable hinge** — the one part three documents converge on, and the
-  first whose prediction is a distribution rather than a shape.
+  first whose prediction is a distribution rather than a shape. **Built**:
+  `dobladilo build hinge`, no rule violations. Building it produced the
+  finding in `docs/HINGE.md` — Stage 0's latch sweep could have returned ten
+  saturated measurements and no information.
 - **#3 calibrated nanomechanical test objects** — the offer to the AFM partner,
   and much cheaper than the roadmap assumes now that nanoindent exists. The
   experiment is `docs/PLATE_INDENTATION.md`; the offer turned out to be a

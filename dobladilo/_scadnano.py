@@ -120,6 +120,35 @@ def scaffold_strand(design: sc.Design) -> sc.Strand:
     return scaffold
 
 
+def assign_extension_sequence(
+    design: sc.Design, *, min_offset: int, max_offset: int, sequence: str
+) -> int:
+    """Give an unpaired extension its sequence, after the scaffold has been laid.
+
+    An extension pairs with nothing on this object, so `assign_m13_to_scaffold`
+    cannot reach it. Assigning it on the builder instead does not work either:
+    when a deletion falls inside the same staple, scadnano merges the
+    pre-assigned strand sequence against a wildcard of the nominal length and
+    raises on the off-by-one. So extensions are left blank at build time and
+    filled here, keyed by the span their bound domains occupy.
+
+    Returns the number of extensions assigned, so a caller can tell the
+    difference between doing nothing and doing what it meant to.
+    """
+    assigned = 0
+    for strand in staples(design):
+        extensions = [d for d in strand.domains if isinstance(d, sc.Extension)]
+        if not extensions:
+            continue
+        bound = [d for d in strand.domains if isinstance(d, sc.Domain)]
+        if not bound or not all(min_offset <= d.start and d.end <= max_offset for d in bound):
+            continue
+        for extension in extensions:
+            design.assign_dna(strand, sequence, assign_complement=False, domain=extension)
+            assigned += 1
+    return assigned
+
+
 def staples(design: sc.Design) -> list[sc.Strand]:
     return [s for s in design.strands if not s.is_scaffold]
 

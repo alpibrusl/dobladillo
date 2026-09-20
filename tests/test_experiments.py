@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from dobladilo.hamiltonian.experiments import (
+    CORE_STAPLES_SINGLE_HINGE,
+    CORE_STAPLES_TWO_HINGE,
+    COST_PER_STAPLE_EUR,
     STAGE0_SCATTER_GATE_KT,
     all_series,
+    bracketing,
+    programme_cost_eur,
     stage0,
     stage1,
 )
@@ -74,3 +79,27 @@ def test_both_stages_come_in_under_the_documents_budget() -> None:
     constraint on the hinge and not a given."""
     assert stage0().cost_eur < 3000  # document says EUR 3-5k
     assert stage1().cost_eur < 8000  # document says EUR 8-12k
+
+
+def test_the_programme_counts_a_shared_core_once() -> None:
+    """Bracketing and Stage 0 fold the same core and differ only in latches.
+    Adding their series costs charges for that core twice, which contradicts
+    the sharing the whole design is built on."""
+    series = all_series()
+    cost = programme_cost_eur(series)
+    assert cost["total_eur"] < cost["naive_sum_of_stages_eur"]
+    assert sorted(cost["cores"]) == ["single-hinge", "two-hinge"]
+    # One single-hinge core plus one two-hinge core, not three cores.
+    assert cost["core_staples"] == CORE_STAPLES_SINGLE_HINGE + CORE_STAPLES_TWO_HINGE
+
+
+def test_bracketing_is_cheap_next_to_what_it_protects() -> None:
+    """Its whole justification: a few hundred euros against the risk that
+    Stage 0's EUR 1324 buys ten saturated measurements."""
+    marginal = bracketing().variant_staples * COST_PER_STAPLE_EUR
+    assert marginal < stage0().cost_eur / 3
+
+
+def test_bracketing_runs_before_stage_zero() -> None:
+    stages = [s.stage for s in all_series()]
+    assert stages.index("bracketing") < stages.index("0")
