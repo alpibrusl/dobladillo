@@ -107,7 +107,10 @@ def test_verify_reports_the_cadnano_roundtrip() -> None:
 
 
 def test_lint_passes_a_clean_design_and_exits_zero(tmp_path: Path) -> None:
-    runner.invoke(app, ["build", "bundle", "--out", str(tmp_path), "--name", "b"])
+    """The rectangle, not the bundle. The bundle stopped being a clean design
+    when `crossover_phase` was added: it bonds both neighbours of every helix
+    at one azimuth, which is why it bends. See docs/BUNDLE_BEND.md."""
+    runner.invoke(app, ["build", "rectangle", "--out", str(tmp_path), "--name", "b"])
     result = runner.invoke(app, ["lint", str(tmp_path / "b.sc"), "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
