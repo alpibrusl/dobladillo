@@ -65,6 +65,12 @@ class Emitter:
         typer.echo(message, err=True)
 
 
+def _median(array: Any) -> float:
+    import numpy as np
+
+    return float(np.median(array))
+
+
 def _table(rows: list[tuple[str, str]], *, indent: str = "  ") -> str:
     if not rows:
         return ""
@@ -872,6 +878,145 @@ def sim_sweep(
     emitter.result(
         {"bundles": built, "root": str(root), "production_steps": steps},
         f"hinge joint sweep, {len(built)} bundles\n" + _table(rows),
+    )
+
+
+afm_app = typer.Typer(help="Read and measure AFM scans.", no_args_is_help=True)
+app.add_typer(afm_app, name="afm")
+
+EXPECTED_OPTION_HELP = (
+    "Expected {} of a well-formed particle, nm. Defaults to the rectangle this project builds."
+)
+
+
+@afm_app.command("read")
+def afm_read(
+    scan: Path = typer.Argument(..., help="A .gsf scan, or a JPK force map."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Read a scan and report what it is. Measures nothing.
+
+    Worth running first on a partner's file: if the pixel pitch or the height
+    units are wrong, every dimension downstream is wrong by the same factor and
+    nothing else in the pipeline can tell.
+    """
+    from dobladillo.imaging.readers import UnreadableScan, read
+
+    emitter = Emitter(as_json)
+    try:
+        image = read(scan)
+    except UnreadableScan as e:
+        emitter.fail(str(e), kind="unreadable_scan")
+        return
+    rows, cols = image.shape
+    height_nm, width_nm = image.size_nm
+    payload: dict[str, Any] = {
+        "source": image.source,
+        "pixels": {"rows": rows, "cols": cols},
+        "pixel_nm": round(image.pixel_nm, 4),
+        "scan_nm": {"height": round(height_nm, 1), "width": round(width_nm, 1)},
+        "heights_nm": {
+            "min": round(float(image.heights_nm.min()), 3),
+            "max": round(float(image.heights_nm.max()), 3),
+            "median": round(float(_median(image.heights_nm)), 3),
+        },
+    }
+    heights = payload["heights_nm"]
+    rows_out = [
+        ("source", str(payload["source"])),
+        ("pixels", f"{rows} x {cols}"),
+        ("pixel size", f"{payload['pixel_nm']} nm"),
+        ("scan size", f"{height_nm:.0f} x {width_nm:.0f} nm"),
+        (
+            "heights",
+            f"{heights['min']} to {heights['max']} nm, median {heights['median']}",
+        ),
+    ]
+    emitter.result(payload, "scan\n" + _table(rows_out))
+
+
+@afm_app.command("measure")
+def afm_measure(
+    scan: Path = typer.Argument(..., help="A .gsf scan, or a JPK force map."),
+    length: float = typer.Option(191.0, help=EXPECTED_OPTION_HELP.format("length")),
+    width: float = typer.Option(36.0, help=EXPECTED_OPTION_HELP.format("width")),
+    height: float = typer.Option(2.0, help=EXPECTED_OPTION_HELP.format("height")),
+    tolerance: float = typer.Option(0.2, help="Fractional tolerance on length and width."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Flatten, segment, measure and classify a scan, and report the yield.
+
+    The yield carries a Wilson interval rather than a bare fraction, because
+    eleven of twelve and ninety of a hundred are not the same claim.
+    """
+    from dobladillo.imaging.classify import population
+    from dobladillo.imaging.flatten import flatten
+    from dobladillo.imaging.particles import find_particles
+    from dobladillo.imaging.readers import UnreadableScan, read
+
+    emitter = Emitter(as_json)
+    try:
+        image = read(scan)
+    except UnreadableScan as e:
+        emitter.fail(str(e), kind="unreadable_scan")
+        return
+
+    flattened, background = flatten(image)
+    particles = find_particles(flattened, background)
+    found = population(
+        particles, length_nm=length, width_nm=width, height_nm=height, tolerance=tolerance
+    )
+    payload = {
+        "source": image.source,
+        "expected_nm": {"length": length, "width": width, "height": height},
+        "particles_found": len(particles),
+        **found.as_dict(),
+    }
+    fraction = found.well_formed.as_dict()
+    rows_out = [
+        ("source", image.source),
+        ("particles found", str(len(particles))),
+        ("excluded at edge", str(found.excluded_at_edge)),
+        ("counted", str(found.total)),
+    ]
+    rows_out += [(f"  {k}", str(v)) for k, v in sorted(found.counts.items())]
+    rows_out.append(("well formed", str(fraction)))
+    emitter.result(payload, "measurement\n" + _table(rows_out))
+
+
+@afm_app.command("synthetic")
+def afm_synthetic(
+    out: Path = typer.Option(..., "--out", help="Where to write the .gsf."),
+    seed: int = typer.Option(0, help="Which scan to generate."),
+    rectangles: int = typer.Option(40, help="How many well-formed particles to place."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Write a synthetic scan of known contents, as a .gsf.
+
+    Two uses. It is how this project's own measurement is validated, against
+    ground truth we chose rather than against another measurement. And it is
+    the cheapest way to check a partner's end of the pipeline before any real
+    sample is imaged: send them this, ask what they measure, and a disagreement
+    is located before it is attributed to the chemistry.
+    """
+    from dobladillo.imaging.readers import write_gsf
+    from dobladillo.imaging.synthetic import synthetic_scan
+
+    emitter = Emitter(as_json)
+    scan = synthetic_scan(seed=seed, n_rectangles=rectangles)
+    write_gsf(scan.image, out, title=f"synthetic seed {seed}")
+    truth = {
+        "placed": len(scan.truth),
+        "rectangles": len(scan.rectangles),
+        "aggregates": len(scan.truth) - len(scan.rectangles),
+    }
+    payload = {"file": str(out), "seed": seed, "ground_truth": truth}
+    emitter.result(
+        payload,
+        "synthetic scan\n"
+        + _table(
+            [("wrote", str(out)), ("seed", str(seed))] + [(k, str(v)) for k, v in truth.items()]
+        ),
     )
 
 

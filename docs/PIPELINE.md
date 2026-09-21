@@ -189,3 +189,31 @@ Defaults: workers is cores minus four, because the machine is somebody's
 desktop. Relaxation is 100k steps per stage rather than the library's million —
 100k is what the six-helix run that actually completed here used, and at a
 million the relaxation alone would be thirteen hours a job.
+
+## Getting a scan in
+
+`dobladillo afm read` to check a file, `dobladillo afm measure` to run the
+whole measurement, `dobladillo afm synthetic` to generate one of known
+contents.
+
+Scans arrive as **Gwyddion Simple Field** (`.gsf`). The instruction to a
+partner is one line: open the file in Gwyddion, pick the height channel, save
+as `.gsf`.
+
+That choice replaced the earlier plan of reusing `alpibrupa/nanoindent`'s
+instrument readers. Those read the topography recorded alongside a *force
+volume* — `jpk-force-map`, `jpk-qi-data`, Nanoscope FV offsets — not a plain
+tapping-mode scan, which is what imaging origami on mica produces. There are
+also no sample files in that repository, so a parser written against those
+formats could not have been tested against anything.
+
+Gwyddion reads every native format a partner is likely to own and exports GSF,
+which is fully specified. One reader, testable exactly by writing files and
+reading them back, instead of several written hopefully. Native force maps are
+still read through pyfmreader when it is installed, because that path works.
+
+Anything else fails with the export instruction rather than with a guess.
+
+**Send the partner a synthetic scan first.** `afm synthetic` writes a `.gsf`
+whose contents are known. Asking what they measure from it locates a
+disagreement before it can be attributed to the chemistry, and costs nothing.

@@ -12,7 +12,7 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | M1 Brick and Port abstractions | todo | |
 | M2 interface library v1 + orthogonality | todo | |
 | M3 assembly composition + stage planning | todo | |
-| M4 AFM pipeline | measurement done, readers pending | flatten, segment, measure, classify, yield with a Wilson interval; validated to <1% against synthetic ground truth. Native file readers should come from `alpibrupa/nanoindent`, not be rewritten |
+| M4 AFM pipeline | done | flatten, segment, measure, classify, yield with a Wilson interval; validated to <1% against synthetic ground truth. Scans come in as Gwyddion Simple Field, and `dobladillo afm` is the CLI surface |
 | M5 compare report + first closed loop | todo | first real milestone |
 | M6 one-DOF mechanism | part built | `parts/hinge.py`: two arms, ssDNA joint, latch. Lints clean. Whether the latch geometrically reaches is for oxDNA, and is stated rather than assumed |
 | C0-C6 | not started | research-grade |
@@ -103,10 +103,24 @@ Not opened, and why:
 
 A mature AFM package already in the owner's hands, and it changes two things.
 
-**Do not write instrument file readers.** `dynamo_v0/pyfmreader` contains JPK
-and Nanoscope **image** loaders that are a byte-for-byte vendored snapshot of
-PyFM_YF_version, verified against the originals with `cmp`, and which produced
-published result tables. M4's "read native instrument formats" is solved there.
+**Instrument file readers: half true, and the half matters.** This section
+used to say `dynamo_v0/pyfmreader` solved M4's file formats. Reading the code
+shows it does not, and the correction is worth keeping rather than quietly
+editing away.
+
+`loadJPKimg` accepts `jpk-force-map` and `jpk-qi-data` and returns None for
+anything else; `loadNANOSCimg` reads force-volume image offsets out of a
+Nanoscope header. Both extract the topography recorded *alongside a force
+volume*. Neither reads a plain tapping-mode topography scan, which is what an
+AFM group imaging origami on mica actually produces. That repository also
+ships no sample files, so a parser written against those formats here could
+not have been tested against anything.
+
+What M4 does instead: **Gwyddion reads every native AFM format and exports
+Gwyddion Simple Field**, so one fully specified reader covers every instrument
+a partner might own, and can be tested exactly by writing files and reading
+them back. Native force maps still go through pyfmreader when it is installed,
+because that path does work. See `dobladillo/imaging/readers.py`.
 
 **C0 is much closer than this roadmap assumes.** Interface rupture forces by
 force spectroscopy is a Tier-3 item here; nanoindent already carries the whole

@@ -15,6 +15,9 @@ experimental counterparts.
 
 ## Available commands
 
+- `dobladillo afm measure` — Flatten, segment, measure and classify a scan, and report the yield.
+- `dobladillo afm read` — Read a scan and report what it is. Measures nothing.
+- `dobladillo afm synthetic` — Write a synthetic scan of known contents, as a .gsf.
 - `dobladillo analyse` — Turn a finished run into observables with experimental counterparts.
 - `dobladillo bracket` — The latch ladder that guarantees Stage 0 lands in its measurement window.
 - `dobladillo build bundle` — A six-helix bundle on the honeycomb lattice.
