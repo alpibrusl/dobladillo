@@ -147,3 +147,45 @@ Priority stays Q1-Q5 plus M4, per the design document. Within that:
 
 The compare step is deliberately last. Building it earlier would mean building
 a join over two things that do not yet exist, and the join is the easy part.
+
+## Running jobs: the queue
+
+`write_job_bundle` used to say executing a bundle was the human's job, on a
+machine with the backend it asks for. That was written expecting a GPU
+elsewhere. On this machine the backend is a CPU, and **oxDNA's CPU backend is
+single-threaded** — a production run holds 99% of one core and 43 MB, and
+leaves the other fifteen idle for six and a half hours.
+
+So `dobladilo sim` gained a queue:
+
+```bash
+dobladilo sim sweep --joint 4,8,16,32 --out runs --root oxqueue
+nohup dobladilo sim run --root oxqueue --oxdna path/to/oxDNA &
+dobladilo sim status --root oxqueue
+```
+
+Each bundle's four stages run strictly in order, because every stage starts
+from the previous one's last configuration. Across bundles there is no
+dependency at all, and that is where the parallelism is. Four jobs at once
+turns a joint sweep from a week into one night on hardware already here.
+
+Three things worth knowing:
+
+- **It restarts.** A bundle whose first three stages finished before the runner
+  was killed resumes at production rather than redoing six hours. Completion is
+  read from each stage's energy trace against the step count its own input file
+  asks for.
+- **Progress comes from the bundle, not from stdout.** `sim status` works for a
+  run somebody else launched, in another shell, yesterday.
+- **One file per job.** Adding work is creating a file and updating status is
+  writing that job's own file, so the runner and a caller never write the same
+  file and there is no lock to get wrong.
+
+There is no daemon and no supervision. A supervisor that can silently restart a
+six-hour job is a thing to want after something has gone wrong in a way that
+restarting would have fixed, and nothing has.
+
+Defaults: workers is cores minus four, because the machine is somebody's
+desktop. Relaxation is 100k steps per stage rather than the library's million —
+100k is what the six-helix run that actually completed here used, and at a
+million the relaxation alone would be thirteen hours a job.

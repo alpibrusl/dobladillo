@@ -19,6 +19,7 @@ Three things make this usable by an agent rather than merely scriptable:
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -712,6 +713,166 @@ def build_pair(
         for key, value in arm_info.get("files", {}).items():
             rows.append((f"  {name} {key}", value))
     emitter.result(payload, "twist pair\n" + _table(rows))
+
+
+QUEUE_ROOT_OPTION = typer.Option(
+    Path("oxqueue"), "--root", help="Queue directory. One file per job lives under it."
+)
+OXDNA_OPTION = typer.Option(
+    None, "--oxdna", envvar="OXDNA", help="Path to the oxDNA binary. Defaults to $OXDNA or PATH."
+)
+
+
+@sim_app.command("enqueue")
+def sim_enqueue(
+    bundles: list[Path] = typer.Argument(..., help="Bundle directories to queue."),
+    root: Path = QUEUE_ROOT_OPTION,
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Add bundles to the queue. Starts nothing; `sim run` does that."""
+    from dobladilo.sim.queue import enqueue
+
+    emitter = Emitter(as_json)
+    added = []
+    for bundle in bundles:
+        try:
+            added.append(enqueue(root, bundle))
+        except ValueError as e:
+            emitter.fail(str(e), kind="not_a_bundle")
+            return
+    payload = {"root": str(root), "queued": [{"id": j.id, "bundle": j.bundle} for j in added]}
+    rows = [(j.id, j.bundle) for j in added]
+    emitter.result(payload, f"queued {len(added)}\n" + _table(rows))
+
+
+@sim_app.command("run")
+def sim_run(
+    root: Path = QUEUE_ROOT_OPTION,
+    workers: int | None = typer.Option(
+        None, help="Jobs to run at once. Defaults to cores minus four."
+    ),
+    oxdna: str | None = OXDNA_OPTION,
+    once: bool = typer.Option(
+        False, "--once", help="Drain what is queued now and stop, rather than waiting for more."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Run queued bundles, several at a time. Blocks; launch it with nohup.
+
+    oxDNA's CPU backend is single-threaded, so the useful number of workers is
+    close to the core count, and running one job at a time leaves most of the
+    machine idle for hours.
+    """
+    from dobladilo.sim.queue import run
+
+    emitter = Emitter(as_json)
+    binary = oxdna or "oxDNA"
+    if shutil.which(binary) is None and not Path(binary).exists():
+        emitter.fail(f"oxDNA not found at {binary!r}; set --oxdna or $OXDNA", kind="no_oxdna")
+        return
+    outcome = run(root, oxdna=binary, workers=workers, once=once)
+    emitter.result(
+        outcome,
+        "queue drained\n" + _table([(k, str(v)) for k, v in outcome.items()]),
+    )
+
+
+@sim_app.command("status")
+def sim_status(
+    root: Path = QUEUE_ROOT_OPTION,
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """What the queue is doing."""
+    from dobladilo.sim.queue import status
+
+    payload = status(root)
+    rows = []
+    for job in payload["jobs"]:
+        stage = job["stage"] or "-"
+        detail = job["state"]
+        if job["state"] == "running":
+            done, total = (job["progress"].get(stage) or {"steps": 0, "of": 0}).values()
+            share = f"{100 * done / total:.0f}%" if total else "?"
+            detail = f"running {stage} {share}"
+        elif job["state"] == "failed":
+            detail = f"FAILED {job['error']}"
+        rows.append((job["label"], detail))
+    counts = ", ".join(f"{v} {k}" for k, v in sorted(payload["counts"].items())) or "empty"
+    Emitter(as_json).result(payload, f"queue: {counts}\n" + _table(rows))
+
+
+@sim_app.command("sweep")
+def sim_sweep(
+    joint: str = typer.Option(
+        "4,8,16,32", help="Comma-separated joint lengths, in unpaired nt per helix."
+    ),
+    out_dir: Path = typer.Option(..., "--out", help="Directory to write the bundles into."),
+    root: Path = QUEUE_ROOT_OPTION,
+    steps: int = typer.Option(
+        1_000_000, help="Production steps per bundle. A million is about 6.5 h on one core."
+    ),
+    relax: int = typer.Option(
+        100_000,
+        help="Steps per relaxation stage. 100k is what the completed six-helix run used.",
+    ),
+    enqueue_them: bool = typer.Option(True, "--enqueue/--no-enqueue", help="Also queue them."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Build one hinge bundle per joint length, and queue them.
+
+    The sweep the hinge needs first: whether the latch can physically reach
+    across the joint is geometry the constructor cannot settle, and a joint
+    too long costs conformational entropy while one too short holds the
+    mechanism open. Both ends show up here and nowhere else.
+
+    The relaxation default is 100k rather than the library's million, because
+    100k is what the six-helix run that actually completed on this machine
+    used. At a million, relaxation alone would be thirteen hours a job and the
+    sweep would not finish overnight.
+    """
+    from dobladilo.parts.hinge import bistable_hinge
+    from dobladilo.sim.jobs import write_job_bundle
+    from dobladilo.sim.queue import enqueue
+
+    emitter = Emitter(as_json)
+    try:
+        lengths = [int(v) for v in joint.split(",") if v.strip()]
+    except ValueError:
+        emitter.fail(f"could not read joint lengths from {joint!r}", kind="invalid_parameters")
+        return
+    if not lengths:
+        emitter.fail("no joint lengths given", kind="invalid_parameters")
+        return
+
+    built = []
+    for length in lengths:
+        name = f"hinge-joint{length}"
+        try:
+            part = bistable_hinge(joint_nt=length)
+            job = write_job_bundle(
+                part.design,
+                directory=out_dir / name,
+                name=name,
+                part="hinge",
+                backend="CPU",
+                steps_override={"steps_production": steps, "steps_relax": relax},
+            )
+        except ValueError as e:
+            emitter.fail(str(e), kind="invalid_parameters")
+            return
+        entry: dict[str, Any] = {
+            "joint_nt": length,
+            "bundle": str(job.directory),
+            "nucleotides": job.nucleotides,
+        }
+        if enqueue_them:
+            entry["id"] = enqueue(root, job.directory, label=name, meta={"joint_nt": length}).id
+        built.append(entry)
+    rows = [(f"{b['joint_nt']} nt", str(b["bundle"])) for b in built]
+    emitter.result(
+        {"bundles": built, "root": str(root), "production_steps": steps},
+        f"hinge joint sweep, {len(built)} bundles\n" + _table(rows),
+    )
 
 
 @app.command("bracket")
