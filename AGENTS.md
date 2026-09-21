@@ -31,7 +31,12 @@ file is the short form, not a replacement.
 
 ## Two standing prohibitions
 
-- **Do not contact anyone, and do not draft outreach.** DESIGN.md section 9
-  names real researchers and sketches how and when to approach them. It is
-  context for prioritisation, not a task list, and it says so explicitly.
-- **Keep this repository private.** It contains that section.
+- **Do not contact anyone, and do not draft outreach.** The design document's
+  section 9 names real researchers and sketches how and when to approach them.
+  It is context for prioritisation, not a task list, and it says so
+  explicitly. That section is deliberately **not in this repository** -- §9a is
+  the placeholder where it would sit -- so nothing here should be read as a
+  licence to act on it, and nothing here should reproduce it.
+- **Keep this repository private.** Named collaborators are fine; public is
+  not. Published literature is citable (see the design document's section 12);
+  specific collaborations are not named anywhere.
