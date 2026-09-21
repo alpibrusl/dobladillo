@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dobladillo experiment board</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;500;600&display=swap">
+<style>
+:root{--ground:#EDF1F4;--surface:#FFF;--sunk:#E2E8ED;--raise:#F7F9FA;--ink:#131B23;
+--muted:#5B6874;--faint:#8A97A3;--rule:#CCD6DE;--accent:#1B6C88;--accent-soft:#DCEBF0;
+--ready:#2C7A4B;--ready-soft:#DDEDE3;--blocked:#9C6A14;--blocked-soft:#F3E8D2;
+--bad:#9B3A38;--bad-soft:#F2DEDD;--bar:#B6C4CE;
+--fd:"Archivo",system-ui,sans-serif;--fb:"Source Sans 3",system-ui,sans-serif;
+--fm:"JetBrains Mono",ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--ground:#0D1318;--surface:#141C23;--sunk:#101820;--raise:#1A242C;--ink:#E4EAEF;
+--muted:#94A3AF;--faint:#6B7885;--rule:#243039;--accent:#5FB6D1;--accent-soft:#122A33;
+--ready:#63C08A;--ready-soft:#12251A;--blocked:#D7A44A;--blocked-soft:#2A2113;
+--bad:#E08480;--bad-soft:#2B1615;--bar:#33424E}}
+:root[data-theme="dark"]{--ground:#0D1318;--surface:#141C23;--sunk:#101820;--raise:#1A242C;
+--ink:#E4EAEF;--muted:#94A3AF;--faint:#6B7885;--rule:#243039;--accent:#5FB6D1;
+--accent-soft:#122A33;--ready:#63C08A;--ready-soft:#12251A;--blocked:#D7A44A;
+--blocked-soft:#2A2113;--bad:#E08480;--bad-soft:#2B1615;--bar:#33424E}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--fb);font-size:16px;
+line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:70rem;margin:0 auto;padding:clamp(1.5rem,4vw,3rem) clamp(1rem,3vw,2rem) 4rem;
+display:flex;flex-direction:column;gap:1.5rem}
+h1,h2{font-family:var(--fd);margin:0;text-wrap:balance}
+h1{font-size:clamp(1.75rem,1.3rem + 2vw,2.6rem);font-weight:700;letter-spacing:-.02em;line-height:1.05}
+h2{font-size:1.15rem;font-weight:600}
+p{margin:0}
+.mono,td.num,.stat .v{font-family:var(--fm);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--fm);font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;
+color:var(--faint);font-weight:500}
+header{display:flex;flex-direction:column;gap:.6rem;padding-bottom:1.25rem;border-bottom:2px solid var(--ink)}
+.lede{color:var(--muted);max-width:56ch;font-size:1.05rem}
+.strip{display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))}
+.stat{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:.8rem .9rem;
+display:flex;flex-direction:column;gap:.15rem}
+.stat .v{font-size:1.5rem;font-weight:500;line-height:1.1}
+.stat .k{font-size:.78rem;color:var(--muted)}
+.stat.go{border-left:3px solid var(--ready)}.stat.go .v{color:var(--ready)}
+.stat.bad{border-left:3px solid var(--bad)}.stat.bad .v{color:var(--bad)}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.panel>.head{padding:.85rem 1rem;border-bottom:1px solid var(--rule);background:var(--raise);
+display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap}
+.panel>.body{padding:1rem;display:flex;flex-direction:column;gap:.9rem}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{font-family:var(--fm);font-size:.64rem;letter-spacing:.09em;text-transform:uppercase;
+color:var(--faint);font-weight:500;text-align:left;padding:.5rem .7rem;white-space:nowrap;
+border-bottom:1px solid var(--rule)}
+td{padding:.55rem .7rem;border-bottom:1px solid var(--rule);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+td.num{white-space:nowrap}
+.id{font-family:var(--fm);font-weight:500;color:var(--accent)}
+.pill{display:inline-block;font-family:var(--fm);font-size:.66rem;letter-spacing:.05em;
+text-transform:uppercase;padding:.16rem .45rem;border-radius:3px;white-space:nowrap;font-weight:500}
+.p-ready{background:var(--ready-soft);color:var(--ready)}
+.p-blocked{background:var(--blocked-soft);color:var(--blocked)}
+.p-bad{background:var(--bad-soft);color:var(--bad)}
+.bar{display:inline-flex;gap:2px;vertical-align:middle}
+.bar i{width:6px;height:13px;background:var(--bar);border-radius:1px;display:block}
+.bar i.on{background:var(--accent)}
+.bar.risk i.on{background:var(--blocked)}
+.cols{display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));align-items:start}
+.note{background:var(--sunk);border-left:3px solid var(--accent);padding:.85rem 1rem;
+display:flex;flex-direction:column;gap:.45rem;border-radius:0 3px 3px 0}
+.note.warn{border-left-color:var(--blocked)}
+.note.bad{border-left-color:var(--bad)}
+.note p{font-size:.92rem;max-width:62ch}
+pre{margin:0;background:var(--sunk);border:1px solid var(--rule);border-radius:3px;
+padding:.75rem .85rem;overflow-x:auto;font-family:var(--fm);font-size:.8rem;line-height:1.7}
+ol{margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:.4rem;font-size:.93rem}
+strong{font-weight:600}
+footer{color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);padding-top:1.25rem;
+display:flex;flex-direction:column;gap:.5rem}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style></head><body><div class="wrap">
+
+<header><span class="eyebrow">Dobladillo 0.0.1 &middot; design → simulate → fold → measure → compare</span>
+<h1>Experiment board</h1>
+<p class="lede">A toolchain for DNA origami that predicts what a structure should measure,
+then checks itself against what the instrument says. Every number on this page is read
+from the toolchain when the page is generated.</p></header>
+
+<div class="strip"><div class="stat go"><span class="v">E1</span><span class="k">ready to run now</span></div>
+<div class="stat"><span class="v">7</span><span class="k">experiments planned</span></div>
+<div class="stat"><span class="v">&euro;6,007</span><span class="k">all Hamiltonian stages</span></div>
+<div class="stat bad"><span class="v">1</span><span class="k">part failing lint</span></div></div>
+
+<section class="panel"><div class="head"><h2>Start here — E1, Rothemund rectangle, AFM</h2>
+<span class="pill p-ready">ready</span></div>
+<div class="body"><p>The most reproduced structure in the field. It gates everything: if it does not fold and image here, the problem is in our chain and every later result inherits it.</p>
+<pre>dobladillo experiment check experiments/&lt;folder&gt;</pre></div></section>
+<section class="panel"><div class="head"><h2>The sequence</h2>
+<span class="eyebrow">scores are judgements, not calculations</span></div>
+<div class="scroll"><table><thead><tr><th></th><th>experiment</th><th>relevance</th><th>difficulty</th><th>P(success)</th><th>state</th></tr></thead><tbody><tr><td class="id">E1</td><td>Rothemund rectangle, AFM</td><td><span class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td><span class="bar risk"><i class="on"></i><i></i><i></i><i></i><i></i></span></td><td class="num">0.90</td><td><span class="pill p-ready">ready</span></td></tr><tr><td class="id">E2</td><td>Twist pair</td><td><span class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></td><td><span class="bar risk"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></td><td class="num">0.75</td><td><span class="pill p-blocked">an AFM flatness observable</span></td></tr><tr><td class="id">E3</td><td>Single hinge, fold check</td><td><span class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td><span class="bar risk"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></td><td class="num">0.70</td><td><span class="pill p-blocked">a folded-hinge footprint prediction</span></td></tr><tr><td class="id">E4</td><td>Bracketing ladder, 8 latches</td><td><span class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td><span class="bar risk"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></td><td class="num">0.60</td><td><span class="pill p-blocked">hamiltonian/fret.py</span></td></tr><tr><td class="id">E5</td><td>Stage 0, 10 constructs</td><td><span class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td><span class="bar risk"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></td><td class="num">0.55</td><td><span class="pill p-blocked">hamiltonian/equilibrium.py</span></td></tr><tr><td class="id">E6</td><td>Stage 1, 25 constructs</td><td><span class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td><span class="bar risk"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></td><td class="num">0.35</td><td><span class="pill p-blocked">two-colour smFRET and joint-state ligation controls</span></td></tr><tr><td class="id">E7</td><td>Thickness ladder, 4 plates</td><td><span class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></td><td><span class="bar risk"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></td><td class="num">0.80</td><td><span class="pill p-blocked">a multi-layer plate part</span></td></tr></tbody></table></div>
+<div class="body"><div class="note warn">
+<span class="eyebrow">The critical path multiplies to 7%</span>
+<p>E1 → E3 → E4 → E5 → E6. A product of independent judgements,
+which is crude — and stated anyway, because it locates the value in the early, cheap
+experiments and depends on <strong>failure being informative at every stage</strong>.</p>
+</div></div></section>
+
+<div class="cols">
+<section class="panel"><div class="head"><h2>Parts</h2></div>
+<div class="scroll"><table><thead><tr><th>part</th><th>size</th><th>staples</th><th>lint</th></tr></thead><tbody><tr><td>rectangle</td><td class="num">106.2 x 66 nm</td><td class="num">220</td><td><span class="pill p-ready">clean</span></td></tr><tr><td>bundle</td><td class="num">390.4 x 8 nm</td><td class="num">168</td><td><span class="pill p-bad">2 x crossover_phase</span></td></tr><tr><td>hinge</td><td class="num">63.7 x 36 nm</td><td class="num">144</td><td><span class="pill p-ready">clean</span></td></tr></tbody></table></div><div class="body">
+<div class="note bad"><span class="eyebrow">A part does not satisfy its own rules</span>
+<p><strong>bundle</strong> — 2 hard violations, worst <span class="mono">crossover_phase</span>.</p><p>Generated by running the rules, not recorded by hand — so this clears itself
+when the routing is fixed.</p></div></div></section>
+
+<section class="panel"><div class="head"><h2>At the bench</h2></div>
+<div class="body"><div class="note warn">
+<span class="eyebrow">Measure the tip. Before and after.</span>
+<p>A half-height footprint is wider than the object by twice
+<span class="mono">&radic;(R&middot;h &minus; h&sup2;/4)</span>. A nominal 10 nm tip is
+routinely 8&ndash;20 nm in use, and the correction goes as &radic;R, so the tooling
+<strong>refuses to run</strong> without a measured value rather than substituting the
+nominal one.</p></div>
+<div class="scroll"><table><thead><tr><th>tip radius</th><th>2 nm film</th><th>4 nm film</th></tr></thead><tbody><tr><td class="num">5 nm</td><td class="num">+6.0 nm</td><td class="num">+8.0 nm</td></tr><tr><td class="num">10 nm</td><td class="num">+8.7 nm</td><td class="num">+12.0 nm</td></tr><tr><td class="num">20 nm</td><td class="num">+12.5 nm</td><td class="num">+17.4 nm</td></tr></tbody></table></div></div></section>
+</div>
+
+<section class="panel"><div class="head"><h2>Experiment folders</h2></div>
+<div class="body"><div class="scroll"><table><thead><tr><th>folder</th><th>phases</th><th>state</th></tr></thead><tbody><tr><td>2026-09-22-rectangle-afm</td><td><span class="pill p-ready">pre</span> <span class="pill p-blocked">during</span> <span class="pill p-blocked">post</span></td><td><span class="pill p-blocked">next: during</span></td></tr></tbody></table></div>
+<div class="note"><span class="eyebrow">Commit <span class="mono">pre/</span> before the session</span>
+<p>The comparison will reconcile a measurement with whatever is predicted. A prediction
+adjusted after seeing a scan produces output <em>identical</em> to one made in advance, so
+the distinction lives in the record and the tooling checks the timestamps.</p></div>
+<pre>dobladillo afm read     during/raw/scan.gsf
+dobladillo experiment report  &lt;folder&gt;</pre></div></section>
+
+<footer><p><strong>Regenerate:</strong> <span class="mono">dobladillo dashboard --out site/</span>.
+Nothing here is edited by hand; every figure is read from the toolchain at generation time.</p>
+<p>Generated 2026-09-21 21:31 UTC.
+Start at <span class="mono">experiments/README.md</span>;
+<span class="mono">experiments/AGENTS.md</span> is the brief for an AI assistant.</p></footer>
+</div>
+<script id="state" type="application/json">{"version": "0.0.1", "experiments": [{"id": "E1", "title": "Rothemund rectangle, AFM", "epic": null, "relevance": 5, "difficulty": 1, "success": 0.9, "ready": true, "blocked_by": "", "why": "The most reproduced structure in the field. It gates everything: if it does not fold and image here, the problem is in our chain and every later result inherits it.", "on_critical_path": true}, {"id": "E2", "title": "Twist pair", "epic": null, "relevance": 4, "difficulty": 2, "success": 0.75, "ready": false, "blocked_by": "an AFM flatness observable", "why": "Validates the twist correction that every square-lattice dimension rests on. Whether deleting one base every 64 cancels the twist in practice is visible in an AFM image and nowhere else.", "on_critical_path": false}, {"id": "E3", "title": "Single hinge, fold check", "epic": 2, "relevance": 5, "difficulty": 2, "success": 0.7, "ready": false, "blocked_by": "a folded-hinge footprint prediction", "why": "The cheapest thing that can invalidate the hinge line. One construct rather than eight, and the original plan went straight from 'no hinge has ever been folded' to an eight-construct ladder with a FRET readout.", "on_critical_path": true}, {"id": "E4", "title": "Bracketing ladder, 8 latches", "epic": 2, "relevance": 5, "difficulty": 3, "success": 0.6, "ready": false, "blocked_by": "hamiltonian/fret.py", "why": "Locates the conformational offset. Without it Stage 0 can return ten saturated measurements and no information, because a FRET probability is informative over only about 2.9 kT and the offset slides the whole sweep.", "on_critical_path": true}, {"id": "E5", "title": "Stage 0, 10 constructs", "epic": 2, "relevance": 5, "difficulty": 3, "success": 0.55, "ready": false, "blocked_by": "hamiltonian/equilibrium.py", "why": "Measures the manufacturing noise floor, which sets the resolution of everything after it. Its intercept is also the only measurement of the conformational cost of closing.", "on_critical_path": true}, {"id": "E6", "title": "Stage 1, 25 constructs", "epic": 2, "relevance": 5, "difficulty": 4, "success": 0.35, "ready": false, "blocked_by": "two-colour smFRET and joint-state ligation controls", "why": "The decision point. Is the coupling constant when the biases are varied? If not there is no Hamiltonian, only a coupled system \u2014 which is a real finding about molecular coupling and is publishable.", "on_critical_path": true}, {"id": "E7", "title": "Thickness ladder, 4 plates", "epic": 3, "relevance": 3, "difficulty": 2, "success": 0.8, "ready": false, "blocked_by": "a multi-layer plate part", "why": "The offer to the AFM partner. A stiffness standard tests one number; a thickness ladder tests the whole inference chain, and needs no prior agreement on what DNA's modulus is.", "on_critical_path": false}], "critical_path": ["E1", "E3", "E4", "E5", "E6"], "critical_probability": 0.0728, "stages": [{"stage": "bracketing", "purpose": "Locate the conformational offset, so that Stage 0's sweep is placed inside the window where a probability carries information rather than beside it", "constructs": 8, "core_staples": 200, "variant_staples": 96, "total_staples": 296, "modified_oligos": 2, "modified_oligo_cost_eur": 300.0, "estimated_cost_eur": 1247.0, "cost_if_not_shared_eur": 5120.0, "saved_by_sharing_eur": 3873.0, "core_id": "single-hinge", "controls": ["The same FRET calibration as Stage 0: this is a probability measurement and inherits every systematic of one."], "notes": ["Run before ordering Stage 0, not alongside it. Its output is which latch to centre the sweep on; ordering both at once throws that away.", "A run where no rung reads informatively is not a failed measurement. It says the offset is outside the reachable range, and the joint length, not the latch, is what has to change."]}, {"stage": "0", "purpose": "dG_eff against latch design, and the construct-to-construct scatter", "constructs": 10, "core_staples": 200, "variant_staples": 120, "total_staples": 320, "modified_oligos": 2, "modified_oligo_cost_eur": 300.0, "estimated_cost_eur": 1324.0, "cost_if_not_shared_eur": 6400.0, "saved_by_sharing_eur": 5076.0, "core_id": "single-hinge", "controls": ["at least 3 independent folds of every construct, to separate folding variance from synthesis variance", "at least 2 independent oligo syntheses for a subset, for the same reason", "AFM on each, to confirm the structure folded at all before its dG is believed"], "notes": ["go/no-go: scatter at fixed design below 0.3 kT. This is TIGHTER than the source document's ~1 kT, because at 1 kT a designed 1 kT coupling returns with a median error near 0.85 kT and Stage 1 cannot then meet its own criterion.", "the GC axis is swept at a fixed 8 bp length so length and composition do not move together and become unattributable", "the FRET pair sits across the hinge joint, which is core geometry, so two modified oligos serve the whole series rather than two per construct: EUR 300 instead of EUR 3000"]}, {"stage": "1", "purpose": "measure J, and verify it is constant as h1 and h2 are varied", "constructs": 25, "core_staples": 380, "variant_staples": 800, "total_staples": 1180, "modified_oligos": 4, "modified_oligo_cost_eur": 600.0, "estimated_cost_eur": 4376.0, "cost_if_not_shared_eur": 30400.0, "saved_by_sharing_eur": 26024.0, "core_id": "two-hinge", "controls": ["an UNCOUPLED pair at every bias setting: two hinges far apart on the same plate, no strut. Any correlation measured there is an artefact, and it quantifies the background that |J| has to beat", "locked constructs in ALL FOUR joint states (++, +-, -+, --), not in the two states of one spin. This project's simulation shows a ligation bias that depends on each spin separately is algebraically a field shift and CANNOT corrupt J; only a bias depending on the joint state can, and it adds exactly half itself to the apparent coupling. Calibrating per-site efficiency is therefore the wrong control", "two initial conditions for every measurement -- annealed from high T, and released from a locked state -- confirming they converge"], "notes": ["go/no-go: |J| above the Stage 0 noise floor by 3 sigma; J constant across the bias grid to 0.3 kT; uncoupled control below the noise floor", "the key plot is fitted J against applied (h1, h2). A slope means the couplings are bias-dependent and the pairwise Ising form is wrong", "a negative result here is publishable and is a real finding about molecular coupling"]}], "programme_cost": {"stages": ["bracketing", "0", "1"], "cores": ["single-hinge", "two-hinge"], "core_staples": 580, "variant_staples": 1016, "modified_oligos": 6, "total_eur": 6007.0, "naive_sum_of_stages_eur": 6947.0}, "tip_table": [{"radius_nm": 5.0, "widening_nm": {"2.0": 6.0, "4.0": 8.0}}, {"radius_nm": 10.0, "widening_nm": {"2.0": 8.7, "4.0": 12.0}}, {"radius_nm": 20.0, "widening_nm": {"2.0": 12.5, "4.0": 17.4}}], "parts": [{"name": "rectangle", "dimensions_nm": {"width": 106.2, "height": 66.0}, "staples": 220, "violations": 0, "clean": true, "worst": ""}, {"name": "bundle", "dimensions_nm": {"length": 390.4, "diameter": 8.0}, "staples": 168, "violations": 2, "clean": false, "worst": "crossover_phase"}, {"name": "hinge", "dimensions_nm": {"width": 63.7, "height": 36.0}, "staples": 144, "violations": 0, "clean": true, "worst": ""}], "folders": [{"name": "2026-09-22-rectangle-afm", "ready_for": "during", "believable": false, "problems": [], "phases": {"pre": true, "during": false, "post": false}}]}</script>
+</body></html>

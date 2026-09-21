@@ -1615,6 +1615,47 @@ def compare_command(
     emitter.result(payload, f"closed loop: {part}\n" + body)
 
 
+@app.command("dashboard")
+def dashboard_command(
+    out: Path = typer.Option(Path("site"), "--out", help="Directory to write index.html into."),
+    experiments_root: Path = typer.Option(
+        Path("experiments"), "--experiments", help="Where experiment folders live."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Generate the shareable board. Reads every figure from the toolchain.
+
+    Regenerating is the only way to change the page, which is the point: the
+    hand-written version it replaced had to carry a note in its own README
+    admitting it would go stale.
+    """
+    import datetime as _dt
+
+    from dobladillo.dashboard import gather, render
+
+    emitter = Emitter(as_json)
+    state = gather(experiments_root=experiments_root)
+    stamp = _dt.datetime.now(_dt.UTC).strftime("Generated %Y-%m-%d %H:%M UTC.")
+    out.mkdir(parents=True, exist_ok=True)
+    page = out / "index.html"
+    page.write_text(render(state, generated=stamp))
+
+    payload = {"file": str(page), "bytes": page.stat().st_size, **state.as_dict()}
+    ready = [e for e in state.experiments if e.ready]
+    broken = [p for p in state.parts if not p.clean]
+    rows = [
+        ("wrote", str(page)),
+        ("ready to run", ", ".join(e.id for e in ready) or "nothing"),
+        ("critical path", f"{' -> '.join(state.critical_path)} = {state.critical_probability:.0%}"),
+        ("programme cost", f"EUR {state.programme_cost['total_eur']:,.0f}"),
+        (
+            "parts failing lint",
+            ", ".join(f"{p.name} ({p.worst})" for p in broken) or "none",
+        ),
+    ]
+    emitter.result(payload, "dashboard\n" + _table(rows))
+
+
 @app.command("bracket")
 def bracket_command(as_json: bool = JSON_OPTION) -> None:
     """The latch ladder that guarantees Stage 0 lands in its measurement window."""

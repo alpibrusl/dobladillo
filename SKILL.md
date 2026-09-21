@@ -25,6 +25,7 @@ experimental counterparts.
 - `dobladillo build pair` — Both arms of the twist pair, written side by side.
 - `dobladillo build rectangle` — A Rothemund-style rectangle on the square lattice.
 - `dobladillo compare` — Design against simulation against measurement: the closed loop.
+- `dobladillo dashboard` — Generate the shareable board. Reads every figure from the toolchain.
 - `dobladillo describe` — Emit the command surface, for an agent to read instead of `--help`.
 - `dobladillo experiment check` — What is missing, and whether the results can be believed.
 - `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.

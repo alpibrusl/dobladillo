@@ -75,3 +75,9 @@ strict = true
 # only stops mypy complaining that the import itself is untyped.
 module = ["scadnano.*", "openpyxl.*", "scipy.*", "nanoindent.*"]
 ignore_missing_imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# The dashboard renderer embeds a stylesheet and a page as string literals.
+# Wrapping CSS rules and HTML tags at 100 columns to satisfy a linter makes
+# both harder to read than the thing the rule is protecting against.
+"dobladillo/dashboard/render.py" = ["E501"]
