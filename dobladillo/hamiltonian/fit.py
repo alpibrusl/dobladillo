@@ -64,7 +64,21 @@ def nested_models(n: int) -> list[TermSet]:
     Nested on purpose: each contains the last, so a likelihood ratio between
     them is interpretable and the comparison is about *added* terms rather than
     about two unrelated models.
+
+    Refused below three spins, and the reason is worth stating. At n = 2 there
+    is no next-nearest neighbour and no triple, so M1, M2 and M3 contain
+    exactly the same three terms. `compare` would run, report that the extra
+    terms buy nothing, and that result would be true by construction rather
+    than by data -- the most convincing kind of wrong answer. Stage 1 is two
+    spins, so this is not hypothetical: it is the shape of the next experiment
+    somebody will point this function at.
     """
+    if n < 3:
+        raise ValueError(
+            f"nested model comparison needs at least 3 spins, got {n}: below that M1, "
+            "M2 and M3 are the same model and the comparison cannot discriminate. "
+            "For two spins read the coupling directly with model.two_spin_coupling."
+        )
     m1 = fields_and_pairs(n, chain_neighbours(n, distance=1))
     m2 = m1 + tuple(tuple(sorted(p)) for p in chain_neighbours(n, distance=2))
     m3 = m2 + tuple(t for t in itertools.combinations(range(n), 3) if t[2] - t[0] <= 2)

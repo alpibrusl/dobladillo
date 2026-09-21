@@ -75,6 +75,19 @@ us whether the latch reaches**, which is the question the sweep was launched
 for, because that needs the distance between the two extension anchor points
 and `analysis.observables` has no such measurement. See epic 2's roadmap.
 
+## What happens after E6
+
+The seven experiments stop at Stage 1, two spins. `HAMILTONIAN.md` continues to
+Stage 2 (a chain of 4–6), Stage 3 (a plate of 25–100) and Stage 4.
+
+Worth knowing while reading the table above: **none of E1–E7 uses the inverse
+Ising solver.** Stage 0 is one probability; Stage 1's coupling is a closed-form
+log-odds ratio. The solver first earns its keep at Stage 2 — and it cannot do
+Stage 3 at all, by orders of magnitude rather than by a factor.
+
+`roadmaps/stages-2-to-4-and-the-inverse-solver.md` has the measured scaling and
+what Stage 3 would need instead.
+
 ## Money
 
 | stage | constructs | cost |

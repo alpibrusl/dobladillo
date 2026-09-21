@@ -134,6 +134,7 @@ what software is owed, cheapest first:
 | `hamiltonian/equilibrium.py` | E5 | medium |
 | multi-layer plate part | E7 entirely | large |
 | two-colour smFRET + joint-state ligation controls | E6 | large |
+| sampling-based inverse solver (pseudolikelihood/MCMC) | Stage 3, beyond E6 | large |
 
 The latch-reach observable is the highest value per line: it converts the
 finished joint sweep from four numbers about bending into an answer about

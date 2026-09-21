@@ -181,3 +181,25 @@ def test_kl_direction_matters() -> None:
     a = np.array([0.7, 0.3])
     b = np.array([0.4, 0.6])
     assert kl_divergence(a, b) != pytest.approx(kl_divergence(b, a))
+
+
+def test_nested_models_refuses_two_spins() -> None:
+    """At n = 2 there is no next-nearest neighbour and no triple, so M1, M2 and
+    M3 hold the same three terms. The comparison would report that the extra
+    terms buy nothing -- true by construction, not by data. Stage 1 is two
+    spins, so this is the shape of the next experiment somebody will point it
+    at."""
+    from dobladillo.hamiltonian.fit import nested_models
+
+    with pytest.raises(ValueError, match="at least 3 spins"):
+        nested_models(2)
+    with pytest.raises(ValueError, match="two_spin_coupling"):
+        nested_models(1)
+
+
+def test_nested_models_actually_nest_from_three_spins_up() -> None:
+    from dobladillo.hamiltonian.fit import nested_models
+
+    for n in (3, 4, 6):
+        m1, m2, m3 = nested_models(n)
+        assert set(m1.terms) < set(m2.terms) < set(m3.terms)
