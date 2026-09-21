@@ -8,7 +8,7 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | Q2 design-rule validator | done | six rules, each with a seeded failing design; `dobladillo lint`. Caught a real defect in the rectangle. `self_structure` declared unimplemented, not silently passing |
 | Q3 lab outputs | done | IDT bulk CSV and plate xlsx, both validated; pooling map, pipetting sheet, protocol with Mg screen; cost estimate with assumptions |
 | Q4 oxDNA job bundle | done | all four stages run to completion on CPU in test mode, zero errors. `sim.queue` now runs bundles several at a time: oxDNA's CPU backend is single-threaded, so one job used 1 of 16 cores |
-| Q5 baseline analysis | done (pending a real trajectory) | parser, dimensions, RMSF, planarity, bend, oxView overlay; `dobladillo analyse`. A long CPU run is under way to give it something that counts as a result |
+| Q5 baseline analysis | done | parser, dimensions, RMSF, planarity, bend, oxView overlay; `dobladillo analyse`. Run on a real 200-frame trajectory: 328.2 +- 3.2 x 70.1 +- 4.0 x 17.7 +- 1.8 nm against a design of 390.4 x 8.0 |
 | M1 Brick and Port abstractions | todo | |
 | M2 interface library v1 + orthogonality | todo | |
 | M3 assembly composition + stage planning | todo | |
@@ -119,6 +119,23 @@ last rule is enforced rather than asked for -- `experiment report` refuses a
 missing tip radius and `compare` takes `--tip-radius` with no default -- because
 a guessed radius removes 8.7 nm from every width and nothing downstream can
 tell.
+
+## The two runs that finished
+
+**Six-helix bundle, 1M production steps, 200 frames.** 328.2 ± 3.2 × 70.1 ± 4.0
+× 17.7 ± 1.8 nm against a design of 390.4 × 8.0, with 51.5 nm of axis bend.
+The bundle bends considerably more than a six-helix bundle's known stiffness
+suggests. Under-relaxation, the monovalent salt proxy, or a real design issue —
+not yet distinguished, and the first thing to point a longer relaxation at.
+
+This also settled the sampling fix. The same run read at four frames gave a
+middle extent of 48.3 ± 22.6 nm; at 180 frames it is 70.1 ± 4.0. The four-frame
+answer was wrong by 45% and its error bar did not cover the truth.
+
+**Hinge joint sweep, four lengths, 200 frames each.** Bend rises monotonically
+with joint length — 72.5, 102.5, 125.4, 155.9 nm at 4, 8, 16 and 32 nt — and
+every joint sits between fully closed (~64 nm) and flat (~131 nm). It still
+cannot say whether the latch reaches; see the table below.
 
 ## What is blocking which experiment
 
