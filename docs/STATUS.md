@@ -124,9 +124,15 @@ tell.
 
 **Six-helix bundle, 1M production steps, 200 frames.** 328.2 ± 3.2 × 70.1 ± 4.0
 × 17.7 ± 1.8 nm against a design of 390.4 × 8.0, with 51.5 nm of axis bend.
-The bundle bends considerably more than a six-helix bundle's known stiffness
-suggests. Under-relaxation, the monovalent salt proxy, or a real design issue —
-not yet distinguished, and the first thing to point a longer relaxation at.
+**Found: a real design defect.** Not under-relaxation (the bend is stationary)
+and not thermal (sd 2.7 nm on a mean of 51, and the direction is fixed in the
+body frame at order parameter 0.993). Every crossover in the bundle sits at
+phase 0 mod 21, so each helix bonds both neighbours at one backbone azimuth
+while they sit 120° apart — a constant azimuthal strain around a ring, which
+is a constant bend. Radius 269 ± 11 nm. See `docs/BUNDLE_BEND.md`.
+
+A new rule `crossover_phase` catches it; the routing is not yet fixed, and the
+bundle's clean-lint test is `xfail(strict=True)` so it flips when it is.
 
 This also settled the sampling fix. The same run read at four frames gave a
 middle extent of 48.3 ± 22.6 nm; at 180 frames it is 70.1 ± 4.0. The four-frame

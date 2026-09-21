@@ -53,16 +53,29 @@ def _fired(design: sc.Design, rule: str) -> bool:
     "part",
     [
         pytest.param(rothemund_rectangle, id="rectangle"),
-        pytest.param(six_helix_bundle, id="bundle"),
+        pytest.param(
+            six_helix_bundle,
+            id="bundle",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "known defect: every crossover sits at phase 0 mod 21, so each helix "
+                    "bonds both neighbours at one azimuth. An oxDNA run bent it into a "
+                    "269 nm arc. xfail(strict) rather than removed, so it flips to a "
+                    "failure the moment the routing is fixed. See docs/BUNDLE_BEND.md"
+                ),
+            ),
+        ),
     ],
 )
 def test_reference_parts_have_no_hard_violations(part) -> None:
-    """The two parts this project generates must satisfy their own rules.
+    """The parts this project generates must satisfy their own rules.
 
     Not the same as the acceptance criterion's "published reference designs",
     which need obtaining first; see docs/STATUS.md. It is the strongest check
-    available offline, and it already caught a real defect: the first version
-    of the rectangle put a staple crossover exactly on the scaffold's turn.
+    available offline, and it has now caught two real defects: the first
+    version of the rectangle put a staple crossover on the scaffold's turn,
+    and the bundle bonds both neighbours of every helix at one azimuth.
     """
     report = lint(part().design)
     assert report.ok, [v.as_dict() for v in report.hard]
@@ -166,3 +179,44 @@ def test_report_says_what_it_did_not_check() -> None:
     report = lint(six_helix_bundle().design).as_dict()
     assert report["not_checked"]
     assert all(entry["why"] for entry in report["not_checked"])
+
+
+# ------------------------------------------------------------ crossover phase
+
+
+def test_crossover_phase_fires_on_the_bundle() -> None:
+    """The defect an oxDNA run found: every crossover in the six-helix bundle
+    sits at phase 0 mod 21, so each helix bonds both neighbours at the same
+    backbone azimuth. Neighbours are 120 deg apart, so one bond of every pair
+    is made off-azimuth, and a systematic azimuthal strain around a ring is a
+    constant bend -- measured as a 269 nm arc pointing the same way in 99.3%
+    of frames."""
+    from dobladillo.parts.bundle import six_helix_bundle
+    from dobladillo.routing.rules import check_crossover_phase
+
+    found = list(check_crossover_phase(six_helix_bundle().design))
+    assert found, "the rule no longer catches the defect it was written for"
+    assert all(v.severity is Severity.VIOLATION for v in found)
+    assert "off-azimuth" in found[0].message
+
+
+def test_crossover_phase_is_honest_about_its_reach() -> None:
+    """It detects identical phase sets, not per-direction azimuth. A design
+    that overlaps partially passes without having been cleared, and the
+    unimplemented list says so rather than letting `rules` imply otherwise."""
+    from dobladillo.routing.rules import UNIMPLEMENTED
+
+    names = {name for name, _ in UNIMPLEMENTED}
+    assert "crossover_azimuth" in names
+
+
+def test_a_single_neighbour_helix_is_not_flagged() -> None:
+    """A helix with one neighbour has no second azimuth to conflict with."""
+    from dobladillo.parts.rectangle import rothemund_rectangle
+    from dobladillo.routing.rules import _crossovers_by_helix, check_crossover_phase
+
+    design = rothemund_rectangle().design
+    lone = [h for h, n in _crossovers_by_helix(design).items() if len(n) == 1]
+    assert lone, "expected the border helices to have exactly one neighbour"
+    flagged = {v.helix for v in check_crossover_phase(design)}
+    assert not (set(lone) & flagged)
