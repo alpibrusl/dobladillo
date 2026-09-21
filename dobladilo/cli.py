@@ -607,7 +607,11 @@ def analyse_run(
     """
     import json as _json
 
-    from dobladilo.analysis.observables import analyse, oxview_overlay
+    from dobladilo.analysis.observables import (
+        FRAMES_FOR_A_TRUSTWORTHY_RMSF,
+        analyse,
+        oxview_overlay,
+    )
     from dobladilo.analysis.runs import NotAResult, load_run
 
     emitter = Emitter(as_json)
@@ -649,6 +653,17 @@ def analyse_run(
         ("salt", f"{payload['conditions'].get('salt_concentration_m')} M Na+ (Mg2+ proxy)"),
     ]
     rows.extend((f"wrote {k}", v) for k, v in payload.get("files", {}).items())
+    # The JSON carries `undersampled`; a person reading the table would not see
+    # it, and the table is the half that gets pasted into a message.
+    if payload["undersampled"]:
+        error = payload["rmsf_nm"]["relative_standard_error"]
+        rows.append(
+            (
+                "NOT ENOUGH FRAMES",
+                f"{report.frames} frames carry a {error:.0%} standard error on every "
+                f"spread above; {FRAMES_FOR_A_TRUSTWORTHY_RMSF} is the floor",
+            )
+        )
     body = "observables\n" + _table(rows)
     if payload["is_smoke_test"]:
         body += "\n\n  THESE ARE NOT RESULTS: the run is a smoke test, analysed under protest."
