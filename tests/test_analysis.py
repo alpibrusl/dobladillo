@@ -276,3 +276,17 @@ def test_a_thin_trajectory_says_so() -> None:
     thick = analyse(frames(FRAMES_FOR_A_TRUSTWORTHY_RMSF))
     assert not thick.undersampled
     assert thick.as_dict()["rmsf_nm"]["relative_standard_error"] < 0.11
+
+
+def test_extents_come_back_longest_first_even_when_bent() -> None:
+    """SVD orders axes by variance, not by extent. For a straight object the
+    two agree and the difference is invisible; for a bent one they come apart.
+    The hinge at a 4 nt joint reported a "longest" of 76.6 nm and a "middle"
+    of 79.4 nm -- each number right, the labels wrong."""
+    # An L: a long thin arm along x, a shorter one along y, sharing a corner.
+    arm_x = np.stack([np.linspace(0, 100, 400), np.zeros(400), np.zeros(400)], axis=1)
+    arm_y = np.stack([np.zeros(400), np.linspace(0, 80, 400), np.zeros(400)], axis=1)
+    bent = np.vstack([arm_x, arm_y]) + np.random.default_rng(0).normal(0, 0.05, (800, 3))
+
+    extents, _ = principal_extents_nm(bent)
+    assert list(extents) == sorted(extents, reverse=True)

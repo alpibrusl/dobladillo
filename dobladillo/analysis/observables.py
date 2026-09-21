@@ -53,6 +53,14 @@ def principal_extents_nm(positions_nm: np.ndarray) -> tuple[np.ndarray, np.ndarr
     The object's own axes rather than the box's: a structure free to tumble has
     no reason to lie along x, and measuring along the box would report a size
     that changes as it rotates.
+
+    "Longest first" needs the sort below, and that is not pedantry. SVD orders
+    axes by VARIANCE, and for a straight object the axis of greatest variance
+    is also the one of greatest extent, so the two orderings agree and the
+    difference is invisible. For a bent one they come apart: the hinge at a
+    4 nt joint reported a "longest" of 76.6 nm and a "middle" of 79.4 nm,
+    which is not a measurement error but a mislabelling, and it is the kind
+    that survives review because each number is individually right.
     """
     centred = positions_nm - positions_nm.mean(axis=0)
     # SVD rather than an explicit covariance eigendecomposition: same axes,
@@ -61,7 +69,9 @@ def principal_extents_nm(positions_nm: np.ndarray) -> tuple[np.ndarray, np.ndarr
     _, _, axes = np.linalg.svd(centred, full_matrices=False)
     projected = centred @ axes.T
     low, high = np.percentile(projected, EXTENT_PERCENTILES, axis=0)
-    return high - low, axes
+    extents = high - low
+    order = np.argsort(extents)[::-1]
+    return extents[order], axes[order]
 
 
 def _kabsch(mobile: np.ndarray, reference: np.ndarray) -> np.ndarray:

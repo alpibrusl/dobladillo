@@ -1,5 +1,9 @@
 # Experiments
 
+**Start with [`ROADMAP.md`](ROADMAP.md)** for which experiment comes next and
+why, and `roadmaps/` for the per-epic detail: what each one tests, what it is
+scored at, and what has to be built before it can run.
+
 One folder per experiment. Three phases, in order, and the order is the point.
 
 ```

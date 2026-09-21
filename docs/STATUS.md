@@ -120,6 +120,25 @@ missing tip radius and `compare` takes `--tip-radius` with no default -- because
 a guessed radius removes 8.7 nm from every width and nothing downstream can
 tell.
 
+## What is blocking which experiment
+
+`experiments/ROADMAP.md` has the sequence and the scores; the short version of
+what software is owed, cheapest first:
+
+| needed | blocks | size |
+|---|---|---|
+| latch-reach observable (`analysis.observables`) | E3, E4 scoring | small |
+| flatness observable (`imaging`) | E2 entirely | small |
+| folded-hinge footprint prediction | E3's gate | medium |
+| `hamiltonian/fret.py` | E4, E5 | medium |
+| `hamiltonian/equilibrium.py` | E5 | medium |
+| multi-layer plate part | E7 entirely | large |
+| two-colour smFRET + joint-state ligation controls | E6 | large |
+
+The latch-reach observable is the highest value per line: it converts the
+finished joint sweep from four numbers about bending into an answer about
+whether the hinge can close, which re-scores two experiments.
+
 ## Known gaps
 
 - Q2's acceptance criterion says the rules must pass on **published reference
