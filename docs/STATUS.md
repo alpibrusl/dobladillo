@@ -112,6 +112,14 @@ everyone while meaning nothing.
 `experiments/2026-09-22-rectangle-afm` is scaffolded and ready, with the gate
 transcribed from `docs/AFM_FIRST_TRIAL.md`.
 
+`experiments/AGENTS.md` scopes an assistant working there: it may run commands
+and draft an interpretation; it may not write the gate, edit the prediction,
+touch a raw file, or fill in a number an instrument should have produced. That
+last rule is enforced rather than asked for -- `experiment report` refuses a
+missing tip radius and `compare` takes `--tip-radius` with no default -- because
+a guessed radius removes 8.7 nm from every width and nothing downstream can
+tell.
+
 ## Known gaps
 
 - Q2's acceptance criterion says the rules must pass on **published reference

@@ -150,3 +150,53 @@ def test_the_raw_readme_does_not_count_as_data(tmp_path: Path) -> None:
 
 def test_recorded_at_reports_a_missing_file_as_missing(tmp_path: Path) -> None:
     assert recorded_at(tmp_path / "nope.json").source == "missing"
+
+
+# ------------------------------------------------------- refusing to guess
+
+
+def _cli(*args: str):
+    from typer.testing import CliRunner
+
+    from dobladillo.cli import app
+
+    return CliRunner().invoke(app, list(args))
+
+
+def test_compare_will_not_default_the_tip_radius() -> None:
+    """A default here is a landmine: the command runs, the answer is plausible,
+    and the width is a quarter wrong. Required, so it cannot be skipped by an
+    assistant trying to make a command succeed."""
+    result = _cli("compare", "rectangle")
+    assert result.exit_code != 0
+    assert "tip-radius" in result.output or "tip_radius" in result.output
+
+
+def test_report_refuses_without_a_measured_tip_radius(tmp_path: Path) -> None:
+    directory = _make(tmp_path)
+    (directory / "pre" / "order" / "b.csv").write_text("x\n")
+    (directory / "during" / "raw" / "s.gsf").write_text("not really")
+    result = _cli("experiment", "report", str(directory))
+    assert result.exit_code != 0
+    assert "no measured tip radius" in result.output
+    assert "nominal" in result.output
+
+
+def test_report_refuses_without_a_prediction(tmp_path: Path) -> None:
+    """There is nothing the experiment could be compared against, and it
+    cannot be written now -- that is the whole point of pre-registration."""
+    directory = _make(tmp_path)
+    (directory / "pre" / "prediction.json").unlink()
+    result = _cli("experiment", "report", str(directory))
+    assert result.exit_code != 0
+    assert "nothing this experiment could be" in result.output
+
+
+def test_the_agent_guide_names_the_field_most_likely_to_be_guessed() -> None:
+    """A rule nobody reads is not a control. This one has to be specific
+    enough to recognise in the moment."""
+    guide = Path(__file__).resolve().parent.parent / "experiments" / "AGENTS.md"
+    text = guide.read_text()
+    assert "tip radius" in text
+    assert "Never write a number" in text
+    assert "experiment report" in text

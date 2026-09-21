@@ -77,6 +77,21 @@ Reports what is missing, and exits non-zero when something is wrong with the
 - timestamps that come from the filesystem rather than from git, which prove
   nothing because cloning a repository resets them all.
 
+## With an AI assistant
+
+`experiments/AGENTS.md` is the brief for one. The short version: it may run
+commands, read documents and draft the interpretation in `post/report.md`; it
+may **not** write the gate in `pre/plan.md`, edit `pre/prediction.json`, touch
+anything in `during/raw/`, or fill in a number an instrument should have
+produced.
+
+That last one is the one to watch. If `experiment report` stops because the
+tip radius is missing, the right response is to go and measure it — not to put
+the nominal value in so the command runs. The tooling refuses rather than
+substituting, so an assistant that respects the refusal cannot get this wrong;
+one that "helpfully" fills the field in produces a number that looks exactly
+like a measurement.
+
 ## Why the fuss about ordering
 
 `compare` will happily reconcile a measurement with whatever is predicted. If
