@@ -255,3 +255,21 @@ def test_human_mode_is_not_json() -> None:
     assert "dobladillo" in result.stdout
     with pytest.raises(json.JSONDecodeError):
         json.loads(result.stdout)
+
+
+def test_the_committed_skill_file_matches_what_the_tool_generates() -> None:
+    """SKILL.md is generated from the command surface, so it cannot drift on
+    its own -- but a committed copy can, and the committed copy is the one an
+    agent reads. Regenerate with `dobladillo skill > SKILL.md`."""
+    from pathlib import Path
+
+    from typer.testing import CliRunner
+
+    from dobladillo.cli import app
+
+    committed = Path(__file__).resolve().parent.parent / "SKILL.md"
+    result = CliRunner().invoke(app, ["skill"])
+    assert result.exit_code == 0
+    assert committed.read_text().strip() == result.stdout.strip(), (
+        "SKILL.md is stale; run: dobladillo skill > SKILL.md"
+    )

@@ -14,8 +14,11 @@ file is the short form, not a replacement.
    (fixed seeds) and its key outputs are pinned in tests.
 4. **Never fabricate simulation or experimental results.** If `data/` lacks
    what an item needs, produce the job bundle or request sheet and stop with a
-   clear note of what the human must provide. Simulations run on the owner's
-   GPU; folding and imaging happen in a partner lab.
+   clear note of what the human must provide. Folding and imaging happen in a
+   partner lab and nothing here substitutes for them. Simulation is no longer
+   a gate: oxDNA's CPU backend is single-threaded, so `sim sweep` and `sim
+   run` execute bundles several at a time on whatever machine you are on. A
+   CUDA build is faster, not required.
 5. **Record units and conditions** (salt, temperature, model version) in the
    metadata of every result file. A prediction made at one proxy salt is not
    comparable to one made at another.

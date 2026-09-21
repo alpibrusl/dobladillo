@@ -1013,10 +1013,13 @@ refusals can still produce nonsense.
    prediction made at one proxy salt is not comparable to one made at another,
    nor directly to a measurement in a magnesium buffer. Never join two
    observables without checking their conditions.
-4. **Respect the human gates.** Simulation runs on a machine with CUDA;
-   folding and imaging happen in a lab. If `data/` lacks what a task needs,
-   produce the bundle or request sheet and stop with a clear note of what is
-   owed.
+4. **Respect the human gates.** Folding and imaging happen in a lab, and no
+   amount of software substitutes for them. If `data/` lacks what a task
+   needs, produce the bundle or request sheet and stop with a clear note of
+   what is owed. Simulation is no longer one of these gates: oxDNA's CPU
+   backend is single-threaded, so `sim sweep` and `sim run` execute bundles
+   several at a time on whatever machine you are on. A CUDA build is faster,
+   not required.
 5. **Physical constants live in `dobladillo/constants.py`**, each with its
    source. Do not inline a number; if one is wrong, change it there.
 6. **Run `dobladillo lint` before anything expensive.** Hard violations block
