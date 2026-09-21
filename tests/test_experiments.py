@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dobladilo.hamiltonian.experiments import (
+from dobladillo.hamiltonian.experiments import (
     CORE_STAPLES_SINGLE_HINGE,
     CORE_STAPLES_TWO_HINGE,
     COST_PER_STAPLE_EUR,

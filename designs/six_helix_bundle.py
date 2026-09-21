@@ -9,8 +9,8 @@ import json
 import sys
 from pathlib import Path
 
-from dobladilo import _scadnano as ad
-from dobladilo.parts.bundle import six_helix_bundle
+from dobladillo import _scadnano as ad
+from dobladillo.parts.bundle import six_helix_bundle
 
 NAME = "six_helix_bundle"
 

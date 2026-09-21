@@ -15,10 +15,10 @@ import re
 
 import pytest
 
-from dobladilo import _scadnano as ad
-from dobladilo.parts.bundle import six_helix_bundle
-from dobladilo.parts.rectangle import rothemund_rectangle
-from dobladilo.sim.jobs import (
+from dobladillo import _scadnano as ad
+from dobladillo.parts.bundle import six_helix_bundle
+from dobladillo.parts.rectangle import rothemund_rectangle
+from dobladillo.sim.jobs import (
     CHECKPOINTS_PER_RELAXATION_STAGE,
     MIN_PRODUCTION_SAMPLES,
     MIN_RELAX_STEPS,
@@ -193,8 +193,8 @@ def test_a_real_production_run_yields_enough_frames_to_analyse() -> None:
 
     A million steps is the length of an actual production run here.
     """
-    from dobladilo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF
-    from dobladilo.sim.jobs import _production_samples
+    from dobladillo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF
+    from dobladillo.sim.jobs import _production_samples
 
     assert _production_samples(1_000_000) >= FRAMES_FOR_A_TRUSTWORTHY_RMSF
 

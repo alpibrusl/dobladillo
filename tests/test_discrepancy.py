@@ -9,14 +9,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from dobladilo.hamiltonian.discrepancy import (
+from dobladillo.hamiltonian.discrepancy import (
     Noise,
     noise_floor,
     observe,
     realise,
     recover_two_spin,
 )
-from dobladilo.hamiltonian.model import Ising
+from dobladillo.hamiltonian.model import Ising
 
 
 def _pair(coupling: float) -> Ising:

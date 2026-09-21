@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from dobladilo import units
-from dobladilo.constants import (
+from dobladillo import units
+from dobladillo.constants import (
     HELICAL_REPEAT_BP,
     SQUARE_LATTICE_EFFECTIVE_REPEAT_BP,
     STAPLE_LENGTH_NT,

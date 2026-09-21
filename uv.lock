@@ -268,7 +268,7 @@ wheels = [
 ]
 
 [[package]]
-name = "dobladilo"
+name = "dobladillo"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [

@@ -5,10 +5,10 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | Item | State | Notes |
 |---|---|---|
 | Q1 project skeleton + scadnano round trip | done | both parts build, export to cadnano v2 and round-trip; accounting exact; counts pinned |
-| Q2 design-rule validator | done | six rules, each with a seeded failing design; `dobladilo lint`. Caught a real defect in the rectangle. `self_structure` declared unimplemented, not silently passing |
+| Q2 design-rule validator | done | six rules, each with a seeded failing design; `dobladillo lint`. Caught a real defect in the rectangle. `self_structure` declared unimplemented, not silently passing |
 | Q3 lab outputs | done | IDT bulk CSV and plate xlsx, both validated; pooling map, pipetting sheet, protocol with Mg screen; cost estimate with assumptions |
 | Q4 oxDNA job bundle | done | all four stages run to completion on CPU in test mode, zero errors. `sim.queue` now runs bundles several at a time: oxDNA's CPU backend is single-threaded, so one job used 1 of 16 cores |
-| Q5 baseline analysis | done (pending a real trajectory) | parser, dimensions, RMSF, planarity, bend, oxView overlay; `dobladilo analyse`. A long CPU run is under way to give it something that counts as a result |
+| Q5 baseline analysis | done (pending a real trajectory) | parser, dimensions, RMSF, planarity, bend, oxView overlay; `dobladillo analyse`. A long CPU run is under way to give it something that counts as a result |
 | M1 Brick and Port abstractions | todo | |
 | M2 interface library v1 + orthogonality | todo | |
 | M3 assembly composition + stage planning | todo | |
@@ -65,7 +65,7 @@ as ambition without evidence.
   oligos.
 - **#2 the bistable hinge** — the one part three documents converge on, and the
   first whose prediction is a distribution rather than a shape. **Built**:
-  `dobladilo build hinge`, no rule violations. Building it produced the
+  `dobladillo build hinge`, no rule violations. Building it produced the
   finding in `docs/HINGE.md` — Stage 0's latch sweep could have returned ten
   saturated measurements and no information.
 - **#3 calibrated nanomechanical test objects** — the offer to the AFM partner,
@@ -130,7 +130,7 @@ classifying their shapes.
 
 ### What has been adapted
 
-`dobladilo.mechanics` (one module, no mechanics in it) supplies the piece
+`dobladillo.mechanics` (one module, no mechanics in it) supplies the piece
 nanoindent cannot know — the thickness a given design folds into — and hands
 the plate over. It reports thickness, the thin-film parameter and the regime
 with nothing installed, because those are geometry; forces and correction

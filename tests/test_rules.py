@@ -12,10 +12,10 @@ from __future__ import annotations
 import pytest
 import scadnano as sc
 
-from dobladilo import _scadnano as ad
-from dobladilo.parts.bundle import six_helix_bundle
-from dobladilo.parts.rectangle import rothemund_rectangle
-from dobladilo.routing.rules import RULES, Severity, lint
+from dobladillo import _scadnano as ad
+from dobladillo.parts.bundle import six_helix_bundle
+from dobladillo.parts.rectangle import rothemund_rectangle
+from dobladillo.routing.rules import RULES, Severity, lint
 
 
 def _bare_design(helices: int = 4, max_offset: int = 200) -> sc.Design:

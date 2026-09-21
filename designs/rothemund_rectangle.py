@@ -12,8 +12,8 @@ import json
 import sys
 from pathlib import Path
 
-from dobladilo import _scadnano as ad
-from dobladilo.parts.rectangle import rothemund_rectangle
+from dobladillo import _scadnano as ad
+from dobladillo.parts.rectangle import rothemund_rectangle
 
 NAME = "rothemund_rectangle"
 

@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import pytest
 
-from dobladilo.lab.plates import name_and_assign_wells
-from dobladilo.parts.twist_pair import (
+from dobladillo.lab.plates import name_and_assign_wells
+from dobladillo.parts.twist_pair import (
     predicted_twist_degrees,
     twist_pair,
     twist_per_bp_turns,
 )
-from dobladilo.routing.rules import lint
+from dobladillo.routing.rules import lint
 
 
 @pytest.fixture(scope="module")

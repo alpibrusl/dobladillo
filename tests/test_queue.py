@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from dobladilo.sim.queue import (
+from dobladillo.sim.queue import (
     CORES_HELD_BACK,
     STAGES,
     default_workers,

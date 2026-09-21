@@ -1,7 +1,7 @@
 """The CLI is exercised by invoking it, not by importing it.
 
 A typer app can import cleanly and still be unusable: with a single command and
-no callback, typer collapses it into the root command and `dobladilo version`
+no callback, typer collapses it into the root command and `dobladillo version`
 fails on an unexpected argument. Only a real invocation catches that.
 """
 
@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from dobladilo import __version__
-from dobladilo.cli import app
+from dobladillo import __version__
+from dobladillo.cli import app
 
 runner = CliRunner()
 
@@ -83,7 +83,7 @@ def test_describe_lists_every_command_with_its_options() -> None:
 def test_describe_stays_true_when_a_command_is_added() -> None:
     """It walks the app rather than restating a hand-written list."""
     payload = json.loads(runner.invoke(app, ["describe", "--json"]).stdout)
-    from dobladilo.cli import app as live
+    from dobladillo.cli import app as live
 
     declared = {c.name or c.callback.__name__ for c in live.registered_commands}
     listed = {c["command"] for c in payload["commands"]}
@@ -143,7 +143,7 @@ def test_lint_rejects_an_unknown_rule(tmp_path: Path) -> None:
 
 
 def test_rules_command_lists_every_rule() -> None:
-    from dobladilo.routing.rules import RULES
+    from dobladillo.routing.rules import RULES
 
     payload = json.loads(runner.invoke(app, ["rules", "--json"]).stdout)
     assert {r["name"] for r in payload["rules"]} == {r.name for r in RULES}
@@ -151,7 +151,7 @@ def test_rules_command_lists_every_rule() -> None:
 
 def test_cli_defaults_match_the_generators() -> None:
     """The CLI must not restate a default. It did once, and went stale."""
-    from dobladilo.parts import bundle, rectangle
+    from dobladillo.parts import bundle, rectangle
 
     payload = json.loads(runner.invoke(app, ["describe", "--json"]).stdout)
     rect = next(c for c in payload["commands"] if c["command"] == "build rectangle")
@@ -229,14 +229,14 @@ def test_the_skill_file_lists_every_command() -> None:
     for command in listed:
         if command["command"] in ("describe", "version", "skill"):
             continue
-        assert f"`dobladilo {command['command']}`" in skill, command["command"]
+        assert f"`dobladillo {command['command']}`" in skill, command["command"]
 
 
 def test_the_skill_carries_the_working_rules() -> None:
     """A command list alone would let an agent produce numbers from a bundle
     that was never run."""
     skill = runner.invoke(app, ["skill"]).stdout
-    assert skill.startswith("---\nname: dobladilo")
+    assert skill.startswith("---\nname: dobladillo")
     assert "Never present a generated artefact as a result" in skill
     assert "--allow-test-mode" in skill
 
@@ -252,6 +252,6 @@ def test_every_part_name_the_cli_accepts_actually_builds() -> None:
 def test_human_mode_is_not_json() -> None:
     """The two shapes are generated from one structure; neither leaks."""
     result = runner.invoke(app, ["version"])
-    assert "dobladilo" in result.stdout
+    assert "dobladillo" in result.stdout
     with pytest.raises(json.JSONDecodeError):
         json.loads(result.stdout)

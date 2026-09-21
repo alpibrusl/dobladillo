@@ -10,14 +10,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from dobladilo.hamiltonian.inverse import (
+from dobladillo.hamiltonian.inverse import (
     REALISABLE_COUPLINGS_KT,
     design,
     kl_divergence,
     quantise,
     solve,
 )
-from dobladilo.hamiltonian.model import (
+from dobladillo.hamiltonian.model import (
     MAX_EXACT_SPINS,
     Ising,
     all_states,

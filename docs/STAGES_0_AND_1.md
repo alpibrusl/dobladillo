@@ -1,9 +1,9 @@
 # Stages 0 and 1 — experiment design and materials
 
 Companion to `HAMILTONIAN.md` §5. Every number below is produced by
-`dobladilo.hamiltonian.experiments`, not typed here; regenerate with
+`dobladillo.hamiltonian.experiments`, not typed here; regenerate with
 
-    uv run python -c "from dobladilo.hamiltonian import experiments as e; \
+    uv run python -c "from dobladillo.hamiltonian import experiments as e; \
                       [print(s.summary()) for s in e.all_series()]"
 
 ## What the two stages decide

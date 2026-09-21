@@ -16,11 +16,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from dobladilo.imaging.classify import Fraction, classify, population
-from dobladilo.imaging.flatten import flatten
-from dobladilo.imaging.heightmap import HeightMap
-from dobladilo.imaging.particles import find_particles
-from dobladilo.imaging.synthetic import SHEET_HEIGHT_NM, synthetic_scan
+from dobladillo.imaging.classify import Fraction, classify, population
+from dobladillo.imaging.flatten import flatten
+from dobladillo.imaging.heightmap import HeightMap
+from dobladillo.imaging.particles import find_particles
+from dobladillo.imaging.synthetic import SHEET_HEIGHT_NM, synthetic_scan
 
 TRUE_LENGTH_NM = 191.0
 TRUE_WIDTH_NM = 36.0
@@ -121,7 +121,7 @@ def test_a_flat_sheet_of_the_wrong_shape_is_malformed_not_aggregate() -> None:
     """Where a partly flattened twisted rectangle should land: still one layer,
     no longer a rectangle. Keeping it out of 'aggregate' is what makes the
     twist experiment's readout mean anything."""
-    from dobladilo.imaging.particles import Particle
+    from dobladillo.imaging.particles import Particle
 
     squashed = Particle(1, (50.0, 50.0), 120.0, 70.0, SHEET_HEIGHT_NM, 8400.0, 0.0, False)
     assert (

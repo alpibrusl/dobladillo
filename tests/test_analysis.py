@@ -15,18 +15,18 @@ import json
 import numpy as np
 import pytest
 
-from dobladilo.analysis.observables import (
+from dobladillo.analysis.observables import (
     analyse,
     axis_bend_nm,
     planarity_nm,
     principal_extents_nm,
     rmsf_nm,
 )
-from dobladilo.analysis.runs import NotAResult, check_run, load_run
-from dobladilo.analysis.trajectory import Frame, read_trajectory
-from dobladilo.parts.bundle import six_helix_bundle
-from dobladilo.sim.jobs import write_job_bundle
-from dobladilo.units import nm_to_oxdna
+from dobladillo.analysis.runs import NotAResult, check_run, load_run
+from dobladillo.analysis.trajectory import Frame, read_trajectory
+from dobladillo.parts.bundle import six_helix_bundle
+from dobladillo.sim.jobs import write_job_bundle
+from dobladillo.units import nm_to_oxdna
 
 
 def _slab(nx=40, ny=20, nz=3, spacing=1.0, rng=None) -> np.ndarray:
@@ -233,7 +233,7 @@ def test_plots_are_written_and_are_not_empty(tmp_path) -> None:
     still drifting at the last frame has not equilibrated, and its mean is a
     number about the journey rather than the destination. That is visible in a
     line and invisible in a mean."""
-    from dobladilo.analysis.plots import write_plots
+    from dobladillo.analysis.plots import write_plots
 
     rng = np.random.default_rng(4)
     shape = _slab(nx=25, ny=10, nz=2)
@@ -260,7 +260,7 @@ def test_a_thin_trajectory_says_so() -> None:
     """The overnight run produced four frames because production inherited the
     relaxation checkpoint count. Nothing in the report said the numbers were
     four-sample statistics, which is how a thin result becomes a wrong one."""
-    from dobladilo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF, analyse
+    from dobladillo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF, analyse
 
     rng = np.random.default_rng(7)
 

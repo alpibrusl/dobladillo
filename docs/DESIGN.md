@@ -1,4 +1,4 @@
-# dobladilo: design document
+# dobladillo: design document
 
 Status: draft v0.3. Audience: an implementing coding agent, plus the owner,
 who runs the GPU jobs and the wet-lab work.
@@ -56,7 +56,7 @@ assembled hierarchically from a standard brick set.
 
 ## 3. Domain primer
 
-The numbers in this section live in `dobladilo/constants.py`, each with its
+The numbers in this section live in `dobladillo/constants.py`, each with its
 source. If the two disagree, one of them is a bug.
 
 ### Geometry
@@ -68,7 +68,7 @@ source. If the two disagree, one of them is a bug.
 | Helix diameter | ~2.0 nm; effective inter-helix spacing in origami 2.25 to 2.6 nm |
 | Honeycomb lattice | crossovers to each of 3 neighbours every 7 bp (21 bp = 2 turns). Twist-neutral. |
 | Square lattice | crossovers every 8 bp (32 bp = 3 turns, implies 10.67 bp/turn). Produces global right-handed twist unless corrected by periodic deletions. |
-| Scaffolds | M13mp18 7249 nt; p7560; p8064. Sequences in `dobladilo/data/scaffolds/`. |
+| Scaffolds | M13mp18 7249 nt; p7560; p8064. Sequences in `dobladillo/data/scaffolds/`. |
 | Persistence length | dsDNA ~50 nm; 6-helix bundle ~1 to 3 um |
 
 ### Staple rules (hard constraints unless flagged)
@@ -175,7 +175,7 @@ design scripts (user / agent)
 ## 6. Repo layout
 
 ```
-dobladilo/
+dobladillo/
   parts/         brick generators (rectangle, nhb bundles, plates, hinge)
   interfaces/    interface types, sequence sets, compatibility
   compose/       Assembly graph, stage planning, checks
@@ -212,7 +212,7 @@ accounting exact; tests pin staple count and lengths.
 **Q2. Design-rule validator.** Implements all staple rules in section 3 as
 composable checks returning structured violations.
 *AC:* passes on published reference designs; seeded bad designs trigger each
-rule; CLI `dobladilo lint design.sc`.
+rule; CLI `dobladillo lint design.sc`.
 
 **Q3. Lab outputs.** IDT plate files (96/384), pooling map (which wells form
 which part), pipetting sheet, folding protocol sheet with Mg2+ screen.
@@ -343,7 +343,7 @@ Neither contains collaborator names, and the sequencing in section 9 governs.
 - **Yield decay** with assembly size is the fundamental limit; the project's
   value depends on measuring it honestly, not on hiding it.
 - **scadnano API drift.** Pin versions; wrap all scadnano calls in
-  `dobladilo/_scadnano.py` adapters.
+  `dobladillo/_scadnano.py` adapters.
 - Open: lattice choice for the standard brick set (honeycomb is twist-neutral
   and stiffer per helix; square packs denser and suits flat plates). Proposal:
   honeycomb for 3D bricks, square for 2D plates.

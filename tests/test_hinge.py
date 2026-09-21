@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 import scadnano as sc
 
-from dobladilo import _scadnano as ad
-from dobladilo.parts._lattice import SPAN_MULTIPLE_NT, pair_lower
-from dobladilo.parts.hinge import DEFAULT_LATCH, bistable_hinge
-from dobladilo.routing.rules import Severity, lint
-from dobladilo.sequence.thermo import duplex, latch_field_kt, reverse_complement
+from dobladillo import _scadnano as ad
+from dobladillo.parts._lattice import SPAN_MULTIPLE_NT, pair_lower
+from dobladillo.parts.hinge import DEFAULT_LATCH, bistable_hinge
+from dobladillo.routing.rules import Severity, lint
+from dobladillo.sequence.thermo import duplex, latch_field_kt, reverse_complement
 
 
 @pytest.fixture(scope="module")

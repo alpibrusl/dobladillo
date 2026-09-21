@@ -156,12 +156,12 @@ elsewhere. On this machine the backend is a CPU, and **oxDNA's CPU backend is
 single-threaded** — a production run holds 99% of one core and 43 MB, and
 leaves the other fifteen idle for six and a half hours.
 
-So `dobladilo sim` gained a queue:
+So `dobladillo sim` gained a queue:
 
 ```bash
-dobladilo sim sweep --joint 4,8,16,32 --out runs --root oxqueue
-nohup dobladilo sim run --root oxqueue --oxdna path/to/oxDNA &
-dobladilo sim status --root oxqueue
+dobladillo sim sweep --joint 4,8,16,32 --out runs --root oxqueue
+nohup dobladillo sim run --root oxqueue --oxdna path/to/oxDNA &
+dobladillo sim status --root oxqueue
 ```
 
 Each bundle's four stages run strictly in order, because every stage starts

@@ -1,5 +1,5 @@
 [project]
-name = "dobladilo"
+name = "dobladillo"
 version = "0.0.1"
 description = "A scriptable toolchain for DNA origami bricks: design, simulate, fold, measure, compare."
 requires-python = ">=3.11"
@@ -20,7 +20,7 @@ dependencies = [
 design = ["scadnano==0.21.1"]
 # Thermodynamics. The default backend must be fully open source; primer3-py is
 # GPLv2, so it stays optional to keep the core permissively licensed.
-# Thermodynamics. dobladilo.sequence.thermo implements the SantaLucia 1998
+# Thermodynamics. dobladillo.sequence.thermo implements the SantaLucia 1998
 # nearest-neighbour table directly -- published numbers, not anyone's code --
 # so the core needs nothing. primer3-py is GPLv2 and stays optional; it is
 # here as the independent implementation the tests check that table against,
@@ -33,13 +33,13 @@ thermo = ["primer3-py>=2.0"]
 imaging = ["scipy>=1.11"]
 # Indentation mechanics. alpibrupa/nanoindent is private and not on an index,
 # so this extra cannot install it; it is declared to record the dependency and
-# to keep `dobladilo.mechanics` honest about needing something it cannot pull.
+# to keep `dobladillo.mechanics` honest about needing something it cannot pull.
 # Install nanoindent from its own checkout. See mechanics.NANOINDENT_NOTE.
 mechanics = []
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "scipy>=1.11"]
 
 [project.scripts]
-dobladilo = "dobladilo.cli:app"
+dobladillo = "dobladillo.cli:app"
 
 [build-system]
 requires = ["hatchling"]

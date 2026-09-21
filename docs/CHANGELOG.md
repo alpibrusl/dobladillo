@@ -17,18 +17,18 @@
 - CLI with a `--json` mode and a `describe` command, so an agent can discover
   and call it without scraping `--help`.
 - Q2 complete. Six composable design-rule checks with structured findings,
-  `dobladilo lint` and `dobladilo rules`. Running them found a real defect in
+  `dobladillo lint` and `dobladillo rules`. Running them found a real defect in
   the rectangle, now fixed.
 - Q3 complete. IDT bulk CSV and plate spreadsheet, both validated rather than
   assumed; pooling map; pipetting sheet; folding protocol with the magnesium
-  screen; cost estimate that carries its assumptions. `dobladilo lab order`
-  and `dobladilo lab protocol`.
+  screen; cost estimate that carries its assumptions. `dobladillo lab order`
+  and `dobladillo lab protocol`.
 - Q4. Self-contained oxDNA job bundles: topology, configuration, mutual traps,
   an input file per relaxation stage, a run script and metadata.
-  `dobladilo sim bundle`. The relaxation follows oxDNA's own documented
+  `dobladillo sim bundle`. The relaxation follows oxDNA's own documented
   procedure, which differs from DESIGN.md section 3 in its first stage; the
   difference is recorded in every bundle's metadata.
 - Q5. Trajectory parsing without oxDNA, dimensions by principal axes, RMSF with
   superimposition, planarity, axis bend, and an oxView overlay.
-  `dobladilo analyse`, plus `dobladilo sim check`, which refuses to let a
+  `dobladillo analyse`, plus `dobladillo sim check`, which refuses to let a
   smoke-test trajectory be analysed as a result.

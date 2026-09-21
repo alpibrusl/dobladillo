@@ -13,8 +13,8 @@ import math
 
 import pytest
 
-from dobladilo.hamiltonian.model import Ising, distribution
-from dobladilo.sequence.thermo import (
+from dobladillo.hamiltonian.model import Ising, distribution
+from dobladillo.sequence.thermo import (
     NEAREST_NEIGHBOUR,
     R_KCAL,
     T37_K,

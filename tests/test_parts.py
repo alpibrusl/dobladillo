@@ -16,10 +16,10 @@ import itertools
 
 import pytest
 
-from dobladilo import _scadnano as ad
-from dobladilo.constants import SCAFFOLD_LENGTHS_NT, SQUARE_TWIST_CORRECTION_PERIOD_BP
-from dobladilo.parts.bundle import HELICES, RING_POSITIONS, six_helix_bundle
-from dobladilo.parts.rectangle import rothemund_rectangle
+from dobladillo import _scadnano as ad
+from dobladillo.constants import SCAFFOLD_LENGTHS_NT, SQUARE_TWIST_CORRECTION_PERIOD_BP
+from dobladillo.parts.bundle import HELICES, RING_POSITIONS, six_helix_bundle
+from dobladillo.parts.rectangle import rothemund_rectangle
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +55,7 @@ def test_rectangle_staple_count_and_lengths_are_pinned(rectangle) -> None:
 
 
 def test_rectangle_staples_obey_the_length_rule(rectangle) -> None:
-    from dobladilo.constants import STAPLE_LENGTH_NT
+    from dobladillo.constants import STAPLE_LENGTH_NT
 
     low, high = STAPLE_LENGTH_NT
     assert all(low <= n <= high for n in rectangle.staple_lengths)
@@ -69,7 +69,7 @@ def test_rectangle_twist_correction_is_evenly_spaced_and_off_the_crossovers(rect
     may land on a crossover position, where a deletion is needless strain on a
     junction. Counting them instead would only restate the loop bounds.
     """
-    from dobladilo.parts.rectangle import DOMAIN_NT
+    from dobladillo.parts.rectangle import DOMAIN_NT
 
     scaffold = ad.scaffold_strand(rectangle.design)
     per_helix = {d.helix: sorted(d.deletions) for d in scaffold.domains}
@@ -183,7 +183,7 @@ def test_the_rise_per_base_pair_disagreement_is_still_what_we_documented() -> No
     is pinned: if scadnano changes its value, this fails and someone re-reads
     the note instead of inheriting a silent shift.
     """
-    from dobladilo.constants import RISE_PER_BP_NM
+    from dobladillo.constants import RISE_PER_BP_NM
 
     assert ad.GEOMETRY.rise_per_base_pair == pytest.approx(0.332)
     relative = abs(RISE_PER_BP_NM - ad.GEOMETRY.rise_per_base_pair)

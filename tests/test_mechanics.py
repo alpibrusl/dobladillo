@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from dobladilo.constants import HELIX_DIAMETER_NM
-from dobladilo.mechanics import (
+from dobladillo.constants import HELIX_DIAMETER_NM
+from dobladillo.mechanics import (
     MEASURED_FACTORS,
     NANOINDENT_NOTE,
     Plate,
@@ -112,7 +112,7 @@ def test_correction_is_independent_of_the_sample_modulus() -> None:
     plate of designed thickness calibrates an AFM without anyone knowing what
     DNA's modulus is. Worth a test because the day it stops holding, every
     number this module reports changes meaning."""
-    from dobladilo.mechanics import plate as mod
+    from dobladillo.mechanics import plate as mod
 
     plate = Plate(layers=1, footprint_nm=100.0)
     baseline = correction(plate, TIP).factor

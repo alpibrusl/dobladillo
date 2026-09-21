@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from dobladilo.hamiltonian.bracket import (
+from dobladillo.hamiltonian.bracket import (
     DESIGN_MAGNESIUM_M,
     DESIGN_TEMPERATURE_K,
     MAX_HOMOPOLYMER_RUN,
@@ -18,7 +18,7 @@ from dobladilo.hamiltonian.bracket import (
     latch_sequence,
     probability,
 )
-from dobladilo.sequence.thermo import duplex, gc_fraction, is_self_complementary, latch_field_kt
+from dobladillo.sequence.thermo import duplex, gc_fraction, is_self_complementary, latch_field_kt
 
 
 def test_the_window_is_about_three_kt() -> None:

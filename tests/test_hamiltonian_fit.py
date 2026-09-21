@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from dobladilo.hamiltonian.fit import (
+from dobladillo.hamiltonian.fit import (
     TermSet,
     bootstrap,
     chain_neighbours,
@@ -20,14 +20,14 @@ from dobladilo.hamiltonian.fit import (
     fit,
     nested_models,
 )
-from dobladilo.hamiltonian.metrics import (
+from dobladillo.hamiltonian.metrics import (
     connected_correlations,
     entropy_miller_madow,
     entropy_plugin,
     kish_effective_size,
     kl_divergence,
 )
-from dobladilo.hamiltonian.model import all_states, distribution
+from dobladillo.hamiltonian.model import all_states, distribution
 
 
 def _counts_from(theta: np.ndarray, model: TermSet, n: int, depth: int, seed: int) -> np.ndarray:
@@ -163,7 +163,7 @@ def test_an_entropy_names_its_estimator_and_admits_undersampling() -> None:
 def test_connected_correlations_vanish_without_coupling() -> None:
     """Two strongly biased but independent spins have a large raw correlation
     and no connected one. Only the connected part says anything about coupling."""
-    from dobladilo.hamiltonian.model import Ising
+    from dobladillo.hamiltonian.model import Ising
 
     states, probabilities = distribution(Ising(h=np.array([1.5, 1.5]), J=np.zeros((2, 2))))
     raw = np.einsum("s,si,sj->ij", probabilities, states, states)

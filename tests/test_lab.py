@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-from dobladilo.lab import plates as lab
-from dobladilo.lab.protocol import anneal_for, folding_protocol, magnesium_screen
-from dobladilo.parts.bundle import six_helix_bundle
-from dobladilo.parts.rectangle import rothemund_rectangle
+from dobladillo.lab import plates as lab
+from dobladillo.lab.protocol import anneal_for, folding_protocol, magnesium_screen
+from dobladillo.parts.bundle import six_helix_bundle
+from dobladillo.parts.rectangle import rothemund_rectangle
 
 
 @pytest.fixture(scope="module")

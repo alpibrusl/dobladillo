@@ -2,7 +2,7 @@
 
 Epic #2. The first part whose prediction is a distribution rather than a shape.
 
-`dobladilo build hinge` builds it; `dobladilo bracket` prints the ladder below.
+`dobladillo build hinge` builds it; `dobladillo bracket` prints the ladder below.
 
 ## The part
 
