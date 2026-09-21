@@ -67,17 +67,32 @@ def _stamp_rectangle(
     width_px: float,
     height_nm: float,
     angle_deg: float,
-    edge_px: float,
+    pixel_nm: float,
+    tip_radius_nm: float,
 ) -> None:
-    """Draw one rotated rectangle with softened edges.
+    """Draw one rotated rectangle as a finite tip would record it.
 
-    Softened because a real tip is not a point. The direction matters and is
-    easy to get backwards: a finite-radius tip BROADENS a feature, so the ramp
-    extends outward past the true edge rather than eating inward from it, and
-    the half-height contour sits on the true edge. Modelling it the other way
-    makes half-height measurement look 20% low on a 36 nm feature, and
-    "fixing" the measurement to match would be compensating for something real
-    images do not do.
+    The edge profile is the real one rather than a softening. A rigid sphere of
+    radius R riding the top corner of a plateau of height h has its apex at
+
+        z(x) = h - R + sqrt(R^2 - x^2)
+
+    for x measured outward from the true edge, reaching the substrate at
+    x = sqrt(2Rh - h^2). So the recorded feature is full height AT the true
+    edge and the whole ramp lies OUTSIDE it.
+
+    This replaced a symmetric ramp centred on the true edge, which put the
+    half-height contour exactly on the true edge -- that is, modelled a tip
+    with zero half-height broadening. The real contour sits
+    sqrt(Rh - h^2/4) outside: 4.36 nm for a 10 nm tip on a 2 nm plate, which
+    is 24% of a 36 nm width. The closed loop found it, by deconvolving a tip
+    artefact that was never rendered and coming back short by exactly the
+    amount removed.
+
+    A product of two one-dimensional profiles is not the same as the
+    morphological dilation a real tip performs, and at the corners it is
+    wrong. It is right along each edge, which is where a half-height width is
+    measured, and that is what this fixture is for.
     """
     rows, cols = heights.shape
     yy, xx = np.mgrid[0:rows, 0:cols]
@@ -86,13 +101,22 @@ def _stamp_rectangle(
     along = dx * np.cos(angle) + dy * np.sin(angle)
     across = -dx * np.sin(angle) + dy * np.cos(angle)
 
-    def ramp(distance: np.ndarray, half: float) -> np.ndarray:
-        # Full height inside half - edge/2, zero beyond half + edge/2, so the
-        # half-height contour falls exactly on the true edge.
-        soft = max(edge_px, 1e-6)
-        return np.clip((half + soft / 2 - np.abs(distance)) / soft, 0.0, 1.0)
+    def profile(distance: np.ndarray, half_px: float) -> np.ndarray:
+        """Fraction of full height recorded this far from the centre.
 
-    heights += height_nm * ramp(along, length_px / 2) * ramp(across, width_px / 2)
+        Everything here is in nanometres: the tip radius and the feature
+        height are, and mixing them with a pixel distance is the obvious way
+        to get a fixture that is subtly wrong at one scan size and right at
+        another.
+        """
+        outside_nm = (np.abs(distance) - half_px) * pixel_nm
+        if tip_radius_nm <= 0:
+            return (outside_nm <= 0).astype(float)
+        x = np.clip(outside_nm, 0.0, tip_radius_nm)
+        z = height_nm - tip_radius_nm + np.sqrt(np.maximum(tip_radius_nm**2 - x**2, 0.0))
+        return np.clip(np.where(outside_nm <= 0, height_nm, z) / height_nm, 0.0, 1.0)
+
+    heights += height_nm * profile(along, length_px / 2) * profile(across, width_px / 2)
 
 
 def synthetic_scan(
@@ -104,6 +128,7 @@ def synthetic_scan(
     width_nm: float = 36.0,
     height_nm: float = SHEET_HEIGHT_NM,
     n_aggregates: int = 4,
+    tip_radius_nm: float = 10.0,
     noise_nm: float = 0.12,
     tilt_nm: float = 6.0,
     line_noise_nm: float = 0.25,
@@ -136,7 +161,6 @@ def synthetic_scan(
         return None
 
     length_px, width_px = length_nm / pixel_nm, width_nm / pixel_nm
-    edge_px = max(2.0, 4.0 / pixel_nm)  # a few nm of tip broadening
 
     # Keep centres more than a full length apart, so two rectangles cannot
     # overlap whatever their angles. With a smaller margin they sometimes
@@ -156,7 +180,8 @@ def synthetic_scan(
             width_px=width_px,
             height_nm=height_nm,
             angle_deg=angle,
-            edge_px=edge_px,
+            pixel_nm=pixel_nm,
+            tip_radius_nm=tip_radius_nm,
         )
         placed.append(PlacedParticle(centre, length_nm, width_nm, height_nm, angle, "rectangle"))
 
@@ -174,7 +199,8 @@ def synthetic_scan(
                 width_px=width_px * 1.2,
                 height_nm=height_nm * float(rng.uniform(1.8, 3.0)),
                 angle_deg=float(rng.uniform(0, 180)),
-                edge_px=edge_px,
+                pixel_nm=pixel_nm,
+                tip_radius_nm=tip_radius_nm,
             )
         placed.append(
             PlacedParticle(

@@ -144,11 +144,20 @@ def test_a_synthetic_scan_survives_the_whole_path(tmp_path: Path) -> None:
     format a partner would send, read back through the reader, and measured --
     so a fault anywhere in that chain shows up as a wrong count rather than as
     a plausible one."""
+    from dobladillo.compare.corrections import half_height_broadening_nm
+
     scan = synthetic_scan(seed=7)
     image = read(write_gsf(scan.image, tmp_path / "s.gsf"))
     flattened, background = flatten(image)
+    # The fixture renders a finite tip, so the image shows the object widened
+    # by it. Judging the image against the object's own dimensions would fail
+    # here for a reason that has nothing to do with reading the file.
+    broadening = 2 * half_height_broadening_nm(tip_radius_nm=10.0, feature_height_nm=2.0)
     found = population(
-        find_particles(flattened, background), length_nm=191.0, width_nm=36.0, height_nm=2.0
+        find_particles(flattened, background),
+        length_nm=191.0 + broadening,
+        width_nm=36.0 + broadening,
+        height_nm=2.0,
     )
     assert found.counts.get("well_formed", 0) == len(scan.rectangles)
     assert found.counts.get("malformed", 0) == 0

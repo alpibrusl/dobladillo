@@ -312,7 +312,9 @@ def build_bundle(
 lab_app = typer.Typer(help="What the bench needs: plates, pooling, protocol.", no_args_is_help=True)
 app.add_typer(lab_app, name="lab")
 
-PART_ARGUMENT = typer.Argument(..., help="Which part: rectangle or bundle.")
+PART_ARGUMENT = typer.Argument(
+    ..., help="Which part: rectangle, bundle, hinge, twist-corrected or twist-uncorrected."
+)
 PLATE_OPTION = typer.Option(96, "--plate", help="Well plate format: 96 or 384.")
 
 LIMIT_OPTION = typer.Option(20, "--limit", help="Most findings to list. 0 for all.")
@@ -403,13 +405,18 @@ def _make_part(which: str, out: Emitter) -> Any:
         from dobladillo.parts.bundle import six_helix_bundle
 
         return six_helix_bundle()
+    if which == "hinge":
+        from dobladillo.parts.hinge import bistable_hinge
+
+        return bistable_hinge()
     if which in ("twist-corrected", "twist-uncorrected"):
         from dobladillo.parts.twist_pair import twist_pair
 
         pair = twist_pair()
         return pair.corrected if which == "twist-corrected" else pair.uncorrected
     out.fail(
-        f"unknown part {which!r}; use rectangle, bundle, twist-corrected or twist-uncorrected",
+        f"unknown part {which!r}; use rectangle, bundle, hinge, twist-corrected "
+        "or twist-uncorrected",
         kind="unknown_part",
     )
     return None
@@ -987,6 +994,9 @@ def afm_measure(
 @afm_app.command("synthetic")
 def afm_synthetic(
     out: Path = typer.Option(..., "--out", help="Where to write the .gsf."),
+    part: str = typer.Option(
+        "twist-corrected", help="Whose dimensions to place. Must be a part this builds."
+    ),
     seed: int = typer.Option(0, help="Which scan to generate."),
     rectangles: int = typer.Option(40, help="How many well-formed particles to place."),
     as_json: bool = JSON_OPTION,
@@ -1003,14 +1013,32 @@ def afm_synthetic(
     from dobladillo.imaging.synthetic import synthetic_scan
 
     emitter = Emitter(as_json)
-    scan = synthetic_scan(seed=seed, n_rectangles=rectangles)
+    # The dimensions come from the part rather than from a constant in the
+    # imaging module. `imaging` knows nothing about DNA on purpose -- that is
+    # what lets it be handed to a lab with no interest in the rest of this --
+    # so the CLI, which does know about parts, is where the two meet. Its
+    # defaults used to be 191 x 36 nm, which is the twist-pair arm, matching
+    # one part by coincidence and the rectangle not at all.
+    built = _make_part(part, emitter)
+    dimensions = sorted(
+        (float(v) for v in built.as_dict()["approx_dimensions_nm"].values()), reverse=True
+    )
+    scan = synthetic_scan(
+        seed=seed,
+        n_rectangles=rectangles,
+        length_nm=dimensions[0],
+        width_nm=dimensions[-1],
+    )
     write_gsf(scan.image, out, title=f"synthetic seed {seed}")
     truth = {
+        "part": part,
+        "length_nm": round(dimensions[0], 1),
+        "width_nm": round(dimensions[-1], 1),
         "placed": len(scan.truth),
         "rectangles": len(scan.rectangles),
         "aggregates": len(scan.truth) - len(scan.rectangles),
     }
-    payload = {"file": str(out), "seed": seed, "ground_truth": truth}
+    payload = {"file": str(out), "seed": seed, "part": part, "ground_truth": truth}
     emitter.result(
         payload,
         "synthetic scan\n"
@@ -1018,6 +1046,133 @@ def afm_synthetic(
             [("wrote", str(out)), ("seed", str(seed))] + [(k, str(v)) for k, v in truth.items()]
         ),
     )
+
+
+@app.command("compare")
+def compare_command(
+    part: str = PART_ARGUMENT,
+    run_dir: Path | None = typer.Option(None, "--run", help="A finished oxDNA run directory."),
+    scan: Path | None = typer.Option(None, "--scan", help="A .gsf AFM scan of the same part."),
+    tip_radius: float = typer.Option(
+        10.0, help="Tip apex radius, nm. Measure it; it enters every width as a square root."
+    ),
+    magnesium_mm: float = typer.Option(12.0, help="Mg2+ in the imaging buffer, mM."),
+    scan_temperature_c: float = typer.Option(23.0, help="Temperature the scan was taken at."),
+    skip: int = typer.Option(0, help="Frames to discard as equilibration."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Design against simulation against measurement: the closed loop.
+
+    Supply whichever of `--run` and `--scan` exist; with neither, this reports
+    the designed dimensions and says so rather than pretending to compare.
+
+    Most of what this does is refuse. A designed length, a simulated extent and
+    an AFM footprint are three different quantities, and the difference between
+    the last two is dominated by tip radius rather than by anything about the
+    structure. Reconciling them is the work; the leftover is the result.
+    """
+    from dobladillo.compare import Conditions, Observation, compare, deconvolve_tip, designed
+
+    emitter = Emitter(as_json)
+    built = _make_part(part, emitter)
+    design = built.as_dict()
+    dimensions = design.get("approx_dimensions_nm") or design["approx_arm_dimensions_nm"]
+    # Longest first, so design, simulation and measurement are ordered alike.
+    ordered = sorted(dimensions.items(), key=lambda kv: -float(kv[1]))
+    quantities = [("length_nm", ordered[0][1]), ("width_nm", ordered[-1][1])]
+
+    observations: dict[str, list[Any]] = {q: [designed(q, float(v))] for q, v in quantities}
+
+    if run_dir is not None:
+        from dobladillo.analysis.observables import analyse
+        from dobladillo.analysis.runs import NotAResult, load_run
+
+        try:
+            frames, check = load_run(run_dir, skip=skip)
+        except NotAResult as e:
+            emitter.fail(str(e), kind="not_a_result")
+            return
+        report = analyse(frames)
+        salt = check.metadata.get("model", {}).get("salt_concentration_m")
+        conditions = Conditions(temperature_c=20.0, sodium_m=salt, model="oxDNA2")
+        for quantity, key in (("length_nm", "longest"), ("width_nm", "middle")):
+            spread = report.dimensions_nm[key]
+            observations[quantity].append(
+                Observation(
+                    quantity=quantity,
+                    value_nm=spread.mean,
+                    definition="simulated_extent",
+                    origin="simulated",
+                    conditions=conditions,
+                    uncertainty_nm=spread.sd,
+                    # Frames, not independent samples: MD frames are correlated
+                    # and the effective size is smaller, so this understates the
+                    # error. Stated here rather than silently assumed away.
+                    n=spread.n,
+                    note="" if not report.undersampled else "undersampled trajectory",
+                )
+            )
+
+    if scan is not None:
+        from dobladillo.imaging.classify import population
+        from dobladillo.imaging.flatten import flatten
+        from dobladillo.imaging.particles import find_particles
+        from dobladillo.imaging.readers import UnreadableScan, read
+
+        try:
+            image = read(scan)
+        except UnreadableScan as e:
+            emitter.fail(str(e), kind="unreadable_scan")
+            return
+        flattened, background = flatten(image)
+        particles = [p for p in find_particles(flattened, background) if not p.touches_edge]
+        if not particles:
+            emitter.fail("no particles clear of the frame edge in that scan", kind="no_particles")
+            return
+        import statistics
+
+        conditions = Conditions(
+            temperature_c=scan_temperature_c,
+            magnesium_m=magnesium_mm / 1000.0,
+            model="AFM, half-height footprint",
+        )
+        heights = [p.height_nm for p in particles]
+        median_height = statistics.median(heights)
+        for quantity, attribute in (("length_nm", "length_nm"), ("width_nm", "width_nm")):
+            values = [getattr(p, attribute) for p in particles]
+            raw = Observation(
+                quantity=quantity,
+                value_nm=statistics.fmean(values),
+                definition="afm_half_height",
+                origin="measured",
+                conditions=conditions,
+                uncertainty_nm=statistics.stdev(values) if len(values) > 1 else None,
+                n=len(values),
+            )
+            observations[quantity].append(
+                deconvolve_tip(
+                    raw, feature_height_nm=median_height, tip_radius_nm=tip_radius
+                ).observation
+            )
+        population(particles, length_nm=quantities[0][1], width_nm=quantities[1][1], height_nm=2.0)
+
+    results = {q: compare(q, obs) for q, obs in observations.items()}
+    payload = {
+        "part": part,
+        "sources": {
+            "designed": True,
+            "simulated": run_dir is not None and str(run_dir),
+            "measured": scan is not None and str(scan),
+        },
+        "tip_radius_nm": tip_radius,
+        "comparisons": {q: c.as_dict() for q, c in results.items()},
+        "agrees": all(c.agrees for c in results.values()),
+        "compared_anything": any(c.compared_anything for c in results.values()),
+    }
+    body = "\n\n".join(c.summary() for c in results.values())
+    if not payload["compared_anything"]:
+        body += "\n\nNothing was compared. Supply --run, --scan, or both."
+    emitter.result(payload, f"closed loop: {part}\n" + body)
 
 
 @app.command("bracket")

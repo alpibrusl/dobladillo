@@ -16,6 +16,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from dobladillo.compare.corrections import half_height_broadening_nm
 from dobladillo.imaging.classify import Fraction, classify, population
 from dobladillo.imaging.flatten import flatten
 from dobladillo.imaging.heightmap import HeightMap
@@ -24,6 +25,16 @@ from dobladillo.imaging.synthetic import SHEET_HEIGHT_NM, synthetic_scan
 
 TRUE_LENGTH_NM = 191.0
 TRUE_WIDTH_NM = 36.0
+
+#: The fixture now renders a finite tip, because a real scan is taken with one.
+#: A raw half-height measurement therefore recovers the truth PLUS the
+#: broadening, and only the deconvolved one recovers the truth. Both are
+#: checked below: the first says the measurement is faithful to the image, the
+#: second says the correction is faithful to the object.
+FIXTURE_TIP_RADIUS_NM = 10.0
+BROADENING_NM = 2 * half_height_broadening_nm(
+    tip_radius_nm=FIXTURE_TIP_RADIUS_NM, feature_height_nm=SHEET_HEIGHT_NM
+)
 
 
 def _pipeline(seed: int, **kwargs):
@@ -75,9 +86,41 @@ def test_dimensions_agree_with_the_truth_within_five_percent(seed: int) -> None:
     sheets = [p for p in particles if not p.touches_edge and 3 < p.aspect < 9]
     assert len(sheets) >= 15
 
-    assert np.mean([p.length_nm for p in sheets]) == pytest.approx(TRUE_LENGTH_NM, rel=0.05)
-    assert np.mean([p.width_nm for p in sheets]) == pytest.approx(TRUE_WIDTH_NM, rel=0.05)
+    # What the image contains: the object, widened by the tip that recorded it.
+    assert np.mean([p.length_nm for p in sheets]) == pytest.approx(
+        TRUE_LENGTH_NM + BROADENING_NM, rel=0.05
+    )
+    assert np.mean([p.width_nm for p in sheets]) == pytest.approx(
+        TRUE_WIDTH_NM + BROADENING_NM, rel=0.05
+    )
+    # Height is not broadened; a tip does not make a plate taller.
     assert np.mean([p.height_nm for p in sheets]) == pytest.approx(SHEET_HEIGHT_NM, rel=0.05)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 4, 5])
+def test_deconvolving_the_tip_recovers_the_object(seed: int) -> None:
+    """The closed loop's one honest claim: put in a rectangle of known size,
+    record it through a modelled tip, measure it, remove the tip, and get the
+    rectangle back. The rendering and the correction are derived
+    independently -- one in `imaging.synthetic`, one in `compare.corrections`
+    -- so agreeing is evidence rather than a tautology."""
+    _, _, _, particles = _pipeline(seed)
+    sheets = [p for p in particles if not p.touches_edge and 3 < p.aspect < 9]
+    length = np.mean([p.length_nm for p in sheets]) - BROADENING_NM
+    width = np.mean([p.width_nm for p in sheets]) - BROADENING_NM
+    assert length == pytest.approx(TRUE_LENGTH_NM, rel=0.03)
+    assert width == pytest.approx(TRUE_WIDTH_NM, rel=0.05)
+
+
+def test_a_wrong_tip_radius_shows_up_as_a_wrong_object(seed: int = 3) -> None:
+    """Which is why a tip should be characterised at the start and end of a
+    session. Assuming 20 nm for a 10 nm tip removes 12.5 nm instead of 8.7 and
+    the width comes back 10% short."""
+    _, _, _, particles = _pipeline(seed)
+    sheets = [p for p in particles if not p.touches_edge and 3 < p.aspect < 9]
+    wrong = 2 * half_height_broadening_nm(tip_radius_nm=20.0, feature_height_nm=SHEET_HEIGHT_NM)
+    width = np.mean([p.width_nm for p in sheets]) - wrong
+    assert width < 0.95 * TRUE_WIDTH_NM
 
 
 def test_the_height_estimator_does_not_sample_the_noise_tail() -> None:
@@ -110,8 +153,15 @@ def test_particles_are_measured_along_themselves_not_the_scan() -> None:
 
 def test_aggregates_are_told_apart_from_sheets() -> None:
     scan, _, _, particles = _pipeline(7, n_aggregates=5)
+    # Classified against what the image shows, which is the object plus the
+    # tip. A classifier handed the true dimensions would be judging the sample
+    # by measurements of the image, which is the mistake `compare` exists to
+    # stop; here the expectation is broadened instead.
     pop = population(
-        particles, length_nm=TRUE_LENGTH_NM, width_nm=TRUE_WIDTH_NM, height_nm=SHEET_HEIGHT_NM
+        particles,
+        length_nm=TRUE_LENGTH_NM + BROADENING_NM,
+        width_nm=TRUE_WIDTH_NM + BROADENING_NM,
+        height_nm=SHEET_HEIGHT_NM,
     )
     assert pop.counts["well_formed"] >= 0.8 * len(scan.rectangles)
     assert pop.counts["aggregate"] >= 1

@@ -24,6 +24,7 @@ experimental counterparts.
 - `dobladillo build hinge` — A bistable hinge: two arms, a single-stranded joint, and a latch.
 - `dobladillo build pair` — Both arms of the twist pair, written side by side.
 - `dobladillo build rectangle` — A Rothemund-style rectangle on the square lattice.
+- `dobladillo compare` — Design against simulation against measurement: the closed loop.
 - `dobladillo describe` — Emit the command surface, for an agent to read instead of `--help`.
 - `dobladillo geometry` — Show the geometry constants, and where this project disagrees.
 - `dobladillo lab order` — Plates, pooling map and cost for ordering a part's staples.
