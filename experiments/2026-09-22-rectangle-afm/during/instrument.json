@@ -1,0 +1,24 @@
+{
+  "instrument": "",
+  "mode": "",
+  "tip": {
+    "part_number": "",
+    "nominal_radius_nm": null,
+    "measured_radius_before_nm": null,
+    "measured_radius_after_nm": null,
+    "note": "Measure it. A nominal 10 nm tip is routinely 8-20 nm in use, and the correction goes as sqrt(R). Before AND after: a tip that blunted mid-session makes early and late scans differently wrong."
+  },
+  "buffer": {
+    "tris_mm": 5.0,
+    "edta_mm": 1.0,
+    "mgcl2_mm": null,
+    "ph": 8.0
+  },
+  "temperature_c": null,
+  "scan": {
+    "size_nm": null,
+    "pixels": null,
+    "rate_hz": null
+  },
+  "buffer_note": "Mg2+ is left blank on purpose: pre/protocol.md screens 5-20 mM and the value that produced THIS sample is what belongs here."
+}

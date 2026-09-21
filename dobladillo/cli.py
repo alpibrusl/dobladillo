@@ -65,6 +65,107 @@ class Emitter:
         typer.echo(message, err=True)
 
 
+def _protocol_markdown(part: str, sheet: dict[str, Any]) -> str:
+    """The protocol sheet as a page to follow at a bench, not as JSON.
+
+    A protocol is read standing up next to a thermocycler, so it is markdown
+    with the numbers already substituted. `dobladillo lab protocol --json`
+    remains the machine-readable form.
+    """
+    anneal = sheet["anneal"]
+    buffer_ = sheet["buffer"]
+    lines = [
+        f"# {part}: folding protocol",
+        "",
+        "Generated when this experiment was created. If you change anything,",
+        "change it in `during/log.md` as a deviation rather than editing here --",
+        "this file is what was *meant* to happen.",
+        "",
+        "## Buffer",
+        "",
+        f"{buffer_['tris_mm']} mM Tris, {buffer_['edta_mm']} mM EDTA, pH {buffer_['ph']}.",
+        "",
+        "## Magnesium screen",
+        "",
+        "Origami folding is sharply Mg-dependent, so this is a screen rather than",
+        "a value. One reaction each at, in mM:",
+        "",
+        "  " + ", ".join(f"{m:g}" for m in sheet["magnesium_screen_mm"]),
+        "",
+        f"{len(sheet['reactions'])} reactions of "
+        f"{sheet['reactions'][0]['volume_ul']:g} ul. Scaffold "
+        f"{sheet['reactions'][0]['scaffold']['variant']} at "
+        f"{sheet['reactions'][0]['scaffold']['final_nm']:g} nM, each staple at "
+        f"{sheet['reactions'][0]['staples_final_nm_each']:g} nM.",
+        "",
+        "## Anneal",
+        "",
+        f"1. Hold at {anneal['hold']['temperature_c']} C for {anneal['hold']['minutes']:g} min.",
+        f"2. Ramp {anneal['ramp']['from_c']} to {anneal['ramp']['to_c']} C at "
+        f"{anneal['ramp']['rate']:g} {anneal['ramp']['rate_unit']}.",
+        f"3. Total {anneal['total_hours']} h.",
+        "",
+        "## Purification",
+        "",
+        "  " + " / ".join(sheet["purification"]),
+        "",
+        "## Record for every reaction",
+        "",
+        "Into `during/log.md`. A reaction whose conditions were not recorded",
+        "cannot be compared with one whose were.",
+        "",
+    ]
+    lines += [f"- {item}" for item in sheet["record_for_each_reaction"]]
+    lines += ["", sheet["note"], ""]
+    return "\n".join(lines)
+
+
+def _experiment_plan(*, slug: str, part: str, prediction: dict[str, Any]) -> str:
+    predicted = prediction["predicted_nm"]
+    return f"""# {slug}
+
+**Part.** `{part}`
+
+## What this is for
+
+One paragraph. What question does this answer, and what would change if the
+answer came back the other way? If nothing would change, the experiment is not
+worth the oligos.
+
+## The gate
+
+**Write this before taking data.** What result makes this a failure?
+
+A gate decided afterwards is a description of the data. This is the single
+most important line in the folder, and it is the one most easily written last.
+
+> criterion:
+
+## What is predicted
+
+From `pre/prediction.json`, recorded when this folder was made:
+
+| quantity | predicted |
+|---|---|
+| length | {predicted["length"]} nm |
+| width | {predicted["width"]} nm |
+| height | {predicted["height"]} nm |
+
+An AFM will not measure these directly. A half-height footprint is wider than
+the object by twice `sqrt(R h - h^2/4)` for a tip of radius R -- about 8.7 nm
+for a 10 nm tip on a 2 nm plate, which is a quarter of a 36 nm width. The
+toolchain removes it in `post/`, using the tip radius from
+`during/instrument.json`, which is why that field is not optional.
+
+## Checklist before starting
+
+- [ ] Gate written above
+- [ ] `pre/` committed to git, so the prediction provably predates the data
+- [ ] Oligos ordered from `pre/order/`
+- [ ] Tip radius measured and written into `during/instrument.json`
+"""
+
+
 def _median(array: Any) -> float:
     import numpy as np
 
@@ -1046,6 +1147,135 @@ def afm_synthetic(
             [("wrote", str(out)), ("seed", str(seed))] + [(k, str(v)) for k, v in truth.items()]
         ),
     )
+
+
+experiment_app = typer.Typer(help="Experiment folders: pre, during, post.", no_args_is_help=True)
+app.add_typer(experiment_app, name="experiment")
+
+EXPERIMENTS_ROOT = typer.Option(
+    Path("experiments"), "--root", help="Where experiment folders live."
+)
+
+
+@experiment_app.command("new")
+def experiment_new(
+    slug: str = typer.Argument(..., help="Folder name. Start it with the date: 2026-09-22-..."),
+    part: str = typer.Option("rectangle", help="Which part this experiment is about."),
+    root: Path = EXPERIMENTS_ROOT,
+    plate: int = typer.Option(96, help="Well plate format for the order."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Scaffold an experiment, with its predictions recorded up front.
+
+    The predictions are the point. `post/` compares against what is written
+    here, not against whatever the toolchain predicts later, so an experiment
+    stays honest when a part's defaults change -- and `experiment check` says
+    so if this file turns out to be newer than the data.
+
+    Commit `pre/` before taking any data. That commit is what makes the
+    ordering evidence rather than an assertion.
+    """
+    from dobladillo.experiments import scaffold
+
+    emitter = Emitter(as_json)
+    built = _make_part(part, emitter)
+    design = built.as_dict()
+    dimensions = design.get("approx_dimensions_nm") or design["approx_arm_dimensions_nm"]
+    ordered = sorted((float(v) for v in dimensions.values()), reverse=True)
+
+    prediction = {
+        "part": part,
+        "generated_by": f"dobladillo {__version__}",
+        "predicted_nm": {
+            "length": round(ordered[0], 1),
+            "width": round(ordered[-1], 1),
+            "height": 2.0 * design.get("layers", 1),
+        },
+        "design": design,
+        "gate": {
+            "criterion": "FILL THIS IN BEFORE TAKING DATA",
+            "note": "What result would make this experiment a failure? Write it here "
+            "first. A gate decided afterwards is a description of the data.",
+        },
+    }
+
+    plan = _experiment_plan(slug=slug, part=part, prediction=prediction)
+    from dobladillo.lab.protocol import folding_protocol
+
+    sheet = folding_protocol(
+        part_name=part,
+        dimensionality="2D" if design["lattice"] == "square" else "3D",
+        scaffold_variant=design["scaffold"]["variant"],
+    )
+    protocol_text = _protocol_markdown(part, sheet)
+
+    try:
+        directory = scaffold(
+            root, slug=slug, prediction=prediction, plan=plan, protocol=protocol_text
+        )
+    except FileExistsError as e:
+        emitter.fail(str(e), kind="already_exists")
+        return
+
+    # Wells must be assigned before the plate workbook can be written; the
+    # bulk CSV does not need them, which is why forgetting produces one file
+    # and half an error.
+    from dobladillo.lab import plates as lab
+
+    layout = lab.name_and_assign_wells(built.design, plate_type=plate)
+    written = lab.write_order_files(
+        built.design, directory=directory / "pre" / "order", name=part, plate_type=plate
+    )
+    (directory / "pre" / "order" / "pipetting.json").write_text(
+        json.dumps(lab.pipetting_sheet(layout), indent=2) + "\n"
+    )
+
+    payload = {
+        "directory": str(directory),
+        "part": part,
+        "prediction": prediction["predicted_nm"],
+        "order_files": {k: str(v) for k, v in written.items()},
+        "next": "Fill in pre/plan.md's gate, then COMMIT pre/ before taking data.",
+    }
+    rows = [
+        ("created", str(directory)),
+        ("part", part),
+        (
+            "predicted",
+            f"{prediction['predicted_nm']['length']} x {prediction['predicted_nm']['width']} nm",
+        ),
+    ]
+    rows += [(f"order {k}", str(v)) for k, v in written.items()]
+    rows.append(("next", "fill in the gate in pre/plan.md, then commit pre/"))
+    emitter.result(payload, "experiment\n" + _table(rows))
+
+
+@experiment_app.command("check")
+def experiment_check(
+    directory: Path = typer.Argument(..., help="An experiment folder."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """What is missing, and whether the results can be believed.
+
+    Exits non-zero when something is wrong with the record rather than with the
+    science -- a missing prediction, or one recorded after the data.
+    """
+    from dobladillo.experiments import check as run_check
+
+    emitter = Emitter(as_json)
+    report = run_check(directory)
+    payload = report.as_dict()
+    rows: list[tuple[str, str]] = []
+    for phase in report.phases:
+        state = "complete" if phase.complete else ("started" if phase.started else "not started")
+        detail = state if phase.complete else f"{state}, missing {', '.join(phase.missing)}"
+        rows.append((str(phase.phase), detail))
+    rows.append(("ready for", report.ready_for or "nothing: all three are complete"))
+    for problem in report.problems:
+        rows.append(("PROBLEM", problem))
+    emitter.result(payload, f"{directory}\n" + _table(rows))
+    if report.problems:
+        raise typer.Exit(1)
 
 
 @app.command("compare")

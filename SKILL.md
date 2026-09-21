@@ -26,6 +26,8 @@ experimental counterparts.
 - `dobladillo build rectangle` — A Rothemund-style rectangle on the square lattice.
 - `dobladillo compare` — Design against simulation against measurement: the closed loop.
 - `dobladillo describe` — Emit the command surface, for an agent to read instead of `--help`.
+- `dobladillo experiment check` — What is missing, and whether the results can be believed.
+- `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.
 - `dobladillo geometry` — Show the geometry constants, and where this project disagrees.
 - `dobladillo lab order` — Plates, pooling map and cost for ordering a part's staples.
 - `dobladillo lab protocol` — The folding protocol sheet, with the magnesium screen laid out.

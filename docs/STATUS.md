@@ -90,6 +90,28 @@ Not opened, and why:
   genuinely self-serving, but it is a wet-lab technique with almost no software
   content. Worth doing; not worth an epic here.
 
+## Running experiments
+
+`experiments/` holds one folder per experiment, in three phases: `pre/` fixed
+before the first sample exists, `during/` what actually happened and the raw
+files, `post/` produced by the toolchain. `dobladillo experiment new` scaffolds
+one and `experiment check` reports whether its record can be believed.
+
+The mechanism, rather than the folders, is **pre-registration**. `compare` will
+reconcile a measurement with whatever is predicted, and a prediction adjusted
+after seeing a scan produces output identical to one made in advance -- nothing
+in the numbers distinguishes them. So the distinction lives in the record:
+`pre/prediction.json` is committed before the session, `check` compares its git
+commit time against the first raw file's, and `post/` compares against the
+recorded prediction rather than a freshly computed one.
+
+Timestamps come from git rather than the filesystem, because cloning resets
+every mtime to the moment of checkout and a naive check would pass for
+everyone while meaning nothing.
+
+`experiments/2026-09-22-rectangle-afm` is scaffolded and ready, with the gate
+transcribed from `docs/AFM_FIRST_TRIAL.md`.
+
 ## Known gaps
 
 - Q2's acceptance criterion says the rules must pass on **published reference
