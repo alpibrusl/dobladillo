@@ -1621,6 +1621,12 @@ def dashboard_command(
     experiments_root: Path = typer.Option(
         Path("experiments"), "--experiments", help="Where experiment folders live."
     ),
+    runs_root: Path = typer.Option(
+        Path("runs"),
+        "--runs",
+        help="Where finished oxDNA runs live, one directory per part. Their "
+        "trajectories become the simulated outline on the shape card.",
+    ),
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Generate the shareable board. Reads every figure from the toolchain.
@@ -1634,7 +1640,7 @@ def dashboard_command(
     from dobladillo.dashboard import gather, render
 
     emitter = Emitter(as_json)
-    state = gather(experiments_root=experiments_root)
+    state = gather(experiments_root=experiments_root, runs_root=runs_root)
     stamp = _dt.datetime.now(_dt.UTC).strftime("Generated %Y-%m-%d %H:%M UTC.")
     out.mkdir(parents=True, exist_ok=True)
     page = out / "index.html"

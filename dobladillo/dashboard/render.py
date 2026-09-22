@@ -128,6 +128,52 @@ def _experiments(state: State) -> str:
     )
 
 
+def _shapes(state: State) -> str:
+    """One outline card per part that has something to draw.
+
+    Each outline is labelled with what it is, because a designed rectangle, a
+    simulated envelope and a tip-broadened footprint are three different
+    quantities and overlaying them silently is the error `compare` exists to
+    prevent.
+    """
+    from dobladillo.dashboard.shapes import svg
+
+    cards = []
+    for part in state.parts:
+        if len(part.outlines) < 2:
+            continue
+        drawing = svg(list(part.outlines))
+        notes = "".join(
+            f'<p style="font-size:.82rem;color:var(--muted)">'
+            f"<strong>{_e(o.origin)}</strong> — {_e(o.definition)}</p>"
+            for o in part.outlines
+        )
+        extents = " &nbsp;·&nbsp; ".join(
+            f'{_e(o.origin)} <span class="mono">{o.extent_nm[0]:.0f} × '
+            f"{o.extent_nm[1]:.0f} nm</span>"
+            for o in part.outlines
+        )
+        cards.append(
+            f'<div style="display:flex;flex-direction:column;gap:.5rem">'
+            f'<h3 style="font-family:var(--fd);font-size:.95rem;margin:0">{_e(part.name)}</h3>'
+            f"{drawing}"
+            f'<p style="font-size:.85rem">{extents}</p>{notes}</div>'
+        )
+    if not cards:
+        return ""
+    return (
+        '<section class="panel"><div class="head"><h2>Shape</h2>'
+        '<span class="eyebrow">drawn to scale, on one pair of axes</span></div>'
+        f'<div class="body">{"".join(cards)}'
+        '<div class="note"><span class="eyebrow">Why this is here</span>'
+        "<p>The six-helix bundle came back from oxDNA at 328 × 70 nm against a design of "
+        "390 × 8, and nothing in the numbers read as wrong — they are all plausible sizes. "
+        "It was a 269 nm arc, and it stayed invisible until somebody asked why the middle "
+        "extent was 70 nm on an 8 nm rod. An outline shows a banana immediately.</p></div>"
+        "</div></section>"
+    )
+
+
 def _parts(state: State) -> str:
     rows = []
     for part in state.parts:
@@ -257,6 +303,7 @@ which is crude — and stated anyway, because it locates the value in the early,
 experiments and depends on <strong>failure being informative at every stage</strong>.</p>
 </div></div></section>
 
+{_shapes(state)}
 <div class="cols">
 <section class="panel"><div class="head"><h2>Parts</h2></div>
 {_parts(state)}<div class="body">{broken_block}</div></section>

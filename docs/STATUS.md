@@ -184,6 +184,13 @@ The commercial case for that film was already withdrawn on other grounds, so
 nothing downstream changes. It is recorded because the same mistake is
 available to anyone composing bricks, and `crosstalk` is now what catches it.
 
+## Shape on the dashboard
+
+`dobladillo dashboard --runs <dir>` draws each part's simulated outline against
+its design. Checked against the bundle's own trajectory, the envelope recovers
+a centreline sagitta of 50.2 nm on a body 10.7 nm thick — the arc that a table
+of length, width and height had not shown anyone.
+
 ## Known gaps
 
 - Q2's acceptance criterion says the rules must pass on **published reference

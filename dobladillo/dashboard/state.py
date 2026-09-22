@@ -35,6 +35,10 @@ class PartState:
     staples: int
     violations: int
     worst: str = ""
+    #: Rendered outlines, when a trajectory or a scan is available for this
+    #: part. Empty is the normal case and is not a gap: a part that has never
+    #: been simulated has nothing to draw against its design.
+    outlines: tuple[Any, ...] = ()
 
     @property
     def clean(self) -> bool:
@@ -48,6 +52,7 @@ class PartState:
             "violations": self.violations,
             "clean": self.clean,
             "worst": self.worst,
+            "outlines": [o.as_dict() for o in self.outlines],
         }
 
 
@@ -77,7 +82,35 @@ class State:
         }
 
 
-def _part_state(name: str) -> PartState:
+def _outlines(name: str, dimensions: dict[str, float], runs_root: Path) -> tuple[Any, ...]:
+    """Designed outline always; simulated one when a trajectory is there.
+
+    The designed one alone is worth drawing: it gives the scale that makes the
+    others readable, and it costs nothing.
+    """
+    from dobladillo.dashboard.shapes import from_trajectory, rectangle
+
+    sizes = sorted(dimensions.values(), reverse=True)
+    out: list[Any] = [rectangle(sizes[0], sizes[-1])]
+
+    run = runs_root / name
+    if not run.is_dir():
+        return tuple(out)
+    trajectories = sorted(run.glob("traj_*production*.dat"))
+    if not trajectories:
+        return tuple(out)
+    try:
+        from dobladillo.analysis.trajectory import read_trajectory
+
+        frames = list(read_trajectory(trajectories[-1]))
+        # Drop a tenth as further equilibration, as `analyse` is asked to.
+        out.append(from_trajectory(frames, skip=len(frames) // 10))
+    except (OSError, ValueError):  # pragma: no cover - a partial run
+        pass
+    return tuple(out)
+
+
+def _part_state(name: str, runs_root: Path) -> PartState:
     from dobladillo.parts.bundle import six_helix_bundle
     from dobladillo.parts.hinge import bistable_hinge
     from dobladillo.parts.rectangle import rothemund_rectangle
@@ -92,12 +125,14 @@ def _part_state(name: str) -> PartState:
     info = part.as_dict()
     dimensions = info.get("approx_dimensions_nm") or info["approx_arm_dimensions_nm"]
     hard = [v for v in lint(part.design).violations if v.severity is Severity.VIOLATION]
+    sizes = {k: round(float(v), 1) for k, v in dimensions.items()}
     return PartState(
         name=name,
-        dimensions_nm={k: round(float(v), 1) for k, v in dimensions.items()},
+        dimensions_nm=sizes,
         staples=int(info["staple_count"]),
         violations=len(hard),
         worst=hard[0].rule if hard else "",
+        outlines=_outlines(name, sizes, runs_root),
     )
 
 
@@ -123,7 +158,7 @@ def _folders(root: Path) -> list[dict[str, Any]]:
     return out
 
 
-def gather(*, experiments_root: Path | None = None) -> State:
+def gather(*, experiments_root: Path | None = None, runs_root: Path | None = None) -> State:
     """Build the whole state. Runs the rules and the cost model; no I/O beyond
     reading experiment folders."""
     chain, probability = critical_path()
@@ -147,6 +182,6 @@ def gather(*, experiments_root: Path | None = None) -> State:
             }
             for radius in TIP_RADII_NM
         ],
-        parts=[_part_state(name) for name in PARTS],
+        parts=[_part_state(name, runs_root or Path("runs")) for name in PARTS],
         folders=_folders(experiments_root or Path("experiments")),
     )
