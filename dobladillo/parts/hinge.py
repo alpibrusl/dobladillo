@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from dobladillo import _scadnano as ad
+from dobladillo.interfaces import Brick, Port
 from dobladillo.parts._lattice import (
     BLOCK_NT,
     DOMAIN_NT,
@@ -105,6 +106,37 @@ class Hinge:
         cost measured by Stage 0 is supplied; see `sequence.thermo`."""
         return latch_field_kt(
             self.latch, temperature_k=temperature_k, conformational_kt=conformational_kt
+        )
+
+    def brick(self, *, channel: int = 0) -> Brick:
+        """This hinge as a brick, with its latch halves declared as ports.
+
+        The latch was already a port before there was a word for it: two
+        complementary extensions, one on each arm, that bind each other and
+        nothing else. Declaring it makes that checkable -- a film of several
+        hinges on one core needs every latch on a different channel, and
+        `interfaces.crosstalk` is what says whether it is.
+        """
+        return Brick(
+            name=f"hinge-{self.latch.sequence}",
+            ports=(
+                Port(
+                    name="latch-a",
+                    kind="latch",
+                    polarity="a",
+                    helices=(self.latch_helix,),
+                    offset=0,
+                    channel=channel,
+                ),
+                Port(
+                    name="latch-b",
+                    kind="latch",
+                    polarity="b",
+                    helices=(self.latch_helix,),
+                    offset=self.total_length,
+                    channel=channel,
+                ),
+            ),
         )
 
     def as_dict(self) -> dict[str, Any]:

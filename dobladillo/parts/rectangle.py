@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from dobladillo import _scadnano as ad
+from dobladillo.interfaces import Brick, Port
 from dobladillo.parts._lattice import (
     BLOCK_NT,
     DOMAIN_NT,
@@ -71,6 +72,37 @@ class Rectangle:
         width = float(self.length * ad.GEOMETRY.rise_per_base_pair)
         height = float(self.helices * ad.interhelix_spacing_nm())
         return (width, height)
+
+    def brick(self, *, channel: int = 0) -> Brick:
+        """This rectangle as a brick, with its two ends declared as edges.
+
+        The ends rather than the sides: the scaffold runs along the helices, so
+        joining two slabs end to end is a different operation from stacking
+        them, and only the first is an `edge`. Stacking is what E7's
+        multi-layer plate needs and is not offered here yet.
+        """
+        helices = tuple(range(self.helices))
+        return Brick(
+            name=f"rectangle-{self.helices}x{self.length}",
+            ports=(
+                Port(
+                    name="start",
+                    kind="edge",
+                    polarity="a",
+                    helices=helices,
+                    offset=0,
+                    channel=channel,
+                ),
+                Port(
+                    name="end",
+                    kind="edge",
+                    polarity="b",
+                    helices=helices,
+                    offset=self.length,
+                    channel=channel,
+                ),
+            ),
+        )
 
     def as_dict(self) -> dict[str, Any]:
         width, height = self.dimensions_nm

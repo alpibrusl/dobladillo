@@ -9,8 +9,8 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | Q3 lab outputs | done | IDT bulk CSV and plate xlsx, both validated; pooling map, pipetting sheet, protocol with Mg screen; cost estimate with assumptions |
 | Q4 oxDNA job bundle | done | all four stages run to completion on CPU in test mode, zero errors. `sim.queue` now runs bundles several at a time: oxDNA's CPU backend is single-threaded, so one job used 1 of 16 cores |
 | Q5 baseline analysis | done | parser, dimensions, RMSF, planarity, bend, oxView overlay; `dobladillo analyse`. Run on a real 200-frame trajectory: 328.2 +- 3.2 x 70.1 +- 4.0 x 17.7 +- 1.8 nm against a design of 390.4 x 8.0 |
-| M1 Brick and Port abstractions | todo | |
-| M2 interface library v1 + orthogonality | todo | |
+| M1 Brick and Port abstractions | done | `interfaces/ports.py`: a port has a kind, a polarity, a width and a **channel**, and mates only within one. `crosstalk` reports every pair that would bind and was not asked to — the structural half of orthogonality, settled without sequences. Rectangle and hinge declare ports |
+| M2 interface library v1 + orthogonality | todo | M1 settled the structural half. What remains is the sequence half: whether distinct channels are actually orthogonal as DNA, which needs thermodynamics |
 | M3 assembly composition + stage planning | todo | |
 | M4 AFM pipeline | done | flatten, segment, measure, classify, yield with a Wilson interval; validated to <1% against synthetic ground truth. Scans come in as Gwyddion Simple Field, and `dobladillo afm` is the CLI surface |
 | M5 compare report + first closed loop | done | `dobladillo compare`: design against simulation against measurement, with the tip deconvolution that dominates any width. Validated by rendering a known rectangle through a modelled tip and recovering it. `docs/CLOSED_LOOP.md` |
@@ -165,6 +165,24 @@ what software is owed, cheapest first:
 The latch-reach observable is the highest value per line: it converts the
 finished joint sweep from four numbers about bending into an answer about
 whether the hinge can close, which re-scores two experiments.
+
+## What M1 found on its first run
+
+A film of N hinges sharing one latch sequence is **not N switches**. Every
+latch binds every other latch — three hinges give six cross-talk pairs — so it
+is one interface asked to mean N things, and no sequence optimisation fixes
+that because they *are* the same sequence.
+
+This invalidates arithmetic done before the module existed. `docs/COMMERCIAL.md`
+costed a 3×4 coupled film as twelve hinges on one shared core, which is right
+about the scaffold and wrong about the interfaces: it needs **twelve orthogonal
+latch channels**, not one latch. That is a different and harder design problem
+than the bracketing ladder, whose eight rungs differ in *strength* rather than
+in *identity*.
+
+The commercial case for that film was already withdrawn on other grounds, so
+nothing downstream changes. It is recorded because the same mistake is
+available to anyone composing bricks, and `crosstalk` is now what catches it.
 
 ## Known gaps
 

@@ -1,4 +1,27 @@
-"""Interface types, sequence sets and compatibility rules.
+"""Declared interfaces between bricks. See `ports`."""
 
-Not implemented yet. See docs/STATUS.md.
-"""
+from dobladillo.interfaces.ports import (
+    KINDS,
+    Bond,
+    Brick,
+    Crosstalk,
+    Kind,
+    Polarity,
+    Port,
+    can_mate,
+    crosstalk,
+    unsatisfied,
+)
+
+__all__ = [
+    "KINDS",
+    "Bond",
+    "Brick",
+    "Crosstalk",
+    "Kind",
+    "Polarity",
+    "Port",
+    "can_mate",
+    "crosstalk",
+    "unsatisfied",
+]
