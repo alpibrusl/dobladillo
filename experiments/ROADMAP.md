@@ -88,6 +88,16 @@ Stage 3 at all, by orders of magnitude rather than by a factor.
 `roadmaps/stages-2-to-4-and-the-inverse-solver.md` has the measured scaling and
 what Stage 3 would need instead.
 
+## Before building M2 or M3
+
+Both were named as if they were software to invent. Neither is: each is a
+studied problem with a name, a complexity result and existing algorithms.
+`roadmaps/m2-m3-what-the-literature-already-solved.md` says which, and the
+headline is that staged assembly turns Θ(n) orthogonal interfaces into
+O(log n) — an exponential saving in the thing that costs money here.
+
+Neither blocks E1–E7.
+
 ## Money
 
 | stage | constructs | cost |
