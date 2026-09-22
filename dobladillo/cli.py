@@ -1093,13 +1093,35 @@ def afm_measure(
     width: float = typer.Option(36.0, help=EXPECTED_OPTION_HELP.format("width")),
     height: float = typer.Option(2.0, help=EXPECTED_OPTION_HELP.format("height")),
     tolerance: float = typer.Option(0.2, help="Fractional tolerance on length and width."),
+    tip_radius: float = typer.Option(
+        ...,
+        help="Tip apex radius, nm, MEASURED not nominal. Required: without it the "
+        "particles are compared against the object while the image shows the object "
+        "plus the tip, and a perfectly good scan reads as 0% well formed.",
+    ),
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Flatten, segment, measure and classify a scan, and report the yield.
 
+    **The expected dimensions are of the object, and the image is not.** A
+    half-height footprint is wider by twice sqrt(R*h - h^2/4) -- 8.7 nm for a
+    10 nm tip on a 2 nm plate, a quarter of a 36 nm width -- so classifying the
+    image against the object's own size marks every particle malformed.
+
+    This used to take the object's dimensions and compare them to the image
+    directly. On a correct synthetic scan it reported 0 of 40 well formed,
+    which is the most misleading answer available: it looks like a fold that
+    failed rather than a comparison that was never valid.
+
+    So the tip radius is required, the measurements are deconvolved before
+    classification, and both the raw and corrected figures are reported.
+
     The yield carries a Wilson interval rather than a bare fraction, because
     eleven of twelve and ninety of a hundred are not the same claim.
     """
+    import statistics
+
+    from dobladillo.compare.corrections import half_height_broadening_nm
     from dobladillo.imaging.classify import population
     from dobladillo.imaging.flatten import flatten
     from dobladillo.imaging.particles import find_particles
@@ -1114,12 +1136,40 @@ def afm_measure(
 
     flattened, background = flatten(image)
     particles = find_particles(flattened, background)
-    found = population(
-        particles, length_nm=length, width_nm=width, height_nm=height, tolerance=tolerance
+    if not particles:
+        emitter.fail("no particles found in that scan", kind="no_particles")
+        return
+
+    # Height is not broadened -- a tip does not make a plate taller -- so the
+    # measured height is what sets the correction for the lateral dimensions.
+    inside = [p for p in particles if not p.touches_edge] or particles
+    observed_height = statistics.median([p.height_nm for p in inside])
+    widening = 2 * half_height_broadening_nm(
+        tip_radius_nm=tip_radius, feature_height_nm=observed_height
     )
+
+    # Classify against the object's dimensions PLUS the tip, which is what the
+    # image contains. Equivalent to deconvolving every particle and comparing
+    # against the object, and it leaves the reported sizes as measured.
+    found = population(
+        particles,
+        length_nm=length + widening,
+        width_nm=width + widening,
+        height_nm=height,
+        tolerance=tolerance,
+    )
+    raw_length = statistics.fmean([p.length_nm for p in inside])
+    raw_width = statistics.fmean([p.width_nm for p in inside])
     payload = {
         "source": image.source,
         "expected_nm": {"length": length, "width": width, "height": height},
+        "tip_radius_nm": tip_radius,
+        "widening_nm": round(widening, 2),
+        "measured_nm": {"length": round(raw_length, 1), "width": round(raw_width, 1)},
+        "deconvolved_nm": {
+            "length": round(raw_length - widening, 1),
+            "width": round(raw_width - widening, 1),
+        },
         "particles_found": len(particles),
         **found.as_dict(),
     }
@@ -1129,6 +1179,17 @@ def afm_measure(
         ("particles found", str(len(particles))),
         ("excluded at edge", str(found.excluded_at_edge)),
         ("counted", str(found.total)),
+        (
+            "tip widening",
+            f"{widening:.1f} nm, for a {tip_radius:.0f} nm tip on a "
+            f"{observed_height:.1f} nm feature",
+        ),
+        ("measured", f"{raw_length:.1f} x {raw_width:.1f} nm"),
+        (
+            "deconvolved",
+            f"{raw_length - widening:.1f} x {raw_width - widening:.1f} nm "
+            f"(expected {length:g} x {width:g})",
+        ),
     ]
     rows_out += [(f"  {k}", str(v)) for k, v in sorted(found.counts.items())]
     rows_out.append(("well formed", str(fraction)))

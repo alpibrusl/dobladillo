@@ -276,3 +276,91 @@ def test_the_committed_skill_file_matches_what_the_tool_generates() -> None:
     assert committed.read_text().strip() == result.stdout.strip(), (
         "SKILL.md is stale; run: dobladillo skill > SKILL.md"
     )
+
+
+def test_afm_measure_requires_a_measured_tip_radius() -> None:
+    """No default, for the same reason `compare` has none: a plausible guess
+    produces a plausible wrong answer and nothing downstream can tell."""
+    result = runner.invoke(app, ["afm", "measure", "nonexistent.gsf"])
+    assert result.exit_code != 0
+    assert "tip-radius" in result.output or "tip_radius" in result.output
+
+
+def test_afm_measure_classifies_against_the_image_not_the_object(tmp_path: Path) -> None:
+    """The bug this fixes, and it was the most misleading answer available.
+
+    The expected dimensions describe the object; the image shows the object
+    plus the tip. Comparing them directly marked every particle malformed, so
+    a correct scan of 38 good rectangles reported 0% well formed -- which
+    reads as a fold that failed rather than a comparison that was never valid.
+    """
+    runner.invoke(
+        app,
+        [
+            "afm",
+            "synthetic",
+            "--out",
+            str(tmp_path / "s.gsf"),
+            "--part",
+            "twist-corrected",
+            "--realistic",
+            "--seed",
+            "9",
+        ],
+    )
+    result = runner.invoke(
+        app, ["afm", "measure", str(tmp_path / "s.gsf"), "--tip-radius", "10", "--json"]
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+
+    assert payload["well_formed"]["fraction"] > 0.9
+    # The widening is reported rather than silently folded in, and the raw
+    # measurement is kept alongside the corrected one.
+    assert payload["widening_nm"] == pytest.approx(8.7, abs=0.2)
+    assert payload["measured_nm"]["width"] > payload["deconvolved_nm"]["width"]
+    assert payload["deconvolved_nm"]["length"] == pytest.approx(191.0, rel=0.05)
+
+
+def test_a_wrong_tip_radius_moves_the_dimension_not_the_yield(tmp_path: Path) -> None:
+    """Which of the two outputs to distrust when the tip is uncharacterised.
+
+    Assuming 30 nm for a 10 nm tip removes 15.4 nm instead of 8.7, and the
+    reported width drops 18%. The yield barely moves, because the expectation
+    is shifted by the same widening as the measurement and the two errors
+    partly cancel inside the tolerance.
+
+    So the classification is the robust output here and the dimension is the
+    fragile one -- the opposite of what one might assume, and worth pinning
+    rather than discovering later in an argument about a result.
+    """
+    runner.invoke(
+        app,
+        [
+            "afm",
+            "synthetic",
+            "--out",
+            str(tmp_path / "s.gsf"),
+            "--part",
+            "twist-corrected",
+            "--seed",
+            "3",
+        ],
+    )
+    right = json.loads(
+        runner.invoke(
+            app, ["afm", "measure", str(tmp_path / "s.gsf"), "--tip-radius", "10", "--json"]
+        ).stdout
+    )
+    wrong = json.loads(
+        runner.invoke(
+            app, ["afm", "measure", str(tmp_path / "s.gsf"), "--tip-radius", "30", "--json"]
+        ).stdout
+    )
+    right_width = right["deconvolved_nm"]["width"]
+    wrong_width = wrong["deconvolved_nm"]["width"]
+    assert wrong_width < 0.9 * right_width, "a wrong radius must move the dimension"
+    # And the yield does not, which is the point of the test.
+    assert wrong["well_formed"]["fraction"] == pytest.approx(
+        right["well_formed"]["fraction"], abs=0.1
+    )
