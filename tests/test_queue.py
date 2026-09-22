@@ -173,3 +173,26 @@ def test_one_file_per_job_so_a_runner_and_a_caller_never_collide(tmp_path: Path)
     b = enqueue(tmp_path / "q", _bundle(tmp_path / "b"))
     files = sorted(p.name for p in (tmp_path / "q" / "jobs").glob("*.json"))
     assert files == sorted([f"{a.id}.json", f"{b.id}.json"])
+
+
+def test_progress_reads_whichever_trace_got_further(tmp_path: Path, stub: str) -> None:
+    """Found on a live run. A bundle whose `steps` was edited after generation
+    keeps the energy interval computed from the ORIGINAL count, so the energy
+    trace held one line while the trajectory held sixty frames. Status read 0%,
+    and `stage_complete` would have let a restart redo the work.
+    """
+    bundle = _bundle(tmp_path / "b", steps=100_000)
+    stage = STAGES[3]
+    settings = (bundle / f"input_{stage}").read_text()
+    (bundle / f"input_{stage}").write_text(settings + "print_conf_interval = 1000\n")
+
+    # Energy silent, trajectory two-thirds of the way through.
+    (bundle / f"energy_traj_{stage}.dat").write_text("  0.0000  -1.5  0.29  -1.2\n")
+    (bundle / f"traj_{stage}.dat").write_text(
+        "".join(f"t = {i * 1000}\nb = 1 1 1\n" for i in range(68))
+    )
+
+    done, total = stage_progress(bundle, stage)
+    assert total == 100_000
+    assert done == pytest.approx(67_000, abs=1000), "the trajectory was ignored"
+    assert not stage_complete(bundle, stage)

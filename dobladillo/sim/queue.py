@@ -147,17 +147,34 @@ def stage_progress(directory: Path, stage: str) -> tuple[int, int]:
         total = int(settings["steps"])
     except (OSError, KeyError, ValueError):
         return (0, 0)
+    # Whichever of the two traces has got further. They are written at
+    # independent intervals, and reading only the energy one is fragile: a
+    # bundle whose `steps` was edited after generation keeps the energy
+    # interval computed from the original count, so the trace can hold a
+    # single line while the trajectory holds sixty frames. That reads as 0%
+    # in `status`, and worse, `stage_complete` then lets a restart redo work
+    # that was done.
+    done = 0
+    dt = float(settings.get("dt", "0.003") or 0.003)
+
     energy = directory / settings.get("energy_file", f"energy_traj_{stage}.dat")
-    if not energy.exists():
-        return (0, total)
-    try:
-        dt = float(settings.get("dt", "0.003"))
-        lines = [ln for ln in energy.read_text().splitlines() if ln.strip()]
-        if not lines:
-            return (0, total)
-        done = int(round(float(lines[-1].split()[0]) / dt)) if dt else 0
-    except (OSError, ValueError, IndexError):  # pragma: no cover - partial write
-        return (0, total)
+    if energy.exists() and dt:
+        try:
+            lines = [ln for ln in energy.read_text().splitlines() if ln.strip()]
+            if lines:
+                done = max(done, int(round(float(lines[-1].split()[0]) / dt)))
+        except (OSError, ValueError, IndexError):  # pragma: no cover - partial write
+            pass
+
+    trajectory = directory / settings.get("trajectory_file", f"traj_{stage}.dat")
+    interval = settings.get("print_conf_interval")
+    if trajectory.exists() and interval:
+        try:
+            frames = trajectory.read_text().count("\nt = ") + 1
+            done = max(done, (frames - 1) * int(interval))
+        except (OSError, ValueError):  # pragma: no cover - partial write
+            pass
+
     return (min(done, total), total)
 
 
