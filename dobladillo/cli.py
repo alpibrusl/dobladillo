@@ -1143,6 +1143,12 @@ def afm_synthetic(
     ),
     seed: int = typer.Option(0, help="Which scan to generate."),
     rectangles: int = typer.Option(40, help="How many well-formed particles to place."),
+    realistic: bool = typer.Option(
+        False,
+        "--realistic",
+        help="Add the artefacts a real scan carries: scanner bow, thermal drift shear "
+        "and a tip-change streak. Use this to test an analysis, not to demonstrate one.",
+    ),
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Write a synthetic scan of known contents, as a .gsf.
@@ -1167,11 +1173,16 @@ def afm_synthetic(
     dimensions = sorted(
         (float(v) for v in built.as_dict()["approx_dimensions_nm"].values()), reverse=True
     )
+    # Typical of a working instrument rather than a broken one: enough bow to
+    # defeat a plane fit, drift over a multi-minute scan, and one tip event.
     scan = synthetic_scan(
         seed=seed,
         n_rectangles=rectangles,
         length_nm=dimensions[0],
         width_nm=dimensions[-1],
+        bow_nm=4.0 if realistic else 0.0,
+        drift_shear=0.05 if realistic else 0.0,
+        streak_lines=12 if realistic else 0,
     )
     write_gsf(scan.image, out, title=f"synthetic seed {seed}")
     truth = {
@@ -1182,6 +1193,7 @@ def afm_synthetic(
         "rectangles": len(scan.rectangles),
         "aggregates": len(scan.truth) - len(scan.rectangles),
     }
+    truth["artefacts"] = "bow+drift+streak" if realistic else "none"
     payload = {"file": str(out), "seed": seed, "part": part, "ground_truth": truth}
     emitter.result(
         payload,

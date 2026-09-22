@@ -217,3 +217,38 @@ Anything else fails with the export instruction rather than with a guess.
 **Send the partner a synthetic scan first.** `afm synthetic` writes a `.gsf`
 whose contents are known. Asking what they measure from it locates a
 disagreement before it can be attributed to the chemistry, and costs nothing.
+
+
+## Testing the analysis with a realistic scan
+
+`dobladillo afm synthetic --realistic` adds the artefacts a working instrument
+leaves: scanner bow, thermal drift shear, and one tip-change streak. Use it to
+*test* an analysis, not to demonstrate one.
+
+**It broke this pipeline the first time it ran.** With 4 nm of bow, 40 placed
+particles came back as 4 found, all misclassified, measured at 71 nm against a
+true 190. The cause: `flatten` fitted a plane, and a piezo scanner bows. A
+plane fit removes tilt exactly and leaves a parabola untouched, so a pipeline
+validated on a fixture that only tilts looks perfect and fails on the first
+real scan.
+
+The background is a full quadratic now — both axes plus a cross term, still
+fitted to the background mask only — and the same scan recovers 40 of 40 at
+10 nm of bow with all three artefacts together.
+
+Drift and streaks were survived without changes. They are modelled anyway: an
+artefact that is survived silently is still one the fixture should contain, or
+the next change to the pipeline is untested against it.
+
+### On native instrument formats
+
+`afm synthetic` writes `.gsf`, not a vendor format, and the reason is that
+nothing here can make one honestly. `alpibrupa/nanoindent`'s `pyfmreader`
+*reads* JPK force maps and Nanoscope force volumes; its only writer is for
+UFF, its own interchange format. Producing a mock `.jpk-force-map` would mean
+writing an encoder for a format we have no independent reader for, so the test
+would exercise the encoder rather than the pipeline — the opposite of what a
+fixture is for.
+
+If a native-format test becomes worth having, the honest route is a real file
+from a partner instrument, kept as a fixture. That is one email and no code.

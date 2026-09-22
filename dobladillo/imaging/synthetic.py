@@ -132,6 +132,9 @@ def synthetic_scan(
     noise_nm: float = 0.12,
     tilt_nm: float = 6.0,
     line_noise_nm: float = 0.25,
+    bow_nm: float = 0.0,
+    drift_shear: float = 0.0,
+    streak_lines: int = 0,
     seed: int = 0,
 ) -> SyntheticScan:
     """One scan, with the defects that make a real one hard.
@@ -210,8 +213,35 @@ def synthetic_scan(
 
     # The defects, added after the structures so they sit under everything.
     yy, xx = np.mgrid[0:size_px, 0:size_px]
+    # Thermal drift shears the slow axis: a particle imaged over several
+    # minutes is measured while the sample moves under the tip, so it comes out
+    # skewed. Applied to the placed geometry rather than added afterwards,
+    # because a shear is a coordinate change and not a height offset.
+    if drift_shear:
+        shift = (drift_shear * yy).astype(int)
+        rows = np.arange(size_px)[:, None]
+        heights = heights[rows, np.clip(xx + shift, 0, size_px - 1)]
+
     heights = heights + tilt_nm * (xx / size_px) + 0.6 * tilt_nm * (yy / size_px)
+
+    # Scanner bow. The reason it is worth modelling separately from tilt: a
+    # plane fit removes tilt exactly and leaves bow untouched, so a pipeline
+    # that only plane-fits looks fine on a tilted fixture and fails on a real
+    # scan. Parabolic in both axes, as a piezo actually bends.
+    if bow_nm:
+        u = 2 * xx / size_px - 1
+        v = 2 * yy / size_px - 1
+        heights = heights + bow_nm * (u**2 + 0.7 * v**2)
+
     heights = heights + rng.normal(0, line_noise_nm, (size_px, 1))  # per-line offset
+
+    # The tip picks something up and drags it for a few lines. Real, common,
+    # and the thing most likely to be mistaken for a row of particles.
+    if streak_lines:
+        first = int(rng.integers(0, max(1, size_px - streak_lines)))
+        band = slice(first, first + streak_lines)
+        heights[band, :] = heights[band, :] + height_nm * rng.uniform(0.6, 1.4)
+
     heights = heights + rng.normal(0, noise_nm, heights.shape)
 
     return SyntheticScan(

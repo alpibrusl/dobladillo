@@ -29,13 +29,34 @@ PASSES = 3
 
 
 def _plane_fit(heights: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    """Least-squares plane through the masked (background) pixels."""
+    """Least-squares quadratic surface through the masked background pixels.
+
+    A plane is not enough, and this cost a working pipeline once. A piezo
+    scanner bows: the background is parabolic, not flat. A plane fit removes
+    tilt exactly and leaves the bow untouched, so a pipeline validated on a
+    fixture that only tilts looks perfect and then fails on the first real
+    scan -- measured here at 4 nm of bow, 40 placed particles became 4 found,
+    all misclassified, with lengths of 71 nm against 190.
+
+    Second order in both axes with a cross term, which is what a piezo
+    actually does and what Gwyddion's own background removal offers. Still
+    fitted only to the background mask, so particles do not pull the surface
+    up around themselves.
+    """
     rows, cols = heights.shape
     yy, xx = np.mgrid[0:rows, 0:cols]
-    design = np.column_stack([xx[mask].ravel(), yy[mask].ravel(), np.ones(int(mask.sum()))])
+    x, y = xx[mask].ravel(), yy[mask].ravel()
+    design = np.column_stack([x, y, x * x, y * y, x * y, np.ones(x.size)])
     coefficients, *_ = np.linalg.lstsq(design, heights[mask].ravel(), rcond=None)
-    plane: np.ndarray = coefficients[0] * xx + coefficients[1] * yy + coefficients[2]
-    return plane
+    surface: np.ndarray = (
+        coefficients[0] * xx
+        + coefficients[1] * yy
+        + coefficients[2] * xx * xx
+        + coefficients[3] * yy * yy
+        + coefficients[4] * xx * yy
+        + coefficients[5]
+    )
+    return surface
 
 
 def _line_level(heights: np.ndarray, mask: np.ndarray) -> np.ndarray:

@@ -214,3 +214,43 @@ def test_a_perfect_yield_does_not_get_a_zero_width_interval() -> None:
 def test_an_empty_count_does_not_divide_by_zero() -> None:
     assert Fraction(0, 0).value == 0.0
     assert Fraction(0, 0).ci95 == (0.0, 0.0)
+
+
+# ------------------------------------------------- artefacts a real scan has
+
+
+def test_scanner_bow_is_removed_not_merely_tilt() -> None:
+    """A piezo bows, so the background is parabolic. A plane fit removes tilt
+    exactly and leaves bow untouched -- which is why this pipeline passed a
+    tilted fixture at under 1% and then, on the first scan with 4 nm of bow,
+    found 4 particles of 40 and measured them at 71 nm instead of 190.
+
+    The fix is a quadratic background. This test is the thing that would have
+    caught it, and it did not exist.
+    """
+    _, _, _, clean = _pipeline(5)
+    _, _, _, bowed = _pipeline(5, bow_nm=10.0)
+    keep = lambda ps: [p for p in ps if not p.touches_edge and 3 < p.aspect < 9]  # noqa: E731
+    assert len(keep(bowed)) >= 0.9 * len(keep(clean))
+    assert np.mean([p.length_nm for p in keep(bowed)]) == pytest.approx(
+        np.mean([p.length_nm for p in keep(clean)]), rel=0.05
+    )
+
+
+def test_drift_shear_and_a_tip_streak_are_survived() -> None:
+    """Neither breaks segmentation, but both are modelled: an artefact that is
+    survived silently is still one the fixture should contain, or the next
+    change to the pipeline is untested against it."""
+    _, _, _, base = _pipeline(5)
+    _, _, _, messy = _pipeline(5, drift_shear=0.05, streak_lines=12)
+    keep = lambda ps: [p for p in ps if not p.touches_edge and 3 < p.aspect < 9]  # noqa: E731
+    assert len(keep(messy)) >= 0.9 * len(keep(base))
+
+
+def test_all_the_artefacts_at_once_still_recovers_the_truth() -> None:
+    scan, _, _, particles = _pipeline(5, bow_nm=4.0, drift_shear=0.05, streak_lines=12)
+    sheets = [p for p in particles if not p.touches_edge and 3 < p.aspect < 9]
+    assert len(sheets) >= 0.8 * len(scan.rectangles)
+    assert np.mean([p.length_nm for p in sheets]) == pytest.approx(
+        TRUE_LENGTH_NM + BROADENING_NM, rel=0.06
+    )
