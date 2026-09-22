@@ -87,14 +87,31 @@ def test_critical_path_is_a_product_of_its_members(state) -> None:
     assert all(by_id(i).on_critical_path for i in state.critical_path)
 
 
-def test_the_page_reports_the_bundle_defect(state, page) -> None:
-    """The reason this is generated rather than written. The bundle failed lint
-    an hour after the hand-written dashboard was published, and a hand-written
-    page would still be claiming every part is clean."""
-    bundle = next(p for p in state.parts if p.name == "bundle")
-    assert not bundle.clean
-    assert bundle.worst == "crossover_phase"
-    assert "crossover_phase" in page
+def test_the_page_reports_lint_state_as_it_finds_it(state, page) -> None:
+    """The reason this is generated rather than written. Within one day the
+    bundle went clean, then failed a new rule, then was fixed. A hand-written
+    page would have been wrong twice; this one is only ever as wrong as the
+    linter.
+
+    So the assertion is on agreement with the linter, not on a verdict.
+    """
+    from dobladillo.routing.rules import Severity, lint
+
+    for part in state.parts:
+        builders = {"rectangle": "rectangle", "bundle": "bundle", "hinge": "hinge"}
+        assert part.name in builders
+        if part.clean:
+            assert "clean" in page
+        else:
+            assert part.worst in page
+
+    from dobladillo.parts.bundle import six_helix_bundle
+
+    live = [
+        v for v in lint(six_helix_bundle().design).violations if v.severity is Severity.VIOLATION
+    ]
+    shown = next(p for p in state.parts if p.name == "bundle")
+    assert shown.violations == len(live)
 
 
 def test_the_page_carries_its_own_state_as_json(page) -> None:

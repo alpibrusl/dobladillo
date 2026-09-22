@@ -45,12 +45,33 @@ RING_POSITIONS: tuple[tuple[int, int], ...] = (
 
 HELICES = len(RING_POSITIONS)
 
-#: One staple domain, a multiple of the honeycomb crossover spacing so that
-#: every crossover lands where the lattice allows one.
-DOMAIN_NT = 3 * Lattice.HONEYCOMB_CROSSOVER_BP  # 21
+#: The two staple spans, and the reason they differ.
+#:
+#: A crossover can only form where the backbone faces its neighbour, so the
+#: offset at which one happens IS an angle: 34.29 deg per base, which makes
+#: honeycomb's 7 bp spacing 240 deg -- the same as -120, which is the angular
+#: separation of neighbours on this lattice.
+#:
+#: The first version of this file used one span of 21 for both pair families.
+#: Spans of equal length tile at multiples of 21, so every crossover in the
+#: object landed at phase 0, and each helix bonded BOTH its neighbours at the
+#: same azimuth while they sit 120 deg apart. One bond of every pair was made
+#: 120 deg off, the same way all around the ring, and the bundle came out of
+#: oxDNA as a 269 nm arc. See docs/BUNDLE_BEND.md.
+#:
+#: Unequal spans fix it. 28 then 14 puts the boundaries at 0, 28, 42, 70, ...
+#: which is phase 0, 7, 0, 7 -- so one pair family crosses at phase 7 and the
+#: other at 0, differing by the 7 bp the lattice asks for. Both are multiples
+#: of the crossover spacing, so every crossover still lands where the lattice
+#: allows one.
+SPAN_A_NT = 4 * Lattice.HONEYCOMB_CROSSOVER_BP  # 28
+SPAN_B_NT = 2 * Lattice.HONEYCOMB_CROSSOVER_BP  # 14
 
-#: One full pairing cycle.
-BLOCK_NT = 2 * DOMAIN_NT  # 42
+#: One full pairing cycle: both families, once each.
+BLOCK_NT = SPAN_A_NT + SPAN_B_NT  # 42
+
+#: The longest domain, for the seed rule. 28 clears the 14 nt requirement.
+DOMAIN_NT = SPAN_A_NT
 
 #: Default, defined here rather than restated in the CLI.
 DEFAULT_LENGTH = 1176
@@ -111,9 +132,13 @@ def _add_scaffold(design: sc.Design, *, length: int) -> None:
     builder.as_scaffold()
 
 
-def _add_pair_staple(design: sc.Design, *, a: int, b: int, start: int) -> None:
-    """A 42 nt staple: 21 nt on helix `a`, 21 nt on helix `b`."""
-    stop = start + DOMAIN_NT
+def _add_pair_staple(design: sc.Design, *, a: int, b: int, start: int, span: int) -> None:
+    """One staple covering `span` bases on helix `a` and the same on `b`.
+
+    The crossover lands at `start + span`, which is what makes the span length
+    a phase rather than a mere size.
+    """
+    stop = start + span
     if _scaffold_runs_forward(a):
         ad.draw(design, b, start).to(stop).cross(a, stop).to(start)
     else:
@@ -121,14 +146,25 @@ def _add_pair_staple(design: sc.Design, *, a: int, b: int, start: int) -> None:
 
 
 def _add_staples(design: sc.Design, *, length: int) -> None:
+    """Two pair families per block, on different spans so they cross at
+    different phases.
+
+    Family A takes the even pairs (0,1), (2,3), (4,5) for the first 28 bases of
+    the block; family B takes the odd pairs (1,2), (3,4), (5,0) for the
+    remaining 14. Six is even, so each helix belongs to exactly one pair of
+    each family and is covered once, end to end.
+    """
     for block_start in range(0, length, BLOCK_NT):
-        # Alternate which neighbour each helix is stapled to, so the ring is
-        # stitched all the way round instead of into three separate pairs.
-        first = (block_start // BLOCK_NT) % 2
-        for k in range(first, first + HELICES, 2):
-            a, b = k % HELICES, (k + 1) % HELICES
-            for offset in (block_start, block_start + DOMAIN_NT):
-                _add_pair_staple(design, a=a, b=b, start=offset)
+        for k in range(0, HELICES, 2):
+            _add_pair_staple(design, a=k, b=(k + 1) % HELICES, start=block_start, span=SPAN_A_NT)
+        for k in range(1, HELICES, 2):
+            _add_pair_staple(
+                design,
+                a=k,
+                b=(k + 1) % HELICES,
+                start=block_start + SPAN_A_NT,
+                span=SPAN_B_NT,
+            )
 
 
 def six_helix_bundle(

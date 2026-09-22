@@ -75,17 +75,52 @@ The bundle's entry in `test_reference_parts_have_no_hard_violations` is now
 `xfail(strict=True)` rather than removed, so it flips to a failure the moment
 the routing is fixed.
 
-## What has not
+## The fix: unequal spans
 
-**The routing is not fixed.** The bundle still bends. Fixing it means offsetting
-the crossover sets of alternate pairs by 7 bp, which changes the scaffold path,
-the staple boundaries and every pinned count in the tests — a deliberate piece
-of work rather than a patch, and it should be done with the rule in place to
-verify it.
+The obvious repair — shift one pair family by 7 bp — does not work, and the
+reason is worth writing down. A staple here covers the *same span* on both
+helices, so its crossover sits at the span boundary. Spans of equal length tile
+at multiples of 21 whatever offset they start from, so the boundaries, and
+therefore every crossover, stay at one phase. Shifting a family by 7 leaves a
+7 bp gap on one side and a 7 bp overlap on the other.
 
-Until then the bundle is a known-curved strut. Nothing in the roadmap's seven
-experiments depends on it: E1 and E2 are rectangles, E3–E6 are hinges, E7 is
-plates.
+What works is making the spans **different lengths**. Family A takes 28 bases,
+family B takes 14:
+
+| | boundary | phase |
+|---|---:|---:|
+| A: pairs (0,1), (2,3), (4,5) | 0 → 28 | 28 mod 21 = **7** |
+| B: pairs (1,2), (3,4), (5,0) | 28 → 42 | 42 mod 21 = **0** |
+
+Six is even, so every helix belongs to exactly one pair of each family, is
+covered once end to end, and bonds its two neighbours at phases 7 apart —
+which is what the lattice asks for. Both spans are multiples of the crossover
+spacing, so every crossover still lands where one is allowed.
+
+Measured on the rebuilt design, each helix's two neighbours now sit at
+different phase sets, and `lint` reports **zero hard violations**.
+
+### What it costs
+
+Staples are 56 nt and 28 nt instead of a uniform 42. Both are inside the hard
+limits (20–60) and outside the preferred band, so the linter warns rather than
+blocking. That is the trade: uniform staple length was never a design goal, and
+correct crossover phasing is.
+
+Scaffold routing, helix count and length are unchanged; 168 staples, 7056 of
+M13's 7249 bases, as before.
+
+## Still open
+
+**Whether the fix removes the arc has not been measured yet.** A production run
+on the rebuilt design is queued with the same recipe as the one that found the
+defect — same relaxation, same million production steps, same sampling — so the
+routing is the only thing that differs between them. Until it lands, the fix is
+verified against the rule that describes the defect, not against the physics.
+
+The number to beat: **order parameter 0.993, radius 269 ± 11 nm**. A structure
+that is merely bending thermally should show a low order parameter and a radius
+that fluctuates on the order of itself.
 
 ## What this cost, and what it bought
 

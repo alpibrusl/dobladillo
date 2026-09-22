@@ -154,8 +154,17 @@ def test_bundle_every_scaffold_base_is_paired_exactly_once(bundle) -> None:
 
 
 def test_bundle_staple_count_and_lengths_are_pinned(bundle) -> None:
+    """Two staple sizes, not one, and that is the fix rather than a regression.
+
+    Equal spans tile at multiples of 21 and put every crossover at the same
+    helical phase, which is what bent the first version into a 269 nm arc.
+    Spans of 28 and 14 put the two pair families at different phases, at the
+    cost of 56 nt and 28 nt staples instead of a uniform 42. Both are inside
+    the hard length limits and outside the preferred band, so the linter warns
+    and does not block. See docs/BUNDLE_BEND.md.
+    """
     assert bundle.staple_count == 168
-    assert set(bundle.staple_lengths) == {42}
+    assert set(bundle.staple_lengths) == {28, 56}
 
 
 def test_bundle_needs_no_twist_correction(bundle) -> None:

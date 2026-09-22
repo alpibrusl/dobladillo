@@ -131,8 +131,11 @@ phase 0 mod 21, so each helix bonds both neighbours at one backbone azimuth
 while they sit 120° apart — a constant azimuthal strain around a ring, which
 is a constant bend. Radius 269 ± 11 nm. See `docs/BUNDLE_BEND.md`.
 
-A new rule `crossover_phase` catches it; the routing is not yet fixed, and the
-bundle's clean-lint test is `xfail(strict=True)` so it flips when it is.
+A new rule `crossover_phase` catches it, and **the routing is fixed**: spans of
+28 and 14 instead of a uniform 21 put the two pair families at phases 7 apart.
+`lint` reports zero hard violations and the xfail is gone. Whether that removes
+the arc is queued as a production run with the original recipe, so the routing
+is the only difference between them.
 
 This also settled the sampling fix. The same run read at four frames gave a
 middle extent of 48.3 ± 22.6 nm; at 180 frames it is 70.1 ± 4.0. The four-frame

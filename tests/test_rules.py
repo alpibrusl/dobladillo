@@ -53,19 +53,7 @@ def _fired(design: sc.Design, rule: str) -> bool:
     "part",
     [
         pytest.param(rothemund_rectangle, id="rectangle"),
-        pytest.param(
-            six_helix_bundle,
-            id="bundle",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "known defect: every crossover sits at phase 0 mod 21, so each helix "
-                    "bonds both neighbours at one azimuth. An oxDNA run bent it into a "
-                    "269 nm arc. xfail(strict) rather than removed, so it flips to a "
-                    "failure the moment the routing is fixed. See docs/BUNDLE_BEND.md"
-                ),
-            ),
-        ),
+        pytest.param(six_helix_bundle, id="bundle"),
     ],
 )
 def test_reference_parts_have_no_hard_violations(part) -> None:
@@ -184,20 +172,44 @@ def test_report_says_what_it_did_not_check() -> None:
 # ------------------------------------------------------------ crossover phase
 
 
-def test_crossover_phase_fires_on_the_bundle() -> None:
-    """The defect an oxDNA run found: every crossover in the six-helix bundle
-    sits at phase 0 mod 21, so each helix bonds both neighbours at the same
-    backbone azimuth. Neighbours are 120 deg apart, so one bond of every pair
-    is made off-azimuth, and a systematic azimuthal strain around a ring is a
-    constant bend -- measured as a 269 nm arc pointing the same way in 99.3%
-    of frames."""
+def test_crossover_phase_fires_on_equal_spans() -> None:
+    """The defect this rule was written for, seeded rather than borrowed.
+
+    It used to assert against the real bundle, which had it. The bundle is
+    fixed now, so the failing case is built here: equal spans tile at
+    multiples of the period and put every crossover at one phase, which is
+    exactly what bent the original into a 269 nm arc.
+    """
+    from dobladillo import _scadnano as ad
+    from dobladillo.routing.rules import check_crossover_phase
+
+    design = ad.new_design_at(positions=[(0, 1), (1, 1), (2, 1)], max_offset=84, grid="honeycomb")
+    # A scaffold on the middle helix only. A rastering one would cross between
+    # pairs at the two ends of the design and contribute a phase of its own,
+    # which is a property of where the raster turns rather than of the defect
+    # being seeded.
+    ad.draw(design, 1, 0).to(84).as_scaffold()
+    # Helix 1 bonded to BOTH neighbours on the same 21 bp grid: equal spans,
+    # so every crossover lands at one phase.
+    for start_bp in range(0, 84, 42):
+        ad.draw(design, 1, start_bp + 21).to(start_bp).cross(0, start_bp).to(start_bp + 21)
+        ad.draw(design, 1, start_bp + 42).to(start_bp + 21).cross(2, start_bp + 21).to(
+            start_bp + 42
+        )
+
+    found = list(check_crossover_phase(design))
+    assert found, "the rule no longer catches equal-phase bonding"
+    assert all(v.severity is Severity.VIOLATION for v in found)
+    assert "off-azimuth" in found[0].message
+
+
+def test_crossover_phase_passes_the_fixed_bundle() -> None:
+    """And the other direction: the real bundle now bonds its two neighbours at
+    different phases, which is what the unequal spans buy."""
     from dobladillo.parts.bundle import six_helix_bundle
     from dobladillo.routing.rules import check_crossover_phase
 
-    found = list(check_crossover_phase(six_helix_bundle().design))
-    assert found, "the rule no longer catches the defect it was written for"
-    assert all(v.severity is Severity.VIOLATION for v in found)
-    assert "off-azimuth" in found[0].message
+    assert list(check_crossover_phase(six_helix_bundle().design)) == []
 
 
 def test_crossover_phase_is_honest_about_its_reach() -> None:
