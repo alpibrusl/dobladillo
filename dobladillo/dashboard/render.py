@@ -148,6 +148,23 @@ def _shapes(state: State) -> str:
             f"<strong>{_e(o.origin)}</strong> — {_e(o.definition)}</p>"
             for o in part.outlines
         )
+        from dobladillo.dashboard.shapes import straightness
+
+        verdicts = []
+        for outline in part.outlines:
+            if outline.origin == "designed":
+                continue
+            bend = straightness(outline)
+            tone = "p-ready" if bend.straight else "p-bad"
+            word = "straight" if bend.straight else "BENT"
+            verdicts.append(
+                f'<p style="font-size:.85rem"><span class="pill {tone}">{word}</span> '
+                f"&nbsp;{_e(outline.origin)} centreline departs by "
+                f'<span class="mono">{bend.max_nm:.0f} nm</span> '
+                f'(<span class="mono">{bend.rms_nm:.0f}</span> rms), which is '
+                f'<span class="mono">{bend.in_body_widths:.1f}×</span> its own thickness '
+                f'and <span class="mono">{100 * bend.relative:.0f}%</span> of its length.</p>'
+            )
         extents = " &nbsp;·&nbsp; ".join(
             f'{_e(o.origin)} <span class="mono">{o.extent_nm[0]:.0f} × '
             f"{o.extent_nm[1]:.0f} nm</span>"
@@ -157,7 +174,8 @@ def _shapes(state: State) -> str:
             f'<div style="display:flex;flex-direction:column;gap:.5rem">'
             f'<h3 style="font-family:var(--fd);font-size:.95rem;margin:0">{_e(part.name)}</h3>'
             f"{drawing}"
-            f'<p style="font-size:.85rem">{extents}</p>{notes}</div>'
+            f'<p style="font-size:.85rem">{extents}</p>'
+            f"{''.join(verdicts)}{notes}</div>"
         )
     if not cards:
         return ""
@@ -169,7 +187,14 @@ def _shapes(state: State) -> str:
         "<p>The six-helix bundle came back from oxDNA at 328 × 70 nm against a design of "
         "390 × 8, and nothing in the numbers read as wrong — they are all plausible sizes. "
         "It was a 269 nm arc, and it stayed invisible until somebody asked why the middle "
-        "extent was 70 nm on an 8 nm rod. An outline shows a banana immediately.</p></div>"
+        "extent was 70 nm on an 8 nm rod. An outline shows a banana immediately.</p>"
+        "<p><strong>Size and form are measured apart on purpose.</strong> A simulated "
+        "length disagrees with its design by a few per cent for reasons nobody needs to "
+        "investigate — an idealised base count against a fluctuating object with ends — "
+        "so a size difference has to clear a 3% allowance before it means anything. A "
+        "part designed straight has a designed straightness of <em>exactly zero</em>, and "
+        "nothing about thermal fluctuation bends a rod one way and keeps it there. Any "
+        "sustained deviation here is unexplained by construction.</p></div>"
         "</div></section>"
     )
 

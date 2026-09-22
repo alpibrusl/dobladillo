@@ -33,6 +33,17 @@ quantities. Drawing them on one axis without saying so would show a
 disagreement that is mostly tip radius, which is exactly the error
 `compare` refuses to make.
 
+Each card also carries a **form deviation**, and size and form are measured
+apart on purpose. A simulated length disagrees with its design by a few per
+cent for reasons nobody needs to investigate — an idealised base count against
+a thermally fluctuating object with ends — so `compare` makes a size difference
+clear a 3% allowance before it means anything. A part designed straight has a
+designed straightness of *exactly zero*, and nothing about thermal fluctuation
+bends a rod one way and keeps it there. Any sustained deviation there is
+unexplained by construction, which makes it the more sensitive measure despite
+being the cruder one. It is reported in the part's own thickness, because
+50 nm is nothing on a 400 nm plate and damning on an 8 nm rod.
+
 The simulated outline is an envelope rather than a convex hull: a hull of a
 bent rod is a lens, and the flat side hides how far the centreline went.
 Frames are superimposed before averaging, because in the box frame a tumbling

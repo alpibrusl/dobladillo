@@ -174,3 +174,87 @@ def svg(outlines: list[Outline], *, width: int = 420, height: int = 150) -> str:
         f'aria-label="designed against simulated outline">'
         f"{''.join(shapes)}{''.join(legend)}</svg>"
     )
+
+
+@dataclass(frozen=True)
+class Straightness:
+    """How far a part's centreline wanders from the line joining its ends.
+
+    Separated from the size comparison on purpose, and the separation is the
+    whole point of having it.
+
+    A simulated length disagrees with its design by a few per cent for reasons
+    nobody needs to investigate: a designed length is an idealised base count
+    and a simulated extent belongs to a thermally fluctuating object with ends.
+    `compare` carries a 3% allowance for exactly that, so a size difference has
+    to clear a bar before it means anything.
+
+    Form has no such allowance. A part designed straight has a designed
+    straightness of **exactly zero**, and nothing about thermal fluctuation or
+    end effects bends a rod one way and keeps it there. So any sustained
+    deviation here is unexplained by construction, which makes this the more
+    sensitive of the two measures despite being the cruder one.
+    """
+
+    rms_nm: float
+    max_nm: float
+    length_nm: float
+    thickness_nm: float
+
+    @property
+    def relative(self) -> float:
+        """Deviation as a fraction of the part's own length."""
+        return self.max_nm / self.length_nm if self.length_nm else 0.0
+
+    @property
+    def in_body_widths(self) -> float:
+        """Deviation measured in the part's own thickness.
+
+        The readable form. Below 1 the centreline stays inside the body and no
+        drawing would look bent; the bundle's arc is 4.7.
+        """
+        return self.max_nm / self.thickness_nm if self.thickness_nm else 0.0
+
+    @property
+    def straight(self) -> bool:
+        """Whether the centreline stays within the body it belongs to."""
+        return self.in_body_widths <= 1.0
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "rms_nm": round(self.rms_nm, 2),
+            "max_nm": round(self.max_nm, 2),
+            "relative": round(self.relative, 4),
+            "in_body_widths": round(self.in_body_widths, 2),
+            "straight": self.straight,
+        }
+
+
+def straightness(outline: Outline) -> Straightness:
+    """Measure an outline's departure from the straight part it was meant to be.
+
+    Works on the centreline rather than the outline, so a part that is merely
+    fat does not register as bent.
+    """
+    points = np.asarray(outline.points, dtype=float)
+    half = len(points) // 2
+    if half < 2:
+        raise ValueError("an outline needs at least four points to have a centreline")
+    upper, lower = points[:half], points[half:][::-1]
+    centre = (upper + lower) / 2
+    thickness = float(np.abs(upper[:, 1] - lower[:, 1]).mean())
+
+    chord = centre[-1] - centre[0]
+    length = float(np.linalg.norm(chord))
+    if length == 0:
+        raise ValueError("the centreline has no length")
+    direction = chord / length
+    offsets = centre - centre[0]
+    # Signed perpendicular distance from the chord, in 2-D.
+    perpendicular = offsets[:, 0] * -direction[1] + offsets[:, 1] * direction[0]
+    return Straightness(
+        rms_nm=float(np.sqrt((perpendicular**2).mean())),
+        max_nm=float(np.abs(perpendicular).max()),
+        length_nm=length,
+        thickness_nm=thickness,
+    )

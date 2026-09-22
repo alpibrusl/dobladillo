@@ -108,3 +108,59 @@ def test_superimposing_stops_tumbling_smearing_the_shape() -> None:
 
     outline = from_trajectory(frames)
     assert _sagitta_of(outline) > 40.0, "the bend was averaged away"
+
+
+# ------------------------------------------------------------- form deviation
+
+
+def test_a_designed_rectangle_is_exactly_straight() -> None:
+    """Not approximately. The designed value is the thing the measure is
+    compared against, and it carries no allowance."""
+    from dobladillo.dashboard.shapes import straightness
+
+    bend = straightness(rectangle(390.4, 8.0))
+    assert bend.max_nm == 0.0
+    assert bend.rms_nm == 0.0
+    assert bend.straight
+
+
+def test_straightness_scales_with_the_bend_not_with_the_size() -> None:
+    from dobladillo.dashboard.shapes import straightness
+
+    for sagitta in (0.0, 10.0, 50.0):
+        outline = envelope(_rod(390, 8, sagitta), origin="simulated", definition="d")
+        assert straightness(outline).max_nm == pytest.approx(sagitta, abs=6.0)
+
+
+def test_a_fat_part_is_not_a_bent_part() -> None:
+    """The measure works on the centreline, so thickening a straight rod must
+    not register as bending. Conflating them would make every wide object look
+    defective."""
+    from dobladillo.dashboard.shapes import straightness
+
+    # The property, not a ratio of raw nanometres: a wider rod samples its own
+    # centreline more noisily in absolute terms, and measuring that ratio would
+    # be testing the noise rather than the measure.
+    for width in (8, 60, 200):
+        bend = straightness(envelope(_rod(390, width, 0.0), origin="simulated", definition="d"))
+        assert bend.straight, f"a straight rod {width} nm wide read as bent"
+        assert bend.in_body_widths < 0.25
+
+
+def test_the_verdict_is_in_the_parts_own_thickness() -> None:
+    """A 50 nm deviation is nothing on a 400 nm-wide plate and damning on an
+    8 nm rod, so the readable form is body widths rather than nanometres."""
+    from dobladillo.dashboard.shapes import straightness
+
+    rod = straightness(envelope(_rod(390, 8, 50.0), origin="simulated", definition="d"))
+    slab = straightness(envelope(_rod(390, 200, 50.0), origin="simulated", definition="d"))
+    assert not rod.straight
+    assert slab.straight
+    assert rod.in_body_widths > slab.in_body_widths
+
+
+def test_straightness_refuses_a_degenerate_outline() -> None:
+    from dobladillo.dashboard.shapes import Outline, straightness
+
+    with pytest.raises(ValueError, match="at least four points"):
+        straightness(Outline(origin="designed", definition="d", points=((0.0, 0.0),)))
