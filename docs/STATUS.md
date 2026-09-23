@@ -228,6 +228,26 @@ alone sees: a fold or tear that does not lift the median.
 `Particle` also gained `rectangularity` — filled area over its own bounding
 box — which is what separates "the right size" from "the right shape".
 
+## E2 is ready
+
+`imaging.arms.compare_arms` is the readout: the difference in flat fraction
+between the two arms, with a **Newcombe** interval on the difference rather
+than a Wilson interval on each. Quoting the per-arm intervals and eyeballing
+the overlap is a known way to call a real difference insignificant, and there
+is a test of a case where the arms' intervals overlap while the difference's
+excludes zero.
+
+Three verdicts, and the third is not a shrug. `indistinguishable` means the
+twist correction is unnecessary and comes out of every square-lattice design —
+which `docs/TWIST_PAIR_EXPERIMENT.md` names as the interesting outcome. There
+is also `distinguishable but immaterial`, because at n=400 a two-point
+difference clears zero and still does not justify deleting one base in every
+sixty-four from every design.
+
+`experiments/2026-09-23-twist-pair` is scaffolded with **both** arms ordered —
+the scaffold command builds one part, and a matched pair is one experiment with
+two constructs.
+
 ## Known gaps
 
 - Q2's acceptance criterion says the rules must pass on **published reference

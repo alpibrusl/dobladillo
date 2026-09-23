@@ -76,7 +76,7 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         relevance=4,
         difficulty=2,
         success=0.75,
-        blocked_by="an AFM flatness observable",
+        blocked_by="",
         why="Validates the twist correction that every square-lattice dimension "
         "rests on. Whether deleting one base every 64 cancels the twist in practice "
         "is visible in an AFM image and nowhere else.",

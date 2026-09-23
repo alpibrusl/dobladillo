@@ -1,0 +1,50 @@
+{
+  "part": "twist-corrected",
+  "generated_by": "dobladillo 0.0.1",
+  "predicted_nm": {
+    "length": 191.2,
+    "width": 36.0,
+    "height": 2.0
+  },
+  "design": {
+    "part": "rectangle",
+    "lattice": "square",
+    "helices": 12,
+    "length_bp": 576,
+    "scaffold": {
+      "variant": "p7249",
+      "total_nt": 7249,
+      "routed_nt": 6804,
+      "deletions": 108,
+      "unused_nt": 445
+    },
+    "staple_count": 216,
+    "staple_length_nt": {
+      "min": 30,
+      "max": 32,
+      "distinct": [
+        30,
+        32
+      ]
+    },
+    "approx_dimensions_nm": {
+      "width": 191.2,
+      "height": 36.0
+    }
+  },
+  "gate": {
+    "criterion": "FILL THIS IN BEFORE TAKING DATA",
+    "note": "What result would make this experiment a failure? Write it here first. A gate decided afterwards is a description of the data."
+  },
+  "arms": {
+    "corrected": {
+      "deletions": 108,
+      "predicted": "lies flat"
+    },
+    "uncorrected": {
+      "deletions": 0,
+      "predicted": "309 deg of twist; cannot lie flat"
+    }
+  },
+  "readout": "flat fraction per arm, compared with imaging.arms.compare_arms. NOT a dimension: mica flattens what it adsorbs, so whether one particle looks twisted is the wrong question and how many refuse to lie flat is not."
+}
