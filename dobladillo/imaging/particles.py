@@ -42,6 +42,18 @@ class Particle:
     angle_deg: float
     touches_edge: bool
 
+    #: Height spread over the particle's interior, nm. A flat sheet adsorbed on
+    #: mica is uniform to about the image noise; a sheet that rolled or folded
+    #: carries a ridge, and the ridge shows up here before it shows up in any
+    #: single dimension.
+    roughness_nm: float = 0.0
+
+    #: Filled area over the area of the particle's own bounding box, measured
+    #: along its principal axes. A clean rectangle is near 1. A parallelogram,
+    #: a rolled tube or a torn sheet is not, and this is what separates "the
+    #: right size" from "the right shape".
+    rectangularity: float = 1.0
+
     @property
     def aspect(self) -> float:
         return self.length_nm / self.width_nm if self.width_nm else float("inf")
@@ -108,7 +120,15 @@ def _measure(
     # the particle's pixels looks robust and is not: with 0.12 nm of noise the
     # 90th percentile of a flat 2.00 nm plateau sits at 2.15, so the estimator
     # reads 7% high on every particle in every image.
-    height = float(np.median(heights[_interior(pixels)]))
+    interior = _interior(pixels)
+    height = float(np.median(heights[interior]))
+
+    # Both measured on the eroded interior, for the same reason the height is:
+    # the boundary pixels are a mixture of particle and substrate, so their
+    # spread reports the edge rather than the object.
+    roughness = float(np.std(heights[interior])) if interior.any() else 0.0
+    box = long_px * short_px
+    rectangularity = float(pixels.sum() / box) if box > 0 else 0.0
 
     return Particle(
         label=label,
@@ -119,6 +139,8 @@ def _measure(
         area_nm2=float(pixels.sum()) * pixel_nm**2,
         angle_deg=float(np.rad2deg(np.arctan2(axes[0][0], axes[0][1])) % 180),
         touches_edge=touches,
+        roughness_nm=roughness,
+        rectangularity=min(rectangularity, 1.0),
     )
 
 

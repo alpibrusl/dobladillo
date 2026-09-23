@@ -154,7 +154,7 @@ what software is owed, cheapest first:
 | needed | blocks | size |
 |---|---|---|
 | ~~latch-reach observable~~ | done: `observables.reach`, and it found a silent index bug | — |
-| flatness observable (`imaging`) | E2 entirely | small |
+| ~~flatness observable~~ | done: `twisted` is its own class, on height | — |
 | folded-hinge footprint prediction | E3's gate | medium |
 | `hamiltonian/fret.py` | E4, E5 | medium |
 | `hamiltonian/equilibrium.py` | E5 | medium |
@@ -209,6 +209,24 @@ indicative rather than settled; the sweep is cheap to repeat now.
 
 `extension_indices` gives the unpaired particles, and a test asserts the two
 maps partition the topology with nothing missed and nothing counted twice.
+
+## Flatness, and which measure actually works
+
+E2 needs *what fraction lies flat as a clean rectangle*, apart from what
+fraction is the wrong size — the two say opposite things about the design.
+`classify` has a fourth class, `twisted`: right footprint, wrong height
+profile. Verified against ground truth at 30/30, 20+20 and 30/30.
+
+The measure that decides it is **height**, and the intuitive choice is wrong
+twice. A rolled sheet's median sits on its ridge, so height goes 2.00 → 2.97.
+Roughness also moves, and on a quiet image it moves *more* — 3.8× against
+height's 1.5× at 0.06 nm of noise. But roughness's baseline **is** the noise,
+so its separation collapses to 1.2× by 0.30 nm while height's holds at 1.49 –
+1.51 throughout. Roughness is kept as a secondary signal for the one thing it
+alone sees: a fold or tear that does not lift the median.
+
+`Particle` also gained `rectangularity` — filled area over its own bounding
+box — which is what separates "the right size" from "the right shape".
 
 ## Known gaps
 

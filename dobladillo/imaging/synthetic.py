@@ -59,6 +59,55 @@ class SyntheticScan:
         return tuple(p for p in self.truth if p.kind == "rectangle")
 
 
+def _stamp_twisted(
+    heights: np.ndarray,
+    *,
+    centre: tuple[float, float],
+    length_px: float,
+    width_px: float,
+    height_nm: float,
+    angle_deg: float,
+    pixel_nm: float,
+    tip_radius_nm: float,
+    ridge_nm: float,
+) -> None:
+    """A sheet that did not lie flat: a rectangle with a ridge along it.
+
+    What the twist experiment is actually looking for. A twisted rectangle
+    adsorbed on mica is not a rectangle standing on edge -- the surface
+    flattens what it adsorbs -- it is a sheet pressed down with a fold or roll
+    left in it. So the footprint stays about right and the HEIGHT stops being
+    uniform, which is why `roughness_nm` and not a dimension is the measure
+    that separates them.
+
+    The ridge runs along the long axis and is raised by `ridge_nm` over the
+    plate, a half-cosine across the short one, so the particle keeps its
+    outline and gains a spine.
+    """
+    rows, cols = heights.shape
+    yy, xx = np.mgrid[0:rows, 0:cols]
+    angle = np.deg2rad(angle_deg)
+    dy, dx = yy - centre[0], xx - centre[1]
+    across = -dx * np.sin(angle) + dy * np.cos(angle)
+
+    before = heights.copy()
+    _stamp_rectangle(
+        heights,
+        centre=centre,
+        length_px=length_px,
+        width_px=width_px,
+        height_nm=height_nm,
+        angle_deg=angle_deg,
+        pixel_nm=pixel_nm,
+        tip_radius_nm=tip_radius_nm,
+    )
+    added = heights - before
+    inside = added > 0.5 * height_nm
+    half = max(width_px / 2, 1e-6)
+    ridge = ridge_nm * np.cos(np.clip(across / half, -1, 1) * np.pi / 2) ** 2
+    heights[inside] += ridge[inside]
+
+
 def _stamp_rectangle(
     heights: np.ndarray,
     *,
@@ -128,6 +177,8 @@ def synthetic_scan(
     width_nm: float = 36.0,
     height_nm: float = SHEET_HEIGHT_NM,
     n_aggregates: int = 4,
+    n_twisted: int = 0,
+    twist_ridge_nm: float = 1.2,
     tip_radius_nm: float = 10.0,
     noise_nm: float = 0.12,
     tilt_nm: float = 6.0,
@@ -187,6 +238,33 @@ def synthetic_scan(
             tip_radius_nm=tip_radius_nm,
         )
         placed.append(PlacedParticle(centre, length_nm, width_nm, height_nm, angle, "rectangle"))
+
+    for _ in range(n_twisted):
+        centre = free_spot(length_px * 1.1)
+        if centre is None:
+            break
+        angle = float(rng.uniform(0, 180))
+        _stamp_twisted(
+            heights,
+            centre=centre,
+            length_px=length_px,
+            width_px=width_px,
+            height_nm=height_nm,
+            angle_deg=angle,
+            pixel_nm=pixel_nm,
+            tip_radius_nm=tip_radius_nm,
+            ridge_nm=twist_ridge_nm,
+        )
+        placed.append(
+            PlacedParticle(
+                centre_px=centre,
+                length_nm=length_nm,
+                width_nm=width_nm,
+                height_nm=height_nm + twist_ridge_nm,
+                angle_deg=angle,
+                kind="twisted",
+            )
+        )
 
     for _ in range(n_aggregates):
         centre = free_spot(length_px * 0.9)

@@ -34,6 +34,14 @@ AGGREGATE_HEIGHT_FACTOR = 1.6
 #: Fractional tolerance on each dimension for "well formed".
 SHAPE_TOLERANCE = 0.20
 
+#: Above this multiple of the expected height, a particle with the RIGHT
+#: footprint has not lain flat. Measured rather than chosen: a synthetic sheet
+#: carrying a 1.2 nm ridge over a 2.0 nm plate reads a median height of 2.97
+#: against 2.00 for a flat one, because the median over the interior sits on
+#: the ridge. 1.25 separates them with room on both sides, and sits below
+#: AGGREGATE_HEIGHT_FACTOR so the two classes cannot both claim a particle.
+TWISTED_HEIGHT_FACTOR = 1.25
+
 #: z for a 95% interval.
 Z95 = 1.959964
 
@@ -100,13 +108,26 @@ def classify(
     height_nm: float,
     tolerance: float = SHAPE_TOLERANCE,
 ) -> str:
+    """Which of four things this particle is.
+
+    `twisted` is separated from `malformed` because the twist experiment needs
+    the fractions apart, not together. Its question is not "does this look
+    twisted" -- mica flattens what it adsorbs, so a twisted sheet is pressed
+    down rather than standing on edge -- but *what fraction lies flat as a
+    clean rectangle*. A sheet that rolled keeps roughly its footprint and
+    gains a ridge, so it passes the dimension check and fails on height. Left
+    in `malformed` it would be indistinguishable from a sheet of the wrong
+    size, and those two say opposite things about the design.
+    """
     if particle.height_nm > AGGREGATE_HEIGHT_FACTOR * height_nm:
         return "aggregate"
     matches = (
         abs(particle.length_nm - length_nm) <= tolerance * length_nm
         and abs(particle.width_nm - width_nm) <= tolerance * width_nm
     )
-    return "well_formed" if matches else "malformed"
+    if not matches:
+        return "malformed"
+    return "twisted" if particle.height_nm > TWISTED_HEIGHT_FACTOR * height_nm else "well_formed"
 
 
 def population(
@@ -132,7 +153,12 @@ def population(
     ]
     counts = Counter(labels)
     return Population(
-        counts={k: counts.get(k, 0) for k in ("well_formed", "malformed", "aggregate")},
+        # Fixed keys, so a class that happened not to occur reports zero
+        # rather than vanishing. `twisted` was added to this tuple and to
+        # `classify` in the same change; adding it to only one silently drops
+        # every particle of that class from the totals, which is how thirty
+        # twisted sheets once counted as nothing at all.
+        counts={k: counts.get(k, 0) for k in ("well_formed", "twisted", "malformed", "aggregate")},
         total=len(inside),
         well_formed=Fraction(counts.get("well_formed", 0), len(inside)),
         excluded_at_edge=len(particles) - len(inside),
