@@ -32,6 +32,15 @@ HELICAL_REPEAT_BP: Final = 10.5
 #: Bare helix diameter, nm.
 HELIX_DIAMETER_NM: Final = 2.0
 
+#: Contour length per base of single-stranded DNA, nm. Used to ask whether two
+#: unpaired extensions can physically reach each other; it is the *maximum*
+#: span of an ssDNA segment, so a reach computed from it is generous by
+#: construction. A real coil is far shorter than its contour length, and the
+#: entropy of stretching one out is exactly what the latch's binding energy
+#: has to pay for. Treat a "within reach" verdict as necessary, not
+#: sufficient.
+SSDNA_RISE_PER_BASE_NM: Final = 0.63
+
 #: Effective inter-helix spacing in a folded origami, nm. Larger than the bare
 #: diameter because of electrostatic repulsion; depends on Mg2+.
 INTERHELIX_SPACING_NM: Final = (2.25, 2.6)

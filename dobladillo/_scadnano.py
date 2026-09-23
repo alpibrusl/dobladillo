@@ -187,7 +187,14 @@ def nucleotide_indices(design: sc.Design) -> dict[tuple[int, int, bool], int]:
     for strand in design.strands:
         for domain in strand.domains:
             if not hasattr(domain, "helix"):
-                continue  # a loopout or extension carries no helix position
+                # A loopout or extension has no helix position, so it cannot go
+                # in this map -- but it IS a particle in the topology, and the
+                # counter must advance past it or every index after it is too
+                # low. The hinge's two 8 nt latches made the map 16 short of
+                # the topology's 9184, which would have written a traps file
+                # restraining the wrong nucleotides.
+                n += len(getattr(domain, "dna_sequence", "") or "")
+                continue
             offsets = list(range(domain.start, domain.end))
             if not domain.forward:
                 offsets.reverse()
@@ -197,6 +204,34 @@ def nucleotide_indices(design: sc.Design) -> dict[tuple[int, int, bool], int]:
                 index[(domain.helix, offset, domain.forward)] = n
                 n += 1
     return index
+
+
+def extension_indices(design: sc.Design) -> list[tuple[str, tuple[int, ...]]]:
+    """Every unpaired extension, as (sequence, the oxDNA indices of its bases).
+
+    Extensions pair with nothing on their own object, so they are absent from
+    `nucleotide_indices` by construction -- but they are particles, and a
+    latch is made of them. This is how an observable finds one in a
+    trajectory.
+
+    Walks in exactly the same order as `nucleotide_indices`, because the two
+    must agree about where every particle sits; a test asserts they partition
+    the topology between them with nothing missed and nothing counted twice.
+    """
+    found: list[tuple[str, tuple[int, ...]]] = []
+    n = 0
+    for strand in design.strands:
+        for domain in strand.domains:
+            if not hasattr(domain, "helix"):
+                sequence = getattr(domain, "dna_sequence", "") or ""
+                if sequence:
+                    found.append((sequence, tuple(range(n, n + len(sequence)))))
+                n += len(sequence)
+                continue
+            for offset in range(domain.start, domain.end):
+                if offset not in domain.deletions:
+                    n += 1
+    return found
 
 
 def topology_bases(path: Path) -> list[str]:

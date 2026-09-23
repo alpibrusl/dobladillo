@@ -153,7 +153,7 @@ what software is owed, cheapest first:
 
 | needed | blocks | size |
 |---|---|---|
-| latch-reach observable (`analysis.observables`) | E3, E4 scoring | small |
+| ~~latch-reach observable~~ | done: `observables.reach`, and it found a silent index bug | — |
 | flatness observable (`imaging`) | E2 entirely | small |
 | folded-hinge footprint prediction | E3's gate | medium |
 | `hamiltonian/fret.py` | E4, E5 | medium |
@@ -190,6 +190,25 @@ available to anyone composing bricks, and `crosstalk` is now what catches it.
 its design. Checked against the bundle's own trajectory, the envelope recovers
 a centreline sagitta of 50.2 nm on a body 10.7 nm thick — the arc that a table
 of length, width and height had not shown anyone.
+
+## The index bug the reach observable found
+
+`nucleotide_indices` skipped extensions **without advancing its counter**, so
+every particle after one carried an index too low. The hinge's two 8 nt latches
+left the map 16 short of the topology's 9184.
+
+That map is what `sim.mutual_traps` builds its traps file from, so relaxation
+of any design with extensions restrained the wrong nucleotides. It is silent by
+construction: the run completes, the numbers are plausible, and nothing says
+the restraints were on the wrong particles.
+
+**The joint sweep was run with it.** Its four production trajectories carry no
+traps, so the production physics is sound, but each started from a
+configuration relaxed against wrong restraints. Treat those bend figures as
+indicative rather than settled; the sweep is cheap to repeat now.
+
+`extension_indices` gives the unpaired particles, and a test asserts the two
+maps partition the topology with nothing missed and nothing counted twice.
 
 ## Known gaps
 

@@ -216,6 +216,81 @@ def _spread(values: Sequence[float]) -> Spread:
     )
 
 
+def separation_nm(frames: Sequence[Frame], a: Sequence[int], b: Sequence[int]) -> Spread:
+    """Distance between the centroids of two groups of particles, over frames.
+
+    Centroids rather than closest approach: a closest-approach distance is
+    dominated by whichever single nucleotide happens to fluctuate furthest,
+    and reads shorter than the group ever actually is.
+    """
+    if not a or not b:
+        raise ValueError("both groups need at least one particle")
+    if not frames:
+        raise ValueError("no frames")
+    distances = []
+    for frame in frames:
+        positions = frame.positions_nm
+        if max(max(a), max(b)) >= len(positions):
+            raise ValueError(
+                f"particle index out of range: the trajectory has {len(positions)} "
+                "particles, which is not the design these indices came from"
+            )
+        distances.append(
+            float(np.linalg.norm(positions[list(a)].mean(axis=0) - positions[list(b)].mean(axis=0)))
+        )
+    return _spread(distances)
+
+
+@dataclass(frozen=True)
+class Reach:
+    """Whether two unpaired extensions ever come close enough to bind."""
+
+    separation: Spread
+    closest_nm: float
+    span_nm: float
+
+    @property
+    def within_reach(self) -> bool:
+        """Necessary, not sufficient.
+
+        `span_nm` is the two extensions' combined CONTOUR length, so this asks
+        whether they could touch if both were pulled straight. A real coil is
+        much shorter, and straightening it costs entropy the latch's binding
+        energy must pay for. A False here is decisive -- the mechanism cannot
+        close. A True is permission to look further, not a prediction.
+        """
+        return self.closest_nm <= self.span_nm
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "separation_nm": self.separation.as_dict(),
+            "closest_nm": round(self.closest_nm, 2),
+            "reach_span_nm": round(self.span_nm, 2),
+            "within_reach": self.within_reach,
+            "caveat": "contour length, so necessary and not sufficient",
+        }
+
+
+def reach(frames: Sequence[Frame], a: Sequence[int], b: Sequence[int], *, bases: int) -> Reach:
+    """Can these two extensions, of `bases` each, meet in this trajectory?"""
+    from dobladillo.constants import SSDNA_RISE_PER_BASE_NM
+
+    spread = separation_nm(frames, a, b)
+    closest = min(
+        float(
+            np.linalg.norm(
+                f.positions_nm[list(a)].mean(axis=0) - f.positions_nm[list(b)].mean(axis=0)
+            )
+        )
+        for f in frames
+    )
+    return Reach(
+        separation=spread,
+        closest_nm=closest,
+        span_nm=2 * bases * SSDNA_RISE_PER_BASE_NM,
+    )
+
+
 def analyse(frames: Sequence[Frame]) -> Report:
     """Every observable, from a list of frames."""
     if not frames:
