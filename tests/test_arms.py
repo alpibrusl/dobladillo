@@ -96,3 +96,62 @@ def test_compare_arms_reads_the_populations() -> None:
     found = compare_arms(pop(36, 4), pop(11, 29))
     assert found.verdict == "correction helps"
     assert "flat fraction" in found.summary()
+
+
+# ------------------------------------------------- end to end, before any sample
+
+
+def _arm(flat: int, twisted: int, seed: int):
+    """One arm imaged as a real instrument would leave it."""
+    from dobladillo.compare.corrections import half_height_broadening_nm
+    from dobladillo.imaging.classify import population
+    from dobladillo.imaging.flatten import flatten
+    from dobladillo.imaging.particles import find_particles
+    from dobladillo.imaging.synthetic import SHEET_HEIGHT_NM, synthetic_scan
+
+    widening = 2 * half_height_broadening_nm(tip_radius_nm=10.0, feature_height_nm=SHEET_HEIGHT_NM)
+    scan = synthetic_scan(
+        seed=seed,
+        n_rectangles=flat,
+        n_twisted=twisted,
+        n_aggregates=2,
+        length_nm=191.2,
+        width_nm=36.0,
+        bow_nm=4.0,
+        drift_shear=0.05,
+        streak_lines=12,
+    )
+    flattened, background = flatten(scan.image)
+    return population(
+        find_particles(flattened, background),
+        length_nm=191.2 + widening,
+        width_nm=36.0 + widening,
+        height_nm=SHEET_HEIGHT_NM,
+    )
+
+
+@pytest.mark.parametrize(
+    ("world", "corrected", "uncorrected", "expected"),
+    [
+        ("works", (34, 2, 3), (6, 30, 4), "correction helps"),
+        ("no difference", (30, 6, 5), (29, 7, 6), "indistinguishable"),
+        ("hurts", (8, 28, 7), (32, 4, 8), "correction hurts"),
+    ],
+)
+def test_the_readout_gives_the_right_verdict_in_each_world(
+    world: str, corrected, uncorrected, expected: str
+) -> None:
+    """E2 run end to end before any sample exists.
+
+    Not a unit test of the interval: scans are generated with the artefacts a
+    working instrument leaves — scanner bow, drift, a tip streak, aggregates
+    in the mix — then flattened, segmented, classified and compared. What is
+    pinned is that the whole chain returns the verdict the world deserves,
+    including the one where the correction turns out to be unnecessary.
+
+    The point of running it now is that a disagreement found here is a bug in
+    us, and the same disagreement found after a wet-lab run is three weeks and
+    an argument about chemistry.
+    """
+    found = compare_arms(_arm(*corrected), _arm(*uncorrected))
+    assert found.verdict == expected, found.summary()
