@@ -1,15 +1,17 @@
 # Bench protocols
 
-> ## ⚠ Do not order oligos for E1, E2 or E3 yet — 2026-09-28
+> ## ⚠ Do not order oligos for E3 yet — 2026-09-28
 >
-> The square-lattice designs these experiments use (the rectangle, both
-> twist-pair arms, the hinge) place **half their staple crossovers on the wrong
-> face of the helix**: two crossovers to the same neighbour 16 bp apart, where
-> the backbone has turned about 180°. Measured with scadnano's own geometry
-> against published designs, they score as randomly phased (≈90° rms strain)
-> where published square designs score ≈31°. The designs are being re-tiled;
-> the order files in each experiment's `pre/order/` are wrong until then.
-> The protocols themselves stand — only the oligos change.
+> The hinge still places **half its staple crossovers on the wrong face of
+> the helix**: two crossovers to the same neighbour 16 bp apart, where the
+> backbone has turned about 180°. Measured against published designs, it is
+> randomly phased (≈90° rms strain; published designs score 18–22°). It is
+> being re-tiled; E3's order does not exist until then.
+>
+> E1 and E2 had the same defect and were re-tiled on 2026-09-28, before any
+> order was placed. Their `pre/order/` files are current; each experiment's
+> `pre/RETILED.md` says what changed. Staple counts did not change, so the
+> pipetting volumes below still hold.
 
 Step-by-step protocols for running this project's experiments, written for a
 student who has basic molecular-biology bench experience (pipetting, gels, a
@@ -18,8 +20,8 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 | protocol | experiment | status |
 |---|---|---|
 | [`common-techniques.md`](common-techniques.md) | shared by all | read first |
-| [`E1-rectangle-afm.md`](E1-rectangle-afm.md) | E1 — does our first design fold? | **blocked: re-tiling** |
-| [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | **blocked: re-tiling** |
+| [`E1-rectangle-afm.md`](E1-rectangle-afm.md) | E1 — does our first design fold? | ready (re-tiled 2026-09-28) |
+| [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | ready (re-tiled 2026-09-28) |
 | [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | **blocked: re-tiling** |
 
 E4–E7 need software that does not exist yet; their protocols will be written

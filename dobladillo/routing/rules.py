@@ -31,7 +31,6 @@ from dobladillo.constants import (
     STAPLE_LENGTH_TARGET_NT,
     STAPLE_MIN_DOMAIN_NT,
     STAPLE_SEED_DOMAIN_NT,
-    Lattice,
 )
 
 if TYPE_CHECKING:
@@ -79,81 +78,66 @@ def _crossovers(strand: sc.Strand) -> Iterator[tuple[frozenset[int], int]]:
         yield frozenset({before.helix, after.helix}), offset
 
 
-def _crossovers_by_helix(design: sc.Design) -> dict[int, dict[int, set[int]]]:
-    """For each helix, the crossover offsets to each of its neighbours."""
-    out: dict[int, dict[int, set[int]]] = {}
-    for strand in design.strands:
-        for pair, offset in _crossovers(strand):
-            a, b = sorted(pair)
-            out.setdefault(a, {}).setdefault(b, set()).add(offset)
-            out.setdefault(b, {}).setdefault(a, set()).add(offset)
-    return out
-
-
 # --------------------------------------------------------------------- checks
 
 
-def check_crossover_phase(design: sc.Design) -> Iterator[Violation]:
-    """A helix cannot bond to two different neighbours at the same azimuth.
+def check_crossover_azimuth(design: sc.Design) -> Iterator[Violation]:
+    """Each crossover must be made where the backbone faces its partner.
 
-    A crossover can only form where the backbone faces the neighbour helix, so
-    the offset at which it happens *is* an angle. On honeycomb the three
-    neighbour directions are 120 deg apart, and the backbone advances 34.3 deg
-    per base, so 7 bp of offset is 240 deg -- which is the same as -120 deg,
-    and is why honeycomb's crossover spacing is 7. Two neighbours of one helix
-    must therefore be bonded at offsets differing by 7 or 14 within the 21 bp
-    period, never by 0.
+    A crossover joins two helices at one base pair, and the offset of that base
+    pair is an angle: the backbone turns about 34 deg per base. Measured by
+    `routing.azimuth`, which takes the geometry from scadnano and is calibrated
+    on published designs (caDNAno's Nature 2009 test data and scadnano's own
+    examples), every one of which scores 18-22 deg rms.
 
-    Offsets that differ by a whole period differ by no angle at all. A design
-    that bonds every neighbour at the same phase strains one bond of every
-    pair by 120 deg, and a systematic azimuthal strain around a ring is a
-    constant bend.
+    Three findings:
 
-    This is not hypothetical: it is what the six-helix bundle in this
-    repository did, from Q1 until an oxDNA run bent it into a 269 nm arc with
-    the curvature pointing the same way in 99.3% of frames. Nothing in the
-    other five rules looks at phase, so nothing caught it.
+    - a VIOLATION per crossover more than a quarter-turn off its partner --
+      published designs have none;
+    - a VIOLATION for the design when its rms phasing strain is above the
+      ceiling, even if no single crossover is that far out;
+    - a WARNING when the helices carry uncorrected twist. Not a defect in
+      itself: E2's control arm carries 310 deg of it on purpose.
 
-    **What this checks, and what it does not.** It flags a helix whose crossover
-    phases to two different neighbours are *identical* -- the severe case, and
-    the bundle's. It does NOT verify that each bond is made at the azimuth its
-    own neighbour direction requires, which needs the angle between those
-    directions and is declared unimplemented below. So a design that overlaps
-    partially, as the rectangle does, passes here without having been cleared.
-    Reporting the narrow check honestly beats reporting a broad one that is
-    not performed.
+    It replaces `crossover_phase`, which compared offsets modulo a fixed period
+    and got both directions wrong: it passed the rectangle, whose tiling put
+    half its crossovers on the wrong face, and it flagged scadnano's correctly
+    phased rectangles, which change partner every 16 bp.
     """
-    # Keyed by name rather than by enum: scadnano is imported here only for
-    # typing, and the adapter exists so that stays true.
-    period = {
-        "honeycomb": Lattice.HONEYCOMB_PERIOD_BP,
-        "square": Lattice.SQUARE_PERIOD_BP,
-    }.get(getattr(design.grid, "value", str(design.grid)))
-    if period is None:
+    from dobladillo.routing import azimuth
+
+    if getattr(design.grid, "value", str(design.grid)) not in ("square", "honeycomb"):
         return
-    for helix, neighbours in sorted(_crossovers_by_helix(design).items()):
-        if len(neighbours) < 2:
-            continue
-        phases = {
-            other: frozenset(o % period for o in offsets) for other, offsets in neighbours.items()
-        }
-        seen: dict[frozenset[int], list[int]] = {}
-        for other, phase in sorted(phases.items()):
-            seen.setdefault(phase, []).append(other)
-        for phase, others in seen.items():
-            if len(others) > 1:
-                yield Violation(
-                    rule="crossover_phase",
-                    severity=Severity.VIOLATION,
-                    message=(
-                        f"helix {helix} bonds to helices {others} at the same helical "
-                        f"phase {sorted(phase)} (mod {period}); neighbours lie at "
-                        "different angles around the helix, so one of these bonds is "
-                        "made off-azimuth and strains the duplex"
-                    ),
-                    helix=helix,
-                    offset=min(min(neighbours[o]) for o in others),
-                )
+    report = azimuth.measure(design)
+    for c in report.wrong_face:
+        yield Violation(
+            rule="crossover_azimuth",
+            severity=Severity.VIOLATION,
+            message=(
+                f"crossover from helix {c.helix} to {c.partner} is {c.strain_deg:.0f} deg "
+                "off its partner: the backbone faces away, so the bond strains the duplex"
+            ),
+            helix=c.helix,
+            offset=c.offset,
+        )
+    if not report.acceptable:
+        yield Violation(
+            rule="crossover_azimuth",
+            severity=Severity.VIOLATION,
+            message=(
+                f"rms phasing strain {report.rms_deg:.0f} deg over {len(report.crossovers)} "
+                f"crossovers, above {azimuth.MAX_RMS_DEG:.0f}; published designs score 18-22"
+            ),
+        )
+    if report.carries_twist:
+        yield Violation(
+            rule="crossover_azimuth",
+            severity=Severity.WARNING,
+            message=(
+                f"helices carry {report.accumulated_twist_deg:.0f} deg of uncorrected twist "
+                f"({report.twist_deg_per_bp:+.2f} deg/bp); intended only in a twist control"
+            ),
+        )
 
 
 def check_staple_length(design: sc.Design) -> Iterator[Violation]:
@@ -300,9 +284,9 @@ RULES: Sequence[Rule] = (
     ),
     Rule("poly_g", f"no poly-G runs of {POLY_G_RUN_FLAG} or more", check_poly_g),
     Rule(
-        "crossover_phase",
-        "no helix bonds two different neighbours at an identical set of phases",
-        check_crossover_phase,
+        "crossover_azimuth",
+        "every crossover made where the backbone faces its partner",
+        check_crossover_azimuth,
     ),
 )
 
@@ -312,13 +296,6 @@ RULES: Sequence[Rule] = (
 #: reporting a clean design that was never checked.
 UNIMPLEMENTED: Sequence[tuple[str, str]] = (
     ("self_structure", "needs a thermodynamics backend (the `thermo` extra); not implemented"),
-    (
-        "crossover_azimuth",
-        "the full form of crossover_phase: that EACH bond is made at the azimuth its own "
-        "neighbour direction requires, not merely that two neighbours differ. Needs the "
-        "angle between neighbour directions per lattice; crossover_phase catches only the "
-        "identical-phase case",
-    ),
 )
 
 

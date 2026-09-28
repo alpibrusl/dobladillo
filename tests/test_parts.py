@@ -51,7 +51,23 @@ def test_rectangle_every_scaffold_base_is_paired_exactly_once(rectangle) -> None
 
 def test_rectangle_staple_count_and_lengths_are_pinned(rectangle) -> None:
     assert rectangle.staple_count == 220
-    assert set(rectangle.staple_lengths) == {30, 32}
+    # 32 nt, less one or two twist-correcting deletions.
+    assert set(rectangle.staple_lengths) == {30, 31, 32}
+
+
+def test_rectangle_is_phased_like_published_designs(rectangle) -> None:
+    """The defect that blocked E1: half the crossovers on the wrong face.
+
+    Measured the same way as the published references in
+    tests/data/reference_designs, which score 18-22 deg; the old tiling scored
+    89 deg with 47% of its crossovers on the wrong face.
+    """
+    from dobladillo.routing.azimuth import measure
+
+    report = measure(rectangle.design)
+    assert report.rms_deg < 25
+    assert not report.wrong_face
+    assert not report.carries_twist
 
 
 def test_rectangle_staples_obey_the_length_rule(rectangle) -> None:
@@ -69,17 +85,20 @@ def test_rectangle_twist_correction_is_evenly_spaced_and_off_the_crossovers(rect
     may land on a crossover position, where a deletion is needless strain on a
     junction. Counting them instead would only restate the loop bounds.
     """
-    from dobladillo.parts.rectangle import DOMAIN_NT
+    from dobladillo.parts.rectangle import COLUMN_NT
 
-    scaffold = ad.scaffold_strand(rectangle.design)
-    per_helix = {d.helix: sorted(d.deletions) for d in scaffold.domains}
+    # A helix can carry more than one scaffold domain (the seam splits them).
+    per_helix: dict[int, list[int]] = {}
+    for d in ad.scaffold_strand(rectangle.design).domains:
+        per_helix.setdefault(d.helix, []).extend(d.deletions)
+    per_helix = {h: sorted(o) for h, o in per_helix.items()}
     assert len(per_helix) == rectangle.helices
 
     for offsets in per_helix.values():
         assert offsets, "every helix takes its share of the correction"
         gaps = {b - a for a, b in itertools.pairwise(offsets)}
         assert gaps == {SQUARE_TWIST_CORRECTION_PERIOD_BP}
-        assert all(o % DOMAIN_NT for o in offsets), "a deletion landed on a crossover"
+        assert all(o % COLUMN_NT for o in offsets), "a deletion landed on a crossover"
 
     total = sum(len(o) for o in per_helix.values())
     assert rectangle.scaffold.deletions == total
@@ -102,11 +121,10 @@ def test_rectangle_rejects_geometry_that_would_not_tile() -> None:
         rothemund_rectangle(helices=23)
 
 
-def test_rectangle_rejects_an_odd_number_of_blocks() -> None:
-    """288 tiles as 32-blocks but gives nine of them, and the ninth puts a
-    staple crossover exactly on the scaffold's turn. Caught by the rule
-    checker, so the generator refuses it rather than emitting it again."""
-    with pytest.raises(ValueError, match="odd number of blocks"):
+def test_rectangle_rejects_a_partial_correction_period() -> None:
+    """288 is 4.5 periods of the twist correction; the last half would be
+    left uncorrected."""
+    with pytest.raises(ValueError, match="partial period"):
         rothemund_rectangle(length=288)
 
 
