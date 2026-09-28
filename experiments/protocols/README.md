@@ -21,7 +21,9 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 | [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | blocked: footprint prediction |
 
 E4–E7 need software that does not exist yet; their protocols will be written
-when it does. See `../ROADMAP.md`.
+when it does. See `../ROADMAP.md`. E4's analysis chain can already be dry-run
+on synthetic FRET data (`e4_dryrun.py`, no real data accepted), as E1 and E2
+were on synthetic scans.
 
 ## Run them in this order
 

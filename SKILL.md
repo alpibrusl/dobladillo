@@ -19,6 +19,7 @@ experimental counterparts.
 - `dobladillo afm read` — Read a scan and report what it is. Measures nothing.
 - `dobladillo afm synthetic` — Write a synthetic scan of known contents, as a .gsf.
 - `dobladillo analyse` — Turn a finished run into observables with experimental counterparts.
+- `dobladillo benchmark` — Score routing and shape prediction against known answers. Exits non-zero on a miss.
 - `dobladillo bracket` — The latch ladder that guarantees Stage 0 lands in its measurement window.
 - `dobladillo build bundle` — A six-helix bundle on the honeycomb lattice.
 - `dobladillo build hinge` — A bistable hinge: two arms, a single-stranded joint, and a latch.

@@ -1,0 +1,251 @@
+{
+  "schema": 1,
+  "about": "Known answers for routing and shape prediction. Read by dobladillo.benchmark; run with `dobladillo benchmark`. Design paths are relative to this file. Every entry cites where its answer comes from; none comes from a tool this project wrote.",
+  "cases": [
+    {
+      "id": "phasing/nature09-monolith",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "reference_designs/Nature09_monolith.json",
+      "expect": "pass",
+      "source": "Douglas et al., Nature 459, 414 (2009), folded and imaged; caDNAno 2.5 test data, commit ce6ff019b8 (BSD-3-Clause)"
+    },
+    {
+      "id": "phasing/nature09-squarenut",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "reference_designs/Nature09_squarenut.json",
+      "expect": "pass",
+      "source": "Douglas et al., Nature 459, 414 (2009), folded and imaged; caDNAno 2.5 test data, commit ce6ff019b8 (BSD-3-Clause)"
+    },
+    {
+      "id": "phasing/scadnano-6hb",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "reference_designs/6_helix_bundle_honeycomb.sc",
+      "expect": "pass",
+      "source": "scadnano-python-package examples/output_designs, commit e7f2dcd39f (MIT)"
+    },
+    {
+      "id": "phasing/scadnano-rectangle",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "reference_designs/16_helix_origami_rectangle.sc",
+      "expect": "pass",
+      "source": "scadnano-python-package examples/output_designs, commit e7f2dcd39f (MIT); square lattice without twist correction"
+    },
+    {
+      "id": "phasing/scadnano-rectangle-corrected",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "reference_designs/16_helix_origami_rectangle_no_twist.sc",
+      "expect": "pass",
+      "source": "scadnano-python-package examples/output_designs, commit e7f2dcd39f (MIT); square lattice with twist-correcting deletions"
+    },
+    {
+      "id": "phasing/dietz09-bend-120",
+      "stage": "routing",
+      "check": "placement",
+      "design": "published_shapes/Science09_prot120_98_v3.json",
+      "expect": "pass",
+      "source": "Dietz, Douglas & Shih, Science 325, 725 (2009), Fig. 3; caDNAno 2.5 test data, commit ce6ff019b8 (BSD-3-Clause). Placement only: its deletions and insertions strain crossovers on purpose"
+    },
+    {
+      "id": "lint/scadnano-6hb",
+      "stage": "routing",
+      "check": "lint",
+      "design": "reference_designs/6_helix_bundle_honeycomb.sc",
+      "expect": "pass",
+      "source": "scadnano-python-package examples/output_designs, commit e7f2dcd39f (MIT)"
+    },
+    {
+      "id": "lint/scadnano-rectangle",
+      "stage": "routing",
+      "check": "lint",
+      "design": "reference_designs/16_helix_origami_rectangle.sc",
+      "expect": "pass",
+      "source": "scadnano-python-package examples/output_designs, commit e7f2dcd39f (MIT)"
+    },
+    {
+      "id": "lint/scadnano-rectangle-corrected",
+      "stage": "routing",
+      "check": "lint",
+      "design": "reference_designs/16_helix_origami_rectangle_no_twist.sc",
+      "expect": "pass",
+      "source": "scadnano-python-package examples/output_designs, commit e7f2dcd39f (MIT)"
+    },
+    {
+      "id": "lint/nature09-monolith",
+      "stage": "routing",
+      "check": "lint",
+      "design": "reference_designs/Nature09_monolith.json",
+      "expect": "pass",
+      "source": "Douglas et al., Nature 459, 414 (2009): it folded, so no hard rule should reject it",
+      "known_failure": "seed_domain (14 nt) and min_domain (5 nt) reject honeycomb staples built from 7-nt domains, which this published design uses throughout. A rule in conflict with a published design, flagged per AGENTS.md rule 8 and not relaxed here"
+    },
+    {
+      "id": "lint/nature09-squarenut",
+      "stage": "routing",
+      "check": "lint",
+      "design": "reference_designs/Nature09_squarenut.json",
+      "expect": "pass",
+      "source": "Douglas et al., Nature 459, 414 (2009): it folded, so no hard rule should reject it",
+      "known_failure": "seed_domain, min_domain and staple_length reject staples this published design uses. A rule in conflict with a published design, flagged per AGENTS.md rule 8 and not relaxed here"
+    },
+    {
+      "id": "lint/dietz09-bend-120",
+      "stage": "routing",
+      "check": "lint",
+      "design": "published_shapes/Science09_prot120_98_v3.json",
+      "expect": "pass",
+      "source": "Dietz, Douglas & Shih, Science 325, 725 (2009): it folded and bent as designed, so no hard rule should reject it",
+      "known_failure": "crossover_azimuth counts the strain its deletions and insertions put on crossovers as misphasing (placement-only phasing is 21 deg, inside the published band), and seed_domain / min_domain / staple_length reject its 7-nt-domain staples. Rules in conflict with a published design, flagged per AGENTS.md rule 8 and not relaxed here"
+    },
+    {
+      "id": "phasing/bundle-21-21",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "our_designs/bundle_21_21.sc",
+      "expect": "fail",
+      "source": "recorded oxDNA run (1e6 steps, 200 frames, 20 C, 0.5 M): an arc of radius 269 +- 11 nm, bend-direction order parameter 0.993. See tests/data/our_designs/README.md and docs/BUNDLE_BEND.md"
+    },
+    {
+      "id": "phasing/bundle-28-14",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "our_designs/bundle_28_14.sc",
+      "expect": "fail",
+      "source": "recorded oxDNA run (1e6 steps, 200 frames, 20 C, 0.5 M): an arc of radius 347 +- 51 nm, order parameter 0.995. See tests/data/our_designs/README.md"
+    },
+    {
+      "id": "lint/bundle-21-21",
+      "stage": "routing",
+      "check": "lint",
+      "design": "our_designs/bundle_21_21.sc",
+      "expect": "fail",
+      "source": "recorded oxDNA run: bent into a 269 nm arc, so lint must block it"
+    },
+    {
+      "id": "lint/bundle-28-14",
+      "stage": "routing",
+      "check": "lint",
+      "design": "our_designs/bundle_28_14.sc",
+      "expect": "fail",
+      "source": "recorded oxDNA run: bent into a 347 nm arc, so lint must block it"
+    },
+    {
+      "id": "phasing/bundle-current",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "part:bundle",
+      "expect": "pass",
+      "source": "tiles the 42-bp repeating unit of scadnano's published 6-helix bundle (MIT), so it must score as the published designs do. Its SHAPE is not yet measured (oxDNA run in progress), so there is no shape case for it"
+    },
+    {
+      "id": "lint/bundle-current",
+      "stage": "routing",
+      "check": "lint",
+      "design": "part:bundle",
+      "expect": "pass",
+      "source": "as above: the published unit, tiled"
+    },
+    {
+      "id": "phasing/rectangle-current",
+      "stage": "routing",
+      "check": "phasing",
+      "design": "part:rectangle",
+      "expect": "pass",
+      "source": "generated by scadnano's published origami_rectangle routine (MIT), after Rothemund, Nature 440, 297 (2006), so it must score as the published designs do"
+    },
+    {
+      "id": "validity/bundle-current",
+      "stage": "shape",
+      "check": "prediction_valid",
+      "design": "part:bundle",
+      "expect": "pass",
+      "source": "the published 6HB unit, tiled: `predict` must accept it. Whether its predicted straightness is right awaits the oxDNA run in progress"
+    },
+    {
+      "id": "validity/bundle-21-21",
+      "stage": "shape",
+      "check": "prediction_valid",
+      "design": "our_designs/bundle_21_21.sc",
+      "expect": "fail",
+      "source": "recorded oxDNA run: a 269 nm arc that the beam model, blind to misphasing, predicts straight. `predict` must refuse to vouch for it"
+    },
+    {
+      "id": "validity/bundle-28-14",
+      "stage": "shape",
+      "check": "prediction_valid",
+      "design": "our_designs/bundle_28_14.sc",
+      "expect": "fail",
+      "source": "recorded oxDNA run: a 347 nm arc that the beam model predicts straight. `predict` must refuse to vouch for it"
+    },
+    {
+      "id": "shape/composite-beam-6hb",
+      "stage": "shape",
+      "check": "composite_beam",
+      "design": "twin:0/21",
+      "expect": "pass",
+      "source": "composite-beam theory (any strength-of-materials text, e.g. Timoshenko & Gere): six helices on a hexagon of circumradius D, one wanting to be 1/21 shorter, kappa = S eps D / (3 S D^2 + 6 EI), R = 168.0 nm with the model's own S, EI and D, toward the short helix. Twist-stretch coupling off, because the formula has none. Graded by mechanics.twin: radius within 1%, direction within 1 deg"
+    },
+    {
+      "id": "shape/composite-beam-6hb-half-strain",
+      "stage": "shape",
+      "check": "composite_beam",
+      "design": "twin:0/42",
+      "expect": "pass",
+      "source": "composite-beam theory: half the misfit strain, twice the radius (336 nm)"
+    },
+    {
+      "id": "shape/symmetric-6hb",
+      "stage": "shape",
+      "check": "composite_beam",
+      "design": "twin:0/21,3/21",
+      "expect": "pass",
+      "source": "symmetry: opposite helices shortened equally leave no moment about the centroid, so the bundle shortens and stays straight (to within 1% of one helix's curvature; see mechanics.twin.STRAIGHT_REL_TOL)"
+    },
+    {
+      "id": "shape/dietz09-bend-120",
+      "stage": "shape",
+      "check": "bend_angle",
+      "design": "published_shapes/Science09_prot120_98_v3.json",
+      "exclude_helices": [19],
+      "expect": "pass",
+      "measured_deg": 121.0,
+      "measured_sd_deg": 8.4,
+      "measured_n": 212,
+      "tolerance_sd": 2.0,
+      "conditions": "negative-stain TEM, particles with three clear stripes only; buffer not transcribed",
+      "source": "Dietz, Douglas & Shih, Science 325, 725 (2009), Fig. 3K, NIH author manuscript PMC2737683: 121 deg +- 8.4 deg s.d., N = 212, for the design programmed to bend 120 deg",
+      "known_failure": "The beam model with default parameters predicts 101 deg, 2.3 s.d. below the measured mean. With twist-stretch coupling switched off it predicts 118 deg, inside. Whether the coupling term is wrong in this model or the measurement differs (dried, stained particles) is not settled. The 2 s.d. band is a convention, and it was fixed AFTER both numbers had been computed, so this is not a blind criterion"
+    }
+  ],
+  "wanted": [
+    {
+      "id": "shape/dietz09-bend-series",
+      "what": "the other six 3 x 6 bundles of Dietz 2009 Fig. 3 (0, 30, 60, 90, 150, 180 deg programmed; measured 0 +- 3, 30.7 +- 5.4, 62.4 +- 5.9, 91.3 +- 5.2, 143.4 +- 9, 166 +- 9 deg)",
+      "why_not": "the measured angles are in the open author manuscript (PMC2737683), but the design files are not in any openly licensed source checked: caDNAno 2.5's test data holds only the 120 deg design and the beach ball. The paper's supplementary materials (science.org) were not examined for design files, and no open licence for them was found. Rebuilding the designs from the paper's description would make them ours, not the published ones"
+    },
+    {
+      "id": "shape/dietz09-twisted-ribbons",
+      "what": "the 10 x 6 bundles of Dietz 2009 Fig. 2 with 10 and 11 bp/turn: measured half-turn periods 235 +- 32 nm (N = 62, left-handed) and 286 +- 48 nm (N = 197, right-handed)",
+      "why_not": "same: measured values open, design files not found under an open licence"
+    },
+    {
+      "id": "shape/oxdna-deletion-bent-6hb",
+      "what": "an oxDNA run of the 6HB with a deletion every 21 bp on helix 0 -- the physical counterpart of the composite-beam case (model: 196 nm with coupling, 168 nm without)",
+      "why_not": "running since 2026-09-28; no finished trajectory yet"
+    },
+    {
+      "id": "shape/oxdna-bundle-current",
+      "what": "an oxDNA run of the current, correctly phased bundle: it should be straight",
+      "why_not": "running since 2026-09-28; no finished trajectory yet"
+    },
+    {
+      "id": "shape/cando-predictions",
+      "what": "CanDo's published predictions for the Dietz 2009 designs",
+      "why_not": "not wanted as known answers: they are another model's output, not measurements (VISION.md section 5: the measurements as data, not the services that produced predictions for them)"
+    }
+  ]
+}
