@@ -41,11 +41,25 @@ obvious from the papers:
 proprietary, unlicensed, a remote service, or needs CUDA. NADOC's local
 Euler–Bernoulli beam model is the closest match and cannot be used without a
 licence. So this is the one place where the rule in §3 — replace, don't
-reimplement — inverts: **build a small beam finite-element predictor here**,
-and validate it against the oxDNA trajectories already in hand. The bent
-bundle is ready-made ground truth: 50 nm sagitta, bend direction fixed at
-order parameter 0.995, 200 frames. A predictor that cannot reproduce that arc
-is not ready for the inner loop.
+reimplement — inverts: **build a small beam finite-element predictor here**.
+
+*Built 2026-09-28, `mechanics/beam.py`, `dobladillo predict`.* It is a
+CanDo-class model: helices as beams on the lattice, crossovers rigid, and
+stress from lattice twist and from deletions and insertions. It reproduces
+composite-beam theory exactly (R = 168.0 nm for one shortened helix in a 6HB)
+and runs in 0.3 s. **The criterion first written here was wrong for this class
+of model.** It asked for the bent bundle's oxDNA arc to be reproduced, but
+that arc comes from misphased crossovers, and a model that puts every
+crossover on its lattice position cannot see phase. A first version tried to,
+with springs at each crossover's backbone azimuth. It predicted the bent
+bundles straight to within tens of microns, and it distorted correctly phased
+designs, because published designs carry 17–22° of residual azimuth strain.
+The split that works: `crossover_azimuth` catches misphasing, and the beam
+model answers how far a correctly phased design bends and twists.
+`predict` runs the azimuth check itself and marks its answer invalid when
+phasing fails. **Still owed:** a physical reference for what the model CAN
+see, meaning an oxDNA run of a deletion-bent bundle, or published curvature
+radii (Dietz et al. 2009).
 
 **When a tool is excluded but its method is known, implement it.** An
 algorithm published in a paper is free to implement; code is not. Two
@@ -273,11 +287,9 @@ simulation results were lost in this project to a cleaned temp directory.
 
 ## 6. What to do next, in order
 
-1. **Build the beam FE predictor and validate it on the bundle.** It must
-   reproduce the oxDNA arc before it is trusted. Then iterate routing in
-   minutes against it — starting with scaffold crossovers along the length,
-   which this design does not have — and spend an oxDNA run only on the
-   routing that the predictor says is straight.
+1. ~~Build the beam FE predictor.~~ Built, and validated against textbook
+   theory. It cannot see phase, so phase is the azimuth rule's job (see §0).
+   Still owed: an oxDNA or literature reference for a deletion-bent design.
 2. **Swap AFM I/O and processing for AFMReader and TopoStats**, keeping
    `compare`, `classify` and `arms` on top. Correct `PIPELINE.md`: native
    formats *are* readable, and the Gwyddion export step goes away.

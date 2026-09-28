@@ -159,7 +159,7 @@ class AzimuthReport:
         }
 
 
-def _skips(design: sc.Design) -> tuple[dict[int, set[int]], dict[int, dict[int, int]]]:
+def skips(design: sc.Design) -> tuple[dict[int, set[int]], dict[int, dict[int, int]]]:
     """Deletions and insertions per helix, from every domain on it."""
     deletions: dict[int, set[int]] = {}
     insertions: dict[int, dict[int, int]] = {}
@@ -193,7 +193,7 @@ def backbone_angle(
     return float(angle % 360.0)
 
 
-def _duplexes(design: sc.Design) -> dict[int, list[tuple[int, int]]]:
+def duplexes_by_helix(design: sc.Design) -> dict[int, list[tuple[int, int]]]:
     """Per helix, the maximal runs of offsets where it is double-stranded.
 
     A helix is one rigid body only where it is a duplex. Unpaired scaffold --
@@ -249,28 +249,27 @@ def _relax(actual: np.ndarray, target: np.ndarray) -> np.ndarray:
     return _wrap(actual + delta - target)
 
 
-def measure(design: sc.Design) -> AzimuthReport:
-    """Residual strain of every inter-helix crossover, split into twist and phasing.
+_Group = tuple[int, int, list[tuple[int, int, bool]], np.ndarray, np.ndarray]
 
-    Twist is fitted as ONE rate for the whole design -- the lattice mismatch
-    that causes it is the same on every helix -- and each duplex then gets its
-    own roll: one per helix, or one per stretch where unpaired bases break the
-    helix into separate duplexes. A rate per helix was tried first and
-    overfits: a helix with four crossovers can absorb a real phasing error
-    into a "twist" of its own.
+
+def _crossover_groups(design: sc.Design) -> tuple[list[_Group], int]:
+    """Crossovers grouped by duplex: (helix, run start, addresses, actual, target).
+
+    Also returns how many crossovers sit in single-stranded DNA and so belong
+    to no duplex.
     """
     from scadnano.scadnano import angle_from_helix_to_helix
 
     geometry, grid, helices = design.geometry, design.grid, design.helices
-    deletions, insertions = _skips(design)
-    duplexes = _duplexes(design)
-    per_helix: list[tuple[int, list[tuple[int, int, bool]], np.ndarray, np.ndarray]] = []
+    deletions, insertions = skips(design)
+    runs_by_helix = duplexes_by_helix(design)
+    groups_out: list[_Group] = []
     unconstrained = 0
     for helix in helices.values():
         all_addresses = helix.crossover_addresses(
             helices, allow_intrahelix=False, allow_intergroup=False
         )
-        runs = duplexes.get(helix.idx, [])
+        runs = runs_by_helix.get(helix.idx, [])
         groups: dict[int, list[tuple[int, int, bool]]] = {}
         for address in all_addresses:
             segment = _segment(address[1], runs)
@@ -278,7 +277,7 @@ def measure(design: sc.Design) -> AzimuthReport:
                 unconstrained += 1
                 continue
             groups.setdefault(segment, []).append(address)
-        for addresses in groups.values():
+        for segment, addresses in groups.items():
             actual = np.array(
                 [
                     backbone_angle(
@@ -298,12 +297,44 @@ def measure(design: sc.Design) -> AzimuthReport:
                     for p, _, _ in addresses
                 ]
             )
-            per_helix.append((helix.idx, addresses, actual, target))
+            groups_out.append((helix.idx, runs[segment][0], addresses, actual, target))
+    return groups_out, unconstrained
+
+
+def relaxed_rolls(design: sc.Design) -> dict[tuple[int, int], float]:
+    """The roll each duplex settles at, keyed by (helix, first offset of its run).
+
+    Chosen as scadnano's `relax_helix_rolls` chooses it, with no twist fitted
+    out: a model that is meant to PREDICT twist must start from the helices'
+    own rotation, not from one with the twist already removed. Designs leave
+    `roll` at 0, and scadnano's backbone angles then sit ~95 deg from where
+    the crossovers need them even on its own example bundle; a structural
+    model starting there would be solving for a rotation no helix makes.
+    """
+    from scadnano.scadnano import minimum_strain_angle
+
+    return {
+        (helix, start): float(minimum_strain_angle(list(zip(actual % 360.0, target, strict=True))))
+        for helix, start, _, actual, target in _crossover_groups(design)[0]
+    }
+
+
+def measure(design: sc.Design) -> AzimuthReport:
+    """Residual strain of every inter-helix crossover, split into twist and phasing.
+
+    Twist is fitted as ONE rate for the whole design -- the lattice mismatch
+    that causes it is the same on every helix -- and each duplex then gets its
+    own roll: one per helix, or one per stretch where unpaired bases break the
+    helix into separate duplexes. A rate per helix was tried first and
+    overfits: a helix with four crossovers can absorb a real phasing error
+    into a "twist" of its own.
+    """
+    per_helix, unconstrained = _crossover_groups(design)
 
     def strains_at(rate: float) -> list[np.ndarray]:
         return [
             _relax(actual + rate * np.array([o for _, o, _ in addresses], dtype=float), target)
-            for _, addresses, actual, target in per_helix
+            for _, _, addresses, actual, target in per_helix
         ]
 
     raw = strains_at(0.0)
@@ -312,10 +343,10 @@ def measure(design: sc.Design) -> AzimuthReport:
 
     found = [
         Crossover(idx, partner, offset, forward, float(strain))
-        for (idx, addresses, _, _), strains in zip(per_helix, fitted, strict=True)
+        for (idx, _, addresses, _, _), strains in zip(per_helix, fitted, strict=True)
         for (partner, offset, forward), strain in zip(addresses, strains, strict=True)
     ]
-    spans = [max(o for _, o, _ in a) - min(o for _, o, _ in a) for _, a, _, _ in per_helix]
+    spans = [max(o for _, o, _ in a) - min(o for _, o, _ in a) for _, _, a, _, _ in per_helix]
     raw_all = np.concatenate(raw) if raw else np.array([])
     return AzimuthReport(
         crossovers=tuple(found),

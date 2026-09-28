@@ -20,6 +20,24 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Beam shape predictor (#22), 2026-09-28
+
+`dobladillo predict <part|file.sc>`, 0.3 s per design. It is a CanDo-class
+linear beam finite-element model (`mechanics/beam.py`), implemented from
+Castro 2011, Kim 2012 and Gore 2006, not from anyone's code.
+
+| check | reference | model |
+|---|---|---|
+| 6HB, one helix shortened 1/21 | composite-beam theory: R = 168.0 nm, toward that helix | 168.0 nm, toward it |
+| crossover stiffness ×100 | rigid limit: no change | < 1% |
+| rebuilt 6HB | straight | straight, 0° twist |
+| E2 uncorrected arm | lattice arithmetic 309° (upper bound) | **+261° right-handed** |
+| E2 corrected arm | ~0 | −21° |
+| misphased bundles (oxDNA arcs 269, 347 nm) | — | straight: **cannot see phase**; `predict` marks these NOT VALID |
+
+The E2 figure is new information, not a change to E2's recorded prediction,
+which stays as written.
+
 ## Square re-tiling, 2026-09-28
 
 Every square-lattice part put half its staple crossovers on the wrong face of

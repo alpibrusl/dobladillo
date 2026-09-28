@@ -364,3 +364,17 @@ def test_a_wrong_tip_radius_moves_the_dimension_not_the_yield(tmp_path: Path) ->
     assert wrong["well_formed"]["fraction"] == pytest.approx(
         right["well_formed"]["fraction"], abs=0.1
     )
+
+
+def test_predict_refuses_to_vouch_for_a_misphased_design() -> None:
+    """The beam model cannot see misphasing, so `predict` checks phasing
+    itself and marks its own answer invalid. An agent reading only the JSON
+    must not be able to take a straight 'prediction' for a bent object."""
+    bent = runner.invoke(app, ["predict", "tests/data/our_designs/bundle_21_21.sc", "--json"])
+    assert bent.exit_code == 0, bent.output
+    assert json.loads(bent.output)["valid"] is False
+
+    good = runner.invoke(app, ["predict", "bundle", "--json"])
+    payload = json.loads(good.output)
+    assert payload["valid"] is True
+    assert payload["straight"] is True

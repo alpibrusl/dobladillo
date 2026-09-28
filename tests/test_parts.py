@@ -128,6 +128,14 @@ def test_rectangle_rejects_a_partial_correction_period() -> None:
         rothemund_rectangle(length=288)
 
 
+def test_rectangle_refuses_a_size_scadnano_cannot_tile() -> None:
+    """Found by accident: 64 bp is four columns, and scadnano's generator
+    draws an edge staple past the helix end. Refused with a reason, not a
+    StrandError from inside the library."""
+    with pytest.raises(ValueError, match="at least 128"):
+        rothemund_rectangle(helices=4, length=64)
+
+
 def test_rectangle_refuses_to_outrun_the_scaffold() -> None:
     with pytest.raises(ValueError, match="scaffold"):
         rothemund_rectangle(helices=24, length=384)

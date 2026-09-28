@@ -542,6 +542,74 @@ def lint(
         raise typer.Exit(1)
 
 
+@app.command()
+def predict(
+    target: str = typer.Argument(
+        ...,
+        help="A part (rectangle, bundle, hinge, twist-corrected, twist-uncorrected) "
+        "or a .sc design file.",
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Predict a design's equilibrium bend and twist in seconds (beam model).
+
+    A CanDo-class model: helices as beams on their lattice, crossovers rigid,
+    stress from lattice twist and from deletions and insertions. It CANNOT see
+    crossovers made on the wrong face of a helix -- run `lint` for that; a
+    design that fails `crossover_azimuth` gets a prediction that is wrong.
+    """
+    from dobladillo.mechanics.beam import predict as run_predict
+
+    out = Emitter(as_json)
+    path = Path(target)
+    if path.suffix == ".sc":
+        if not path.is_file():
+            out.fail(f"no such file: {path}", kind="missing_file", code=2)
+            return
+        try:
+            design = ad.read_design(path)
+        except Exception as e:  # scadnano raises several unrelated types
+            out.fail(f"could not read {path}: {e}", kind="unreadable_design", code=2)
+            return
+    else:
+        design = _make_part(target, out).design
+
+    from dobladillo.routing.azimuth import measure
+
+    try:
+        result = run_predict(design)
+    except ValueError as e:
+        out.fail(str(e), kind="unsupported_design")
+        return
+    phasing = measure(design)
+    payload = {"design": target, **result.as_dict()}
+    payload["cannot_see"] = "misphased crossovers; see `lint --rule crossover_azimuth`"
+    payload["valid"] = phasing.acceptable
+    payload["phasing_rms_deg"] = round(phasing.rms_deg, 1)
+    radius = (
+        "straight"
+        if result.straight
+        else f"{result.radius_nm:.0f} nm toward {result.bend_direction_deg:.0f} deg"
+    )
+    rows = []
+    if not phasing.acceptable:
+        rows.append(
+            (
+                "NOT VALID",
+                f"crossovers misphased ({phasing.rms_deg:.0f} deg rms); this model cannot "
+                "see that, so the shape below is not a prediction",
+            )
+        )
+    rows += [
+        ("bend radius", radius),
+        ("sagitta", f"{result.sagitta_nm:.1f} nm over {result.length_nm:.0f} nm"),
+        ("twist", f"{result.twist_deg:+.0f} deg end to end (+ = right-handed)"),
+        ("model", f"{result.nodes} nodes, {result.crossovers} crossovers, {result.seconds:.1f} s"),
+        ("cannot see", payload["cannot_see"]),
+    ]
+    out.result(payload, f"{target}: predicted shape\n" + _table(rows))
+
+
 def _make_part(which: str, out: Emitter) -> Any:
     if which == "rectangle":
         from dobladillo.parts.rectangle import rothemund_rectangle

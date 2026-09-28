@@ -156,6 +156,13 @@ def rothemund_rectangle(
         )
     if helices % 2:
         raise ValueError(f"helices must be even, got {helices}")
+    if length < 2 * SQUARE_TWIST_CORRECTION_PERIOD_BP:
+        # Measured: at four columns scadnano's generator draws an edge staple
+        # past the end of the helix and refuses its own design.
+        raise ValueError(
+            f"length must be at least {2 * SQUARE_TWIST_CORRECTION_PERIOD_BP}, got {length}; "
+            "scadnano's rectangle generator cannot tile four columns"
+        )
 
     available = ad.scaffold_length(scaffold_variant)
     routed = helices * length
