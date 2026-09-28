@@ -76,7 +76,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from primer3.thermoanalysis import ThermoAnalysis
 
@@ -256,6 +256,131 @@ def duplex(sequence: str, *, sodium_m: float = 1.0, magnesium_m: float = 0.0) ->
         dh_kcal=float(result.dh) / 1000.0,
         ds_cal=float(result.ds),
         sodium_equivalent_m=na_eq,
+    )
+
+
+@dataclass(frozen=True)
+class Hybrid:
+    """The most stable structure primer3 finds between two strands, or within one.
+
+    Unlike `Duplex`, the two strands are arbitrary: this is what answers "does
+    this sticky end bind something it should not", where the partner is a
+    staple, a stretch of scaffold, or another sticky end, and the structure is
+    whatever partial match thal's alignment finds. `melting_c` is primer3's,
+    at the strand concentration the hybrid was computed for; a hairpin's does
+    not depend on concentration.
+    """
+
+    kind: str  # "heterodimer" | "hairpin"
+    first: str
+    second: str
+    found: bool
+    dg_kcal: float
+    melting_c: float
+    temperature_c: float
+    strand_m: float
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "kind": self.kind,
+            "first": self.first,
+            "second": self.second,
+            "found": self.found,
+            "dg_kcal": round(self.dg_kcal, 2),
+            "melting_c": round(self.melting_c, 1),
+            "at_c": self.temperature_c,
+            "strand_nm": round(self.strand_m * 1e9, 3),
+        }
+
+
+#: What `Hybrid.melting_c` reads when primer3 finds no structure at all:
+#: absolute zero, so "no structure" compares as colder than any threshold.
+NO_STRUCTURE_C: Final = -273.15
+
+
+def _analysis(*, sodium_m: float, magnesium_m: float, temperature_c: float, strand_m: float) -> Any:
+    if sodium_equivalent_m(sodium_m=sodium_m, magnesium_m=magnesium_m) <= 0:
+        raise ValueError("a hybrid needs some counterion; salt equivalent is zero")
+    if strand_m <= 0:
+        raise ValueError(f"strand concentration must be positive, got {strand_m}")
+    return ThermoAnalysis(
+        mv_conc=sodium_m * 1000.0,
+        dv_conc=magnesium_m * 1000.0,
+        dntp_conc=0.0,
+        dna_conc=strand_m * 1e9,  # primer3 takes nM
+        temp_c=temperature_c,
+    )
+
+
+def _checked(sequence: str) -> str:
+    sequence = sequence.upper().strip()
+    if not _is_dna(sequence):
+        raise ValueError(f"not a DNA sequence: {sequence!r}")
+    if len(sequence) > PRIMER3_MAX_LENGTH:
+        raise ValueError(
+            f"{len(sequence)} nt is past primer3's {PRIMER3_MAX_LENGTH}-nt alignment limit; "
+            "split it into overlapping windows"
+        )
+    return sequence
+
+
+def hybrid(
+    first: str,
+    second: str,
+    *,
+    sodium_m: float = 0.0,
+    magnesium_m: float,
+    temperature_c: float,
+    strand_m: float,
+) -> Hybrid:
+    """The strongest heterodimer between two arbitrary strands, by primer3.
+
+    Magnesium has no default on purpose: this answers questions about a
+    specific buffer, and a default would quietly answer them about another.
+    Both strands are refused past primer3's 60-nt limit, where thal returns a
+    confident zero rather than an error.
+    """
+    a, b = _checked(first), _checked(second)
+    analysis = _analysis(
+        sodium_m=sodium_m, magnesium_m=magnesium_m, temperature_c=temperature_c, strand_m=strand_m
+    )
+    result = analysis.calc_heterodimer(a, b).check_exc()
+    found = bool(result.structure_found)
+    return Hybrid(
+        kind="heterodimer",
+        first=a,
+        second=b,
+        found=found,
+        dg_kcal=float(result.dg) / 1000.0 if found else 0.0,
+        melting_c=float(result.tm) if found else NO_STRUCTURE_C,
+        temperature_c=temperature_c,
+        strand_m=strand_m,
+    )
+
+
+def hairpin(
+    sequence: str,
+    *,
+    sodium_m: float = 0.0,
+    magnesium_m: float,
+    temperature_c: float,
+) -> Hybrid:
+    """The strongest hairpin a single strand forms, by primer3."""
+    s = _checked(sequence)
+    analysis = _analysis(
+        sodium_m=sodium_m, magnesium_m=magnesium_m, temperature_c=temperature_c, strand_m=1e-6
+    )
+    result = analysis.calc_hairpin(s).check_exc()
+    found = bool(result.structure_found)
+    return Hybrid(
+        kind="hairpin",
+        first=s,
+        second=s,
+        found=found,
+        dg_kcal=float(result.dg) / 1000.0 if found else 0.0,
+        melting_c=float(result.tm) if found else NO_STRUCTURE_C,
+        temperature_c=temperature_c,
+        strand_m=0.0,
     )
 
 
