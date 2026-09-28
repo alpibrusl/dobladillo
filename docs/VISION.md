@@ -64,10 +64,14 @@ conditions, both from this project's own history:
 | NUPACK | McCaskill partition function over secondary structures | only if the missing `self_structure` rule needs it | primer3's hairpin and dimer calculations on the same sequences |
 | mrDNA's ARBD engine | GPU Brownian dynamics | no — run mrDNA on a self-hosted CUDA machine if one exists | — |
 
-**Licence of dobladillo itself.** Importing GPL-3.0 libraries (oxpy,
-AFMReader) means a distributed dobladillo must be GPL-3.0-compatible. The
-natural choice is GPL-3.0. It is private today, so nothing is forced yet; the
-decision belongs before the first public release.
+**Licence of dobladillo itself: EUPL-1.2** (decided 2026-09-28). It is OSI
+approved and copyleft, and its compatibility appendix lists GPL v2 and v3,
+AGPL v3, LGPL, MPL 2, EPL and others — so it combines with every dependency
+above, and a distribution that bundles GPL-3.0 code (oxpy, AFMReader) goes
+out under GPL-3.0, as the EUPL's compatibility clause allows. The repository
+previously declared MIT; that was replaced, and `tests/test_licences.py` now
+fails on any dependency whose licence nobody has reviewed, any incompatible
+licence, and any network import in the package.
 
 ---
 

@@ -3,14 +3,18 @@ name = "dobladillo"
 version = "0.0.1"
 description = "A scriptable toolchain for DNA origami bricks: design, simulate, fold, measure, compare."
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "EUPL-1.2" }
+classifiers = [
+    "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
+]
 dependencies = [
     "typer>=0.12",
     "pyyaml>=6.0",
     "numpy>=1.26",
     # Q5's acceptance criterion asks for plots alongside the JSON, so this is
-    # part of the deliverable rather than a convenience. BSD, so it does not
-    # compromise the permissive-licence goal the way primer3-py would.
+    # part of the deliverable rather than a convenience. Every dependency must
+    # be OSI open source and compatible with EUPL-1.2; tests/test_licences.py
+    # enforces it.
     "matplotlib>=3.8",
 ]
 
@@ -18,11 +22,9 @@ dependencies = [
 # scadnano is the design data model. Pinned: its API moves, and DESIGN.md s10
 # lists that drift as a known risk, so every call goes through an adapter.
 design = ["scadnano==0.21.1"]
-# Thermodynamics. The default backend must be fully open source; primer3-py is
-# GPLv2, so it stays optional to keep the core permissively licensed.
 # Thermodynamics. dobladillo.sequence.thermo implements the SantaLucia 1998
 # nearest-neighbour table directly -- published numbers, not anyone's code --
-# so the core needs nothing. primer3-py is GPLv2 and stays optional; it is
+# so the core needs nothing. primer3-py is GPL-2.0-or-later and stays optional; it is
 # here as the independent implementation the tests check that table against,
 # which is the only way a single mistranscribed parameter would ever show up.
 thermo = ["primer3-py>=2.0"]
