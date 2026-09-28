@@ -10,7 +10,7 @@ One folder per experiment. Three phases, in order, and the order is the point.
 
 ```
 experiments/
-  2026-09-22-rectangle-afm/
+  2026-09-28-rectangle-afm/
     pre/       everything fixed before the first sample exists
     during/    what actually happened, and the raw files
     post/      produced by the toolchain; nothing here is edited by hand
@@ -19,7 +19,7 @@ experiments/
 ## Start one
 
 ```bash
-dobladillo experiment new 2026-09-22-rectangle-afm --part rectangle
+dobladillo experiment new 2026-09-28-rectangle-afm --part rectangle
 ```
 
 That writes the plan, the protocol, the oligo order files, and — the
@@ -72,7 +72,7 @@ defaults changed in April.
 ## Check it
 
 ```bash
-dobladillo experiment check experiments/2026-09-22-rectangle-afm
+dobladillo experiment check experiments/2026-09-28-rectangle-afm
 ```
 
 Reports what is missing, and exits non-zero when something is wrong with the

@@ -1,6 +1,6 @@
 # E2 — The twist pair: is the twist correction needed?
 
-**Folder:** `experiments/2026-09-23-twist-pair/`
+**Folder:** `experiments/2026-09-28-twist-pair/`
 **Run after:** E1 — you need its magnesium and its reference height
 **Time:** about 3 working days plus 3–5 days for oligo delivery
 **Cost:** about €1,372 of staples for both arms
@@ -50,7 +50,9 @@ flat sheet. The analysis calls those *twisted*.
 
 ## The gate
 
-Written in `pre/plan.md`; read it now. In short: both arms in the same session
+**You write it, before the session**, in `pre/plan.md`'s `criterion:` line. The
+folder was re-scaffolded on 2026-09-28, and the earlier gate is quoted there
+as a proposal to adopt, change or replace. In short, the proposal: both arms in the same session
 with the same tip; **at least 100 counted particles per arm, 300 if cheap**; a
 pass is a difference of more than 10 points in flat fraction with a 95%
 interval excluding zero — *or* the two arms being indistinguishable.
@@ -79,7 +81,7 @@ Write in the log who holds the key.
 - [ ] E1 finished; you have its **magnesium** and its **reference flat-sheet
       height**.
 - [ ] `pre/plan.md` read; gate final; `pre/` committed:
-      `git add experiments/2026-09-23-twist-pair/pre && git commit -m "E2: pre-register"`
+      `git add experiments/2026-09-28-twist-pair/pre && git commit -m "E2: pre-register"`
 - [ ] Both arms ordered: `pre/order/twist-corrected_plates.xlsx` **and**
       `pre/order/twist-uncorrected_plates.xlsx`. Keep the plates separate.
 - [ ] A second person has agreed to hold the blinding key.
@@ -220,14 +222,14 @@ and say where it came from:
 ```json
 "reference": {
   "flat_height_nm": 1.3,
-  "from": "experiments/2026-09-22-rectangle-afm/post/report.md"
+  "from": "experiments/2026-09-28-rectangle-afm/post/report.md"
 }
 ```
 
 (again an example of the shape). Then:
 
 ```bash
-uv run dobladillo experiment compare-arms experiments/2026-09-23-twist-pair
+uv run dobladillo experiment compare-arms experiments/2026-09-28-twist-pair
 ```
 
 It reads everything from the folder — the scans `during/raw/X-*` and

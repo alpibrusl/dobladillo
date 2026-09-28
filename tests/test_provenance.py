@@ -184,7 +184,8 @@ def test_experiment_new_records_every_link(folder: Path) -> None:
     assert "pipetting.json" in manifest["files"]
 
     report = check(folder)
-    assert report.problems == ()
+    # A fresh folder is complete but for the one line only a person writes.
+    assert [p for p in report.problems if "gate is not written" not in p] == []
     assert report.chain.verified
     assert [link.node for link in report.chain.links] == [
         "design",

@@ -284,3 +284,50 @@ def test_report_reads_native_files_and_not_the_exports_beside_them(tmp_path: Pat
     measured = _json.loads((directory / "post" / "measurements.json").read_text())
     assert [Path(s).name for s in measured["scans"]] == ["scan-01.stp"]
     assert "not the 1 .gsf exports" in result.stderr
+
+
+def test_the_positive_control_is_not_counted_as_the_design(tmp_path: Path) -> None:
+    """E1 images a bought control beside our rectangle and files it in
+    during/raw/control/. The report must read only the top level: a yield
+    blended from two objects would describe neither."""
+    import json as _json
+
+    from dobladillo.imaging.readers import write_gsf
+    from dobladillo.imaging.synthetic import synthetic_scan
+
+    prediction = {
+        "part": "rectangle",
+        "predicted_nm": {"length": 106.2, "width": 66.0, "height": 2.0},
+    }
+    directory = scaffold(tmp_path, slug="x", prediction=prediction, plan="# p\n", protocol="# p\n")
+    raw = directory / "during" / "raw"
+    write_gsf(synthetic_scan(seed=1, length_nm=106.2, width_nm=66.0).image, raw / "scan-1.gsf")
+    (raw / "control").mkdir()
+    for i in range(3):
+        write_gsf(
+            synthetic_scan(seed=10 + i, length_nm=90.0, width_nm=70.0).image,
+            raw / "control" / f"control-{i}.gsf",
+        )
+    instrument = _json.loads((directory / "during" / "instrument.json").read_text())
+    instrument["tip"]["measured_radius_before_nm"] = 10.0
+    (directory / "during" / "instrument.json").write_text(_json.dumps(instrument))
+
+    result = _cli("experiment", "report", str(directory), "--json")
+    assert result.exit_code == 0, result.output
+    measured = _json.loads((directory / "post" / "measurements.json").read_text())
+    assert [Path(s).name for s in measured["scans"]] == ["scan-1.gsf"]
+
+
+def test_an_unwritten_gate_is_a_problem(tmp_path: Path) -> None:
+    """The one line only a person can write, and the one most easily left for
+    later. The check does not write it; it refuses to call the record whole."""
+    directory = scaffold(
+        tmp_path,
+        slug="x",
+        prediction={"part": "rectangle"},
+        plan="## The gate\n\n> criterion:\n",
+        protocol="# p\n",
+    )
+    assert any("gate is not written" in p for p in check(directory).problems)
+    (directory / "pre" / "plan.md").write_text("## The gate\n\n> criterion: fewer than 50 ...\n")
+    assert not any("gate is not written" in p for p in check(directory).problems)

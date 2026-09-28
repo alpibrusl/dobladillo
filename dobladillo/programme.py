@@ -59,7 +59,7 @@ class Experiment:
 EXPERIMENTS: Final[tuple[Experiment, ...]] = (
     Experiment(
         id="E1",
-        title="Rothemund rectangle, AFM",
+        title="Rothemund rectangle, AFM, with a positive control",
         epic=None,
         relevance=5,
         difficulty=1,

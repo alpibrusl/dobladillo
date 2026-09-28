@@ -1,0 +1,45 @@
+{
+  "part": "rectangle",
+  "generated_by": "dobladillo 0.0.1",
+  "provenance": {
+    "design_sha256": "1b7e21c2c1e9677f5f5ce2d20d0a3d171d3a7fc605f8654459b020bfe1fd9ea3",
+    "hash_scheme": "dobladillo-design-v1: scadnano 0.21.1 JSON, sorted keys, compact",
+    "part": "rectangle"
+  },
+  "predicted_nm": {
+    "length": 106.2,
+    "width": 66.0,
+    "height": 2.0
+  },
+  "design": {
+    "part": "rectangle",
+    "lattice": "square",
+    "helices": 22,
+    "length_bp": 320,
+    "scaffold": {
+      "variant": "p7249",
+      "total_nt": 7249,
+      "routed_nt": 6930,
+      "deletions": 110,
+      "unused_nt": 319
+    },
+    "staple_count": 220,
+    "staple_length_nt": {
+      "min": 30,
+      "max": 32,
+      "distinct": [
+        30,
+        31,
+        32
+      ]
+    },
+    "approx_dimensions_nm": {
+      "width": 106.2,
+      "height": 66.0
+    }
+  },
+  "gate": {
+    "criterion": "FILL THIS IN BEFORE TAKING DATA",
+    "note": "What result would make this experiment a failure? Write it here first. A gate decided afterwards is a description of the data."
+  }
+}

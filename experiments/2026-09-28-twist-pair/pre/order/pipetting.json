@@ -1,0 +1,12 @@
+{
+  "final_volume_ul": 50.0,
+  "scaffold": {
+    "final_nm": 10.0
+  },
+  "staples": {
+    "final_nm_each": 50.0,
+    "excess_over_scaffold": 5.0
+  },
+  "distinct_staples": 216,
+  "note": "volumes depend on your stock concentrations, which the design cannot know; this sheet fixes the FINAL concentrations to aim for"
+}

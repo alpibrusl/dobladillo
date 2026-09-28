@@ -1,0 +1,14 @@
+{
+  "kind": "dobladillo order manifest",
+  "scheme": "dobladillo-provenance-v1",
+  "written_by": "dobladillo 0.0.1",
+  "design_sha256": "1b7e21c2c1e9677f5f5ce2d20d0a3d171d3a7fc605f8654459b020bfe1fd9ea3",
+  "hash_scheme": "dobladillo-design-v1: scadnano 0.21.1 JSON, sorted keys, compact",
+  "part": "rectangle",
+  "files": {
+    "pipetting.json": "1d753309b927722584b746164ab904977a8e6754f71fcb32377fcde62b6da480",
+    "rectangle_bulk.csv": "393133e19067d62e564acdfdd3757b4d3fc3a6629c8c03887e7a4e3a7f5ca895",
+    "rectangle_plates.xlsx": "f9089ef6cc6686a27760f2ded289d018c13b6c969d3c7c764ae5290a403a59b9"
+  },
+  "note": "Generated with the order. If the order files are regenerated, this is regenerated with them; editing either by hand breaks the link it records."
+}

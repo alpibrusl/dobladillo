@@ -1,0 +1,14 @@
+{
+  "kind": "dobladillo order manifest",
+  "scheme": "dobladillo-provenance-v1",
+  "written_by": "dobladillo 0.0.1",
+  "design_sha256": "cf31d119b0e4fdbb65038ffe1e6c0a9042607f8429d63d06dbde6103cbf9c1f3",
+  "hash_scheme": "dobladillo-design-v1: scadnano 0.21.1 JSON, sorted keys, compact",
+  "part": "twist-corrected",
+  "files": {
+    "pipetting.json": "4369f05b05547604320d6808a2d2f00383d41856053f76168e1b22aaae2ddab4",
+    "twist-corrected_bulk.csv": "00338e879cffba50a01f3a4e1a36407577c4cbff77b6ce170d22f8ec49778323",
+    "twist-corrected_plates.xlsx": "d61789e1661a257f3893a8e3ceab812b828f2d87019662802bdcae019c86cb00"
+  },
+  "note": "Generated with the order. If the order files are regenerated, this is regenerated with them; editing either by hand breaks the link it records."
+}

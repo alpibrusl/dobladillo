@@ -1,0 +1,18 @@
+{
+  "scheme": "dobladillo-provenance-v1",
+  "written_by": "dobladillo 0.0.1",
+  "design": {
+    "sha256": "1b7e21c2c1e9677f5f5ce2d20d0a3d171d3a7fc605f8654459b020bfe1fd9ea3",
+    "hash_scheme": "dobladillo-design-v1: scadnano 0.21.1 JSON, sorted keys, compact",
+    "part": "rectangle"
+  },
+  "prediction": {
+    "file": "prediction.json",
+    "sha256": "a232e727b6d6735cbe0a871f969d0bf974d707b0003904712c3038ddb7310afa",
+    "parent": "1b7e21c2c1e9677f5f5ce2d20d0a3d171d3a7fc605f8654459b020bfe1fd9ea3",
+    "excludes": [
+      "gate"
+    ]
+  },
+  "note": "Written by `dobladillo experiment new` with the prediction. Do not edit: it is how `experiment check` knows the prediction has not changed since."
+}

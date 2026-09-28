@@ -1,13 +1,16 @@
 # Bench protocols
 
-> ## Re-tiled designs — 2026-09-28
+> ## Re-scaffolded — 2026-09-28
 >
-> Every square-lattice design here (rectangle, both twist-pair arms, hinge)
-> first placed half its staple crossovers on the wrong face of the helix. All
-> were re-tiled before any order was placed, and now score like published
-> designs. E1's and E2's `pre/order/` files are current; each has a
-> `pre/RETILED.md`. The hinge now has 132 staples, and E3's volumes below are
-> updated. E3 still waits on its footprint prediction, not on the design.
+> Every square-lattice design here first placed half its staple crossovers on
+> the wrong face of the helix. All were re-tiled before any order was placed.
+> E1 and E2 were then **re-scaffolded into new folders**
+> (`experiments/2026-09-28-rectangle-afm`, `experiments/2026-09-28-twist-pair`),
+> so their predictions, orders and provenance name the design that will
+> actually be folded. The old folders are kept as records and marked
+> `SUPERSEDED.md`. The gates are **not yet written**: each new `pre/plan.md`
+> quotes the earlier gate as a proposal for the experimentalist to adopt.
+> E1 now has a positive-control arm.
 
 Step-by-step protocols for running this project's experiments, written for a
 student who has basic molecular-biology bench experience (pipetting, gels, a
@@ -16,8 +19,8 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 | protocol | experiment | status |
 |---|---|---|
 | [`common-techniques.md`](common-techniques.md) | shared by all | read first |
-| [`E1-rectangle-afm.md`](E1-rectangle-afm.md) | E1 — does our first design fold? | ready (re-tiled 2026-09-28) |
-| [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | ready (re-tiled 2026-09-28) |
+| [`E1-rectangle-afm.md`](E1-rectangle-afm.md) | E1 — does our first design fold? (with a positive control) | ready once the gate is written |
+| [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | ready once the gate is written |
 | [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | blocked: footprint prediction |
 
 E4–E7 need software that does not exist yet; their protocols will be written

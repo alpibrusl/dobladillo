@@ -187,6 +187,18 @@ class Check:
         }
 
 
+def _gate_in_prediction(path: Path) -> bool:
+    """Whether `prediction.json` carries a written gate, the other place one can go."""
+    import json
+
+    try:
+        gate = json.loads(path.read_text()).get("gate") or {}
+    except (OSError, ValueError, AttributeError):
+        return False
+    criterion = str(gate.get("criterion", "")).strip()
+    return bool(criterion) and not criterion.startswith("FILL THIS IN")
+
+
 def check(root: Path) -> Check:
     """Inspect an experiment folder.
 
@@ -239,6 +251,24 @@ def check(root: Path) -> Check:
                 "comes from the filesystem rather than from git, and a clone resets those. "
                 "Commit pre/ before taking data and this becomes evidence"
             )
+
+    # The gate. `experiment new` leaves a `> criterion:` line to fill in, and
+    # an empty one is the most important thing in the folder still missing.
+    # Only a person writes it (experiments/AGENTS.md); this only says so.
+    plan = root / "pre" / "plan.md"
+    plan_empty = plan.is_file() and any(
+        line.strip() == "> criterion:" for line in plan.read_text().splitlines()
+    )
+    if plan_empty and not _gate_in_prediction(root / "pre" / "prediction.json"):
+        problems.append(
+            "the gate is not written: pre/plan.md's `criterion:` line is empty. Write what "
+            "result would make this a failure, and commit pre/, before taking data"
+            + (
+                " -- data already exists, so any gate written now is a description"
+                if first_raw
+                else ""
+            )
+        )
 
     # The provenance chain: whether the prediction, the order and the scans
     # all name one design. A legacy folder -- one whose prediction predates

@@ -1,6 +1,6 @@
 # E1 — The rectangle: does our first design fold?
 
-**Folder:** `experiments/2026-09-22-rectangle-afm/`
+**Folder:** `experiments/2026-09-28-rectangle-afm/`
 **Time:** about 3 working days plus 3–5 days for oligo delivery
 **Cost:** about €693 of staples; scaffold and consumables on top
 **Read first:** [`common-techniques.md`](common-techniques.md)
@@ -41,7 +41,11 @@ E1 also gives you two numbers that E2 and E3 need:
 
 ## The gate
 
-It is already written in `pre/plan.md`. Read it now. In short:
+**You write it, before the session**, in `pre/plan.md`'s `criterion:` line.
+The folder was re-scaffolded on 2026-09-28 (the design was re-tiled), and the
+gate from the earlier folder is quoted in `pre/plan.md` as a proposal. Adopt
+it, change it or replace it with your supervisor, then commit `pre/`. The
+proposal, in short:
 
 - **Fold:** a dominant gel band, distinct from free scaffold.
 - **Shape:** at least 50 particles clear of the image edge; tip-corrected
@@ -49,6 +53,30 @@ It is already written in `pre/plan.md`. Read it now. In short:
 - **Flatness:** height within 30% of 2.0 nm, and no systematic curvature.
 - **Failure:** fewer than 25% well-formed means the fold or the deposition is
   wrong — that sends us back to the magnesium screen.
+- **Control:** decide what the positive control must show, for example at
+  least 50 recognisable rectangles, or the session is void. See below.
+
+### The positive control
+
+A **known-good rectangle** is folded, deposited and imaged alongside ours, in
+the same session and from the same buffers. If ours fails and the control
+folds, our design pipeline is at fault. If both fail, the bench is. Without
+it the two cannot be told apart. This project's designs have already been
+wrong once without anyone noticing.
+
+The control is bought, so choosing it is your supervisor's decision, and
+buying it is a purchase:
+
+- a **commercial rectangle kit**, folded exactly to its supplier's protocol
+  and not to ours (their buffer, their magnesium, their anneal — do not mix
+  parameters); or
+- the **published Rothemund (2006) rectangle**, ordered like ours and folded
+  with our protocol at the magnesium you pick in step 5.
+
+The control has no prediction from this toolchain, and none should be
+invented for it. It either folds into countable rectangles or it does not.
+Record which control you used, with its lot or order number, in
+`during/log.md`.
 
 > **A note on the height criterion, to settle before the session.** Imaging
 > dry compresses DNA; 1.2 nm is common and would fail a 30% criterion for an
@@ -62,8 +90,10 @@ It is already written in `pre/plan.md`. Read it now. In short:
 
 - [ ] Read `pre/plan.md`; you understand the gate.
 - [ ] The gate is final and `pre/` is committed:
-      `git add experiments/2026-09-22-rectangle-afm/pre && git commit -m "E1: pre-register"`
+      `git add experiments/2026-09-28-rectangle-afm/pre && git commit -m "E1: pre-register"`
 - [ ] Oligos ordered from `pre/order/rectangle_plates.xlsx` (supervisor approved).
+- [ ] Positive control in hand (kit or published staple set), and its
+      protocol read.
 - [ ] Scaffold p7249 in stock; its concentration known.
 - [ ] Stocks made (common-techniques §1).
 - [ ] Thermocycler, gel equipment, NanoDrop and AFM booked.
@@ -110,6 +140,14 @@ If your stocks differ, recompute with `V = C_final × V_total / C_stock`
 Also prepare a **scaffold-only control**: 5 µL buffer, 5 µL scaffold, 6.5 µL
 MgCl₂ (13 mM), water to 50 µL. It shows where unfolded scaffold runs.
 
+And fold the **positive control** (see "The positive control" above):
+
+- **Kit:** exactly per its supplier's protocol, in its own tube.
+- **Published staple set:** one 50 µL reaction like tube 5 (13 mM), with its
+  own pool in place of ours.
+
+Label it `C`.
+
 ### 3. Anneal (35 min)
 
 Spin down, put all ten tubes in the thermocycler, run the program in
@@ -123,7 +161,10 @@ at 4 °C.
 Follow common-techniques §4 exactly: 2% agarose in 0.5× TBE **+ 11 mM MgCl₂**,
 cold, 60–70 V, EDTA-free loading dye, 10 µL of each reaction.
 
-Lane order: ladder · scaffold only · tubes 1–9 · ladder.
+Lane order: ladder · scaffold only · tubes 1–9 · control C · ladder.
+
+If the control shows no folded band, **stop and record it**. The session is
+testing the bench, not our design, until the control folds.
 
 Photograph it and save the image to `during/raw/gel-day1.png`.
 
@@ -179,6 +220,12 @@ the whole question.
 Take images from separate areas of the mica. Save every native file to
 `during/raw/` untouched.
 
+**Control:** deposit it on its own mica, in the same way, and take enough
+overview images for about 50 particles. Save them to **`during/raw/control/`**,
+never to `during/raw/` itself: the report reads only the top level, and
+mixing the control into our rectangle's count would make the yield a blend
+of two objects.
+
 ### 11. Measure the tip — after (20 min)
 
 Repeat step 8 and write `tip.measured_radius_after_nm`.
@@ -193,7 +240,7 @@ The native files are read directly; there is nothing to export
 (common-techniques §10). Check each one:
 
 ```bash
-uv run dobladillo afm read experiments/2026-09-22-rectangle-afm/during/raw/scan-01.spm
+uv run dobladillo afm read experiments/2026-09-28-rectangle-afm/during/raw/scan-01.spm
 ```
 
 Pixel size and scan size must match what you set on the instrument. If your
@@ -209,8 +256,8 @@ instrument's format is not read (the command says so), export a `.gsf` of the
 ### 14. Run the report
 
 ```bash
-uv run dobladillo experiment check experiments/2026-09-22-rectangle-afm
-uv run dobladillo experiment report experiments/2026-09-22-rectangle-afm
+uv run dobladillo experiment check experiments/2026-09-28-rectangle-afm
+uv run dobladillo experiment report experiments/2026-09-28-rectangle-afm
 ```
 
 If `report` stops and says the tip radius is missing, **measure it** — do not
@@ -257,6 +304,8 @@ tried, and what you think it means. Do not tidy it away.
 
 - `pre/` (committed before the session)
 - `during/raw/`: gel photo, native AFM files (and `.gsf` exports only for a format the toolchain does not read)
+- `during/raw/control/`: the positive control's images, and in `during/log.md`
+  which control it was, with its lot, and how many rectangles you counted
 - `during/instrument.json` complete, including both tip radii
 - `during/log.md`
 - `post/` from `dobladillo experiment report`, with your interpretation
