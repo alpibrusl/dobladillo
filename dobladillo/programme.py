@@ -147,6 +147,20 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         on_critical_path=False,
     ),
     Experiment(
+        id="E8",
+        title="Patterned rectangle, AFM",
+        epic=None,
+        relevance=4,
+        difficulty=2,
+        success=0.65,
+        blocked_by="E1: its magnesium, reference height, and a fold",
+        why="Level 3: control a detail, not only the outline. 28 of E1's staples "
+        "carry a hairpin that draws a chiral, off-centre F on one face; it costs only "
+        "those 28 oligos (about EUR 150), and a read F is the orientation and "
+        "face marker later experiments need.",
+        on_critical_path=False,
+    ),
+    Experiment(
         id="E10",
         title="Six-helix bundle, 3D fold",
         epic=None,

@@ -58,6 +58,16 @@ def scaffold_length(variant: str) -> int:
     return len(sc.m13(variant=sc.M13Variant(variant)))
 
 
+def scaffold_sequence(variant: str) -> str:
+    """The whole circular scaffold, as scadnano has it, from its own origin.
+
+    All of it, not the routed part: the bases a design leaves unrouted fold
+    as a single-stranded loop, which is exactly where a stray extension could
+    pair.
+    """
+    return str(sc.m13(variant=sc.M13Variant(variant)))
+
+
 def available_scaffolds() -> dict[str, int]:
     return {v.value: len(sc.m13(variant=v)) for v in sc.M13Variant}
 
@@ -169,6 +179,29 @@ def assign_extension_sequence(
             design.assign_dna(strand, sequence, assign_complement=False, domain=extension)
             assigned += 1
     return assigned
+
+
+def add_extension_3p(design: sc.Design, strand: sc.Strand, *, num_bases: int) -> None:
+    """Append an unpaired 3' extension to a strand that already exists.
+
+    `StrandBuilder.extension_3p` only works while a strand is being drawn; a
+    part built by scadnano's own generator (the rectangle) has no builder
+    left to call it on. `Design.append_domain` is the documented way to add a
+    domain afterwards, and it runs the design's own legality checks. The
+    sequence is left blank, for `assign_extension_sequence`.
+    """
+    design.append_domain(strand, sc.Extension(num_bases=num_bases))
+
+
+def oxdna_text(design: sc.Design) -> tuple[str, str]:
+    """The oxDNA configuration and topology scadnano writes, as text.
+
+    `write_oxdna_files` without the files: for reading back scadnano's own 3D
+    geometry -- which face of the sheet a base points to -- rather than
+    re-deriving it from its angle conventions.
+    """
+    dat, top = design.to_oxdna_format(warn_duplicate_strand_names=False)
+    return str(dat), str(top)
 
 
 def staples(design: sc.Design) -> list[sc.Strand]:

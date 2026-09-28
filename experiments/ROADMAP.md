@@ -17,6 +17,9 @@ Scores are judgements and are marked as such.
 | **E5** | Stage 0, 10 constructs | 2 | 5 | 3 | 0.55 | needs `equilibrium.py` |
 | **E6** | Stage 1, 25 constructs | 2 | 5 | 4 | 0.35 | needs smFRET + ligation analysis |
 | **E7** | Thickness ladder, 4 plates | 3 | 3 | 2 | 0.80 | needs a multi-layer plate part |
+| **E8** | Patterned rectangle (hairpin F) | — | 4 | 2 | 0.65 | after E1: its Mg, reference height, a fold |
+| **E9** | Rectangle dimer, two components | — | 4 | 3 | — | being built |
+| **E10** | Six-helix bundle, 3D fold | — | 4 | 3 | 0.60 | after the oxDNA run confirms it straight |
 
 **Relevance** — how much the programme moves if it succeeds, 1 to 5.
 **Difficulty** — experimental, not computational, 1 to 5.
@@ -29,7 +32,15 @@ a calculation. Do not average these or treat them as calibrated.
 E1 ──┬── E3 ── E4 ── E5 ── E6        the Hamiltonian line
      └── E2                          validates the lattice
 E7                                   independent, different instrument
+E1 ── E8 ── E9                       detail, then assembly (the user's roadmap, levels 3-4)
+E1 ── E10                            first 3D part (level 6)
 ```
+
+**E8–E10 came from the maintainer's own roadmap** (2026-09-28), which walks
+from a first 2D fold to a closed computational loop. Level 3 there is a
+pattern (E8), level 4 is assembly (E9) and level 6 is 3D (E10). Levels 1, 2,
+5, 7 and 8 were already covered: E1 and its new positive control, E3–E6, and
+the toolchain itself.
 
 **E1 gates everything.** If a Rothemund rectangle — the most reproduced object
 in the field — does not fold and image here, the problem is in our chain and

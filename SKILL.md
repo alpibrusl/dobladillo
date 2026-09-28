@@ -31,6 +31,7 @@ experimental counterparts.
 - `dobladillo experiment check` — What is missing, and whether the results can be believed.
 - `dobladillo experiment compare-arms` — Compare two blinded arms by flat fraction, and state the verdict both ways.
 - `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.
+- `dobladillo experiment pattern` — Read the designed pattern off every well-formed particle, and say which way round.
 - `dobladillo experiment report` — Measure the scans and compare them against what was predicted.
 - `dobladillo experiment rods` — Trace every rod, check its length, and ask whether the population is straight.
 - `dobladillo export` — Write a local archive of a part in Nanobase's layout. Never uploads.

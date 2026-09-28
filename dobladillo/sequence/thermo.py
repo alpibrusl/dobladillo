@@ -259,6 +259,95 @@ def duplex(sequence: str, *, sodium_m: float = 1.0, magnesium_m: float = 0.0) ->
     )
 
 
+@dataclass(frozen=True)
+class Structure:
+    """One secondary structure primer3 found: a hairpin, or a dimer of two strands.
+
+    `tm_c` is primer3's two-state melting temperature at the strand
+    concentration it was asked about (a hairpin's does not depend on it);
+    `dg_kcal` is at `temperature_c`. `found` False means primer3 found no
+    structure at all, which for an off-target check is the good answer.
+    """
+
+    kind: str
+    tm_c: float
+    dg_kcal: float
+    found: bool
+    temperature_c: float
+    magnesium_m: float
+    strand_m: float
+
+    def as_dict(self) -> dict[str, float | str | bool]:
+        return {
+            "kind": self.kind,
+            "tm_c": round(self.tm_c, 1),
+            "dg_kcal_per_mol": round(self.dg_kcal, 2),
+            "at_c": self.temperature_c,
+            "mgcl2_mm": round(self.magnesium_m * 1000.0, 2),
+            "strand_nm": round(self.strand_m * 1e9, 1),
+            "found": self.found,
+        }
+
+
+def secondary_structure(
+    sequence: str,
+    partner: str | None = None,
+    *,
+    kind: str,
+    magnesium_m: float,
+    sodium_m: float = 0.0,
+    strand_m: float = 50e-9,
+    temperature_c: float = 25.0,
+) -> Structure:
+    """primer3's hairpin, homodimer or heterodimer of `sequence`, in a Mg buffer.
+
+    `kind` is "hairpin", "homodimer" or "heterodimer" (which needs `partner`).
+    The same buffer handling as `duplex`: monovalent and divalent passed
+    separately, in the mM primer3 expects, no dNTPs. For a heterodimer only
+    ONE of the two may be longer than primer3's alignment limit -- that is how
+    a 22 nt probe is checked against a whole 7,249 nt scaffold in one call.
+    """
+    sequence = sequence.upper().strip()
+    if not _is_dna(sequence):
+        raise ValueError(f"not a DNA sequence: {sequence!r}")
+    if partner is not None:
+        partner = partner.upper().strip()
+        if not _is_dna(partner):
+            raise ValueError(f"not a DNA sequence: {partner!r}")
+    shortest = min(len(sequence), len(partner) if partner else len(sequence))
+    if shortest > PRIMER3_MAX_LENGTH:
+        raise ValueError(
+            f"primer3 aligns at most {PRIMER3_MAX_LENGTH} nt on one side; got {shortest}"
+        )
+    analysis = ThermoAnalysis(
+        mv_conc=sodium_m * 1000.0,
+        dv_conc=magnesium_m * 1000.0,
+        dntp_conc=0.0,
+        dna_conc=strand_m * 1e9,
+        temp_c=temperature_c,
+    )
+    if kind == "hairpin":
+        result = analysis.calc_hairpin(sequence)
+    elif kind == "homodimer":
+        result = analysis.calc_homodimer(sequence)
+    elif kind == "heterodimer":
+        if partner is None:
+            raise ValueError("a heterodimer needs a partner sequence")
+        result = analysis.calc_heterodimer(sequence, partner)
+    else:
+        raise ValueError(f"kind is hairpin, homodimer or heterodimer, got {kind!r}")
+    result.check_exc()
+    return Structure(
+        kind=kind,
+        tm_c=float(result.tm),
+        dg_kcal=float(result.dg) / 1000.0,
+        found=bool(result.structure_found),
+        temperature_c=temperature_c,
+        magnesium_m=magnesium_m,
+        strand_m=strand_m,
+    )
+
+
 def latch_field_kt(
     latch: Duplex,
     *,

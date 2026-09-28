@@ -145,6 +145,7 @@ def name_and_assign_wells(
     plate_prefix: str = "plate",
     scale: str = DEFAULT_SCALE,
     purification: str = DEFAULT_PURIFICATION,
+    name_suffix: str = "",
 ) -> PlateLayout:
     """Give every staple a name, a plate and a well, in a stable order.
 
@@ -152,6 +153,11 @@ def name_and_assign_wells(
     emit, so the same design always lands in the same wells. Re-ordering a
     plate between two orders of the same design is a quiet way to mix up a
     fridge.
+
+    `name_suffix` and `plate_prefix` are for an order that sits next to
+    another design's plates in the same fridge: E8's marked staples carry the
+    position name of the E1 staple they replace, and `_hp` is what keeps the
+    two tubes apart.
     """
     plate = sc.PlateCoordinate(plate_type=sc.PlateType(plate_type))
     staples = sorted(
@@ -161,7 +167,7 @@ def name_and_assign_wells(
 
     wells: list[Well] = []
     for staple in staples:
-        name = staple_name(staple)
+        name = staple_name(staple) + name_suffix
         plate_name = f"{plate_prefix}{plate.plate()}"
         ad.label_for_order(
             staple,
@@ -200,6 +206,71 @@ def name_and_assign_wells(
         ),
     )
     return PlateLayout(plate_type=plate_type, wells=tuple(wells), cost=cost)
+
+
+@dataclass(frozen=True)
+class SharedPool:
+    """A variant that reuses another design's plates, and what it needs beyond them.
+
+    `omit` are the base design's wells whose staples the variant replaces;
+    `new` are the variant's own staples. Pool every base well except `omit`,
+    plus every `new` well, and each staple is in the pool once.
+    """
+
+    base_part: str
+    base_wells: int
+    omit: tuple[Well, ...]
+    new: int
+
+    @property
+    def pooled_staples(self) -> int:
+        return self.base_wells - len(self.omit) + self.new
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "base_part": self.base_part,
+            "base_wells": self.base_wells,
+            "reused_from_base": self.base_wells - len(self.omit),
+            "omit_from_base": [
+                {"plate": w.plate, "well": w.well, "staple": w.name} for w in self.omit
+            ],
+            "new_staples": self.new,
+            "pooled_staples": self.pooled_staples,
+            "how": (
+                f"Pool every well of the {self.base_part} plates EXCEPT the "
+                f"{len(self.omit)} listed in omit_from_base, plus every well of this order. "
+                f"Not the {self.base_part}'s finished pool: it already holds the unmarked "
+                "version of each replaced staple, and the two would compete for the scaffold."
+            ),
+        }
+
+
+def shared_pool(
+    base: sc.Design, variant: sc.Design, *, base_part: str, plate_type: int = 96
+) -> SharedPool:
+    """What a variant of `base` can take from `base`'s plates, matched by sequence.
+
+    The base's wells are assigned exactly as `name_and_assign_wells` assigns
+    them for its own order -- on a copy, so the caller's design is not
+    relabelled -- which is what makes the omit list match the plates in the
+    fridge. Raises if the variant drops a base staple without replacing it
+    one for one, because then pooling "all but these" would not give a
+    complete design.
+    """
+    import copy
+
+    base = copy.deepcopy(base)
+    layout = name_and_assign_wells(base, plate_type=plate_type)
+    variant_sequences = {s.dna_sequence for s in ad.staples(variant)}
+    base_sequences = {w.sequence for w in layout.wells}
+    omit = tuple(w for w in layout.wells if w.sequence not in variant_sequences)
+    new = [s for s in ad.staples(variant) if s.dna_sequence not in base_sequences]
+    if len(new) != len(omit):
+        raise ValueError(
+            f"the variant replaces {len(omit)} of {base_part}'s staples with {len(new)} of "
+            "its own; a shared pool needs one for one"
+        )
+    return SharedPool(base_part=base_part, base_wells=len(layout.wells), omit=omit, new=len(new))
 
 
 def pipetting_sheet(
