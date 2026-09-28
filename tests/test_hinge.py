@@ -145,3 +145,17 @@ def test_arm_parity_follows_the_scaffold_turns(monkeypatch) -> None:
     wrong = measure(module.bistable_hinge().design).wrong_face
     assert wrong
     assert {c.offset for c in wrong} == {0}
+
+
+def test_latch_variants_share_every_staple_but_the_latch_carriers() -> None:
+    """E4's ladder is eight hinges differing only in the latch. If they share
+    the rest, it is one pool plus eight latch pairs rather than eight orders;
+    LegoGen's residue maps exist to guarantee exactly this."""
+    from dobladillo import _scadnano as ad
+
+    def sequences(latch: str) -> set[str]:
+        return {s.dna_sequence for s in ad.staples(bistable_hinge(latch_sequence=latch).design)}
+
+    a, b = sequences("GCATGCAT"), sequences("GACTTCAG")
+    assert len(a - b) == 2
+    assert len(a & b) == len(a) - 2
