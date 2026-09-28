@@ -58,6 +58,12 @@ class RunCheck:
         }
 
 
+#: Potential energy per nucleotide, oxDNA units, that a folded structure can
+#: have. Relaxed origami sits near -1.5 (the bundles here: -1.49 to -1.53);
+#: anything outside this range is a structure that has come apart.
+PHYSICAL_ENERGY_RANGE: tuple[float, float] = (-3.0, 1.0)
+
+
 def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
     """Is this directory a finished run whose numbers mean something?
 
@@ -69,7 +75,12 @@ def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
       finishing says nothing at all about stage 4;
     - the topology is still the design's, so the trajectory being analysed
       belongs to the structure it claims to;
-    - the trajectory is not empty.
+    - the trajectory is not empty;
+    - the production energy stayed physical. The Metal backend has no check
+      on bonded distances: a run that breaks the structure keeps integrating
+      and exits as a success, with energies near 1e18. The CPU backend aborts
+      in the same situation. So a run is refused if any recorded potential
+      energy is non-finite or outside PHYSICAL_ENERGY_RANGE.
     """
     problems: list[str] = []
 
@@ -93,6 +104,25 @@ def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
     for stage in STAGES:
         if not (directory / f"conf_{stage}.dat").is_file():
             problems.append(f"stage {stage} produced no final configuration")
+
+    energy_file = directory / "energy_traj_04_production.dat"
+    if energy_file.is_file():
+        low, high = PHYSICAL_ENERGY_RANGE
+        for line in energy_file.read_text().splitlines():
+            fields = line.split()
+            if len(fields) < 2:
+                continue
+            try:
+                potential = float(fields[1])
+            except ValueError:
+                continue
+            if not (low <= potential <= high):  # also catches nan and inf
+                problems.append(
+                    f"production potential energy reached {potential:g} per nucleotide at "
+                    f"time {fields[0]} (physical: {low} to {high}): the run blew up, and "
+                    "nothing after that point is a structure"
+                )
+                break
 
     topology = directory / f"{metadata.get('design_name', '')}.top"
     if not topology.is_file():

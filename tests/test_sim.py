@@ -327,3 +327,40 @@ def test_a_metal_run_is_not_a_result_until_metal_is_validated(tmp_path) -> None:
         assert any("Metal backend" in p for p in problems)
     else:
         assert not any("Metal backend" in p for p in problems)
+
+
+def test_a_strained_design_gets_the_smaller_production_timestep(tmp_path) -> None:
+    """The deletion-bent 6HB broke a bonded pair at dt 0.003 on both backends.
+    Designs with deletions or insertions run production at 0.002."""
+    from dobladillo import _scadnano as ad
+    from dobladillo.parts.bundle import END_NT, six_helix_bundle
+    from dobladillo.sim.jobs import (
+        PRODUCTION_DT,
+        PRODUCTION_DT_STRAINED,
+        production_dt,
+        write_job_bundle,
+    )
+
+    plain = six_helix_bundle().design
+    assert production_dt(plain) == PRODUCTION_DT
+    bent = six_helix_bundle().design
+    bent.add_deletion(0, END_NT + 3)
+    ad.assign_scaffold_sequence(bent, variant="p7249", rotation=5587)
+    assert production_dt(bent) == PRODUCTION_DT_STRAINED
+    job = write_job_bundle(bent, directory=tmp_path / "b", name="b", part="bundle")
+    assert "dt = 0.002" in (tmp_path / "b" / "input_04_production").read_text()
+    assert job.metadata["production_dt"] == PRODUCTION_DT_STRAINED
+
+
+def test_a_run_that_blew_up_is_not_a_result(tmp_path) -> None:
+    """Metal keeps integrating a broken structure and exits 0, with energies
+    near 1e18. The check refuses on the energy alone."""
+    from dobladillo.analysis.runs import check_run
+    from dobladillo.parts.bundle import six_helix_bundle
+
+    write_job_bundle(six_helix_bundle().design, directory=tmp_path / "b", name="b", part="bundle")
+    energy = tmp_path / "b" / "energy_traj_04_production.dat"
+    energy.write_text("0.0 -1.52 0.29 -1.23\n30.0 5.1e11 0.29 5.1e11\n")
+    assert any("blew up" in p for p in check_run(tmp_path / "b").problems)
+    energy.write_text("0.0 -1.52 0.29 -1.23\n30.0 -1.50 0.29 -1.21\n")
+    assert not any("blew up" in p for p in check_run(tmp_path / "b").problems)

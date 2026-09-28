@@ -178,6 +178,27 @@ def _on_metal(settings: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+#: Production timestep, oxDNA time units. 0.003 is oxDNA's usual MD value and
+#: holds for an unstrained design. A design with deletions or insertions is
+#: under built-in strain, and from its relaxed state 0.003 without force caps
+#: broke a bonded pair within 5000 steps on BOTH backends (the deletion-bent
+#: 6HB, 2026-09-28: the CPU aborts with "distance between bonded neighbors
+#: exceeded"; Metal blew up silently). 0.002, the relaxation stages' own
+#: step, ran cleanly from the same state.
+PRODUCTION_DT: Final = 0.003
+PRODUCTION_DT_STRAINED: Final = 0.002
+
+
+def production_dt(design: sc.Design) -> float:
+    """The production timestep this design can take: smaller when it is strained."""
+    strained = any(
+        getattr(d, "deletions", None) or getattr(d, "insertions", None)
+        for strand in design.strands
+        for d in strand.domains
+    )
+    return PRODUCTION_DT_STRAINED if strained else PRODUCTION_DT
+
+
 def _interval(steps: int, points: int) -> int:
     """How often to print so that roughly `points` are written in `steps`."""
     return max(1, steps // max(1, points))
@@ -219,6 +240,7 @@ def stages(
     salt_m: float,
     temperature: str,
     backend: str,
+    dt_production: float = PRODUCTION_DT,
 ) -> list[Stage]:
     """The four stages, in the order they must run.
 
@@ -316,7 +338,7 @@ def stages(
             {
                 "backend": backend,
                 "sim_type": "MD",
-                "dt": 0.003,
+                "dt": dt_production,
                 "thermostat": "bussi",
                 "bussi_tau": 1000,
                 "newtonian_steps": 53,
@@ -448,6 +470,7 @@ def write_job_bundle(
         salt_m=salt_m,
         temperature=temperature,
         backend="CPU" if test_mode else backend,
+        dt_production=production_dt(design),
         **steps,
     ):
         path = directory / f"input_{stage.name}"
@@ -472,6 +495,7 @@ def write_job_bundle(
         "provenance": simulation_record(design, part=part, files=files),
         "nucleotides": nucleotides,
         "trapped_pairs": pairs,
+        "production_dt": production_dt(design),
         "model": {
             "interaction_type": "DNA2",
             "salt_concentration_m": salt_m,
