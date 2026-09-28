@@ -1935,6 +1935,87 @@ def compare_command(
     emitter.result(payload, f"closed loop: {part}\n" + body)
 
 
+@app.command("export")
+def export_command(
+    part: str = PART_ARGUMENT,
+    experiment: Path | None = typer.Option(
+        None,
+        "--experiment",
+        help="An experiment folder of this part. Its protocols, and its comparison once "
+        "post/ is complete, go in -- only if its provenance chain names this design.",
+    ),
+    out: Path = typer.Option(Path("exports"), "--out", help="Directory to write the zip into."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Write a local archive of a part in Nanobase's layout. Never uploads.
+
+    Design files, oxDNA topology and configuration, an idealised image and a
+    record of Nanobase's three upload forms, validated as it is written. A
+    person may deposit it later through Nanobase's own form; this command
+    talks to nothing but the disk. See `dobladillo.export` for the layout
+    and the public documentation it was taken from.
+    """
+    from dobladillo.export import ExportRefused, export_part
+
+    emitter = Emitter(as_json)
+    built = _make_part(part, emitter)
+    if experiment is not None and not (experiment / "pre").is_dir():
+        emitter.fail(f"{experiment} is not an experiment folder", kind="missing_directory")
+        return
+    try:
+        result = export_part(
+            part=part, design=built.design, info=built.as_dict(), out=out, experiment=experiment
+        )
+    except ExportRefused as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+    payload = result.as_dict()
+    rows = [
+        ("wrote", str(result.path)),
+        ("sha256", result.sha256),
+        ("design", payload["provenance"]["design_sha256"][:8]),
+    ]
+    rows += [(category, f"{n} file(s)") for category, n in payload["files"].items() if n]
+    rows += [(f"not included: {k}", v) for k, v in payload["not_included"].items()]
+    rows.append(("valid", "yes" if result.valid else f"NO, {len(result.problems)} problems"))
+    rows.append(("uploaded", "no -- dobladillo never uploads"))
+    body = f"{part}: export\n" + _table(rows)
+    for problem in result.problems:
+        body += f"\n  PROBLEM  {problem}"
+    emitter.result(payload, body)
+    if not result.valid:
+        raise typer.Exit(1)
+
+
+@app.command("export-check")
+def export_check_command(
+    archive: Path = typer.Argument(..., help="A zip written by `dobladillo export`."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Validate an export archive against its layout. Exits non-zero if it departs."""
+    from dobladillo.export import LAYOUT, validate
+    from dobladillo.provenance import file_sha256
+
+    emitter = Emitter(as_json)
+    if not archive.is_file():
+        emitter.fail(f"no such file: {archive}", kind="missing_file", code=2)
+        return
+    problems = validate(archive)
+    payload = {
+        "archive": str(archive),
+        "sha256": file_sha256(archive),
+        "layout": LAYOUT,
+        "valid": not problems,
+        "problems": problems,
+    }
+    body = f"{archive}\n" + _table([("layout", LAYOUT), ("valid", "yes" if not problems else "NO")])
+    for problem in problems:
+        body += f"\n  PROBLEM  {problem}"
+    emitter.result(payload, body)
+    if problems:
+        raise typer.Exit(1)
+
+
 @app.command("dashboard")
 def dashboard_command(
     out: Path = typer.Option(Path("site"), "--out", help="Directory to write index.html into."),
