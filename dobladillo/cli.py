@@ -479,7 +479,8 @@ lab_app = typer.Typer(help="What the bench needs: plates, pooling, protocol.", n
 app.add_typer(lab_app, name="lab")
 
 PART_ARGUMENT = typer.Argument(
-    ..., help="Which part: rectangle, bundle, hinge, twist-corrected or twist-uncorrected."
+    ...,
+    help="Which part: rectangle, bundle, hinge, twist-corrected, twist-uncorrected or pattern.",
 )
 PLATE_OPTION = typer.Option(96, "--plate", help="Well plate format: 96 or 384.")
 
@@ -702,12 +703,35 @@ def _make_part(which: str, out: Emitter) -> Any:
 
         pair = twist_pair()
         return pair.corrected if which == "twist-corrected" else pair.uncorrected
+    if which == "pattern":
+        from dobladillo.parts.pattern import patterned_rectangle
+
+        return patterned_rectangle()
     out.fail(
-        f"unknown part {which!r}; use rectangle, bundle, hinge, twist-corrected "
-        "or twist-uncorrected",
+        f"unknown part {which!r}; use rectangle, bundle, hinge, twist-corrected, "
+        "twist-uncorrected or pattern",
         kind="unknown_part",
     )
     return None
+
+
+def _order_of(built: Any, *, plate: int, out: Emitter) -> tuple[Any, Any, dict[str, Any] | None]:
+    """What to order for a part: its design, or -- for a variant that reuses
+    another part's plates -- only its own staples, and which of the other
+    part's wells to leave out of the pool. Returns (design, layout, reuse)."""
+    from dobladillo.lab import plates as lab
+
+    if not hasattr(built, "order_design"):
+        return built.design, lab.name_and_assign_wells(built.design, plate_type=plate), None
+    design = built.order_design()
+    layout = lab.name_and_assign_wells(
+        design, plate_type=plate, plate_prefix="marker", name_suffix="_hp"
+    )
+    base = _make_part(built.base_part, out)
+    reuse = lab.shared_pool(
+        base.design, built.design, base_part=built.base_part, plate_type=plate
+    ).as_dict()
+    return design, layout, reuse
 
 
 @lab_app.command("order")
@@ -729,9 +753,9 @@ def lab_order(
         emitter.fail(f"plate must be 96 or 384, got {plate}", kind="invalid_parameters")
         return
     built = _make_part(part, emitter)
-    layout = lab.name_and_assign_wells(built.design, plate_type=plate)
+    order, layout, reuse = _order_of(built, plate=plate, out=emitter)
 
-    problems = lab.validate_bulk_csv(lab.bulk_csv_rows(built.design))
+    problems = lab.validate_bulk_csv(lab.bulk_csv_rows(order))
     payload: dict[str, Any] = {
         "part": part,
         **layout.as_dict(),
@@ -739,13 +763,16 @@ def lab_order(
         "pipetting": lab.pipetting_sheet(layout),
         "problems": [p.as_dict() for p in problems],
     }
+    if reuse is not None:
+        payload["reuse"] = reuse
 
     if out_dir is not None:
         from dobladillo import provenance
 
-        written = lab.write_order_files(
-            built.design, directory=out_dir, name=part, plate_type=plate
-        )
+        written = lab.write_order_files(order, directory=out_dir, name=part, plate_type=plate)
+        if reuse is not None:
+            written["reuse"] = out_dir / f"{part}_reuse.json"
+            written["reuse"].write_text(json.dumps(reuse, indent=2) + "\n")
         problems += lab.validate_plate_workbook(written["idt_plate_xlsx"], plate_type=plate)
         payload["problems"] = [p.as_dict() for p in problems]
         # Ties these oligos to the design they came from, wherever they are
@@ -771,6 +798,15 @@ def lab_order(
         ("estimated cost", f"{cost.total:,.2f} at {cost.price_per_base}/base"),
         ("order files valid", "yes" if not problems else f"NO, {len(problems)} problems"),
     ]
+    if reuse is not None:
+        rows.append(
+            (
+                "reuses",
+                f"{reuse['reused_from_base']} staples from the {reuse['base_part']} plates; "
+                f"pool them all EXCEPT {len(reuse['omit_from_base'])} wells, plus these "
+                f"{reuse['new_staples']}",
+            )
+        )
     rows.extend((f"wrote {k}", v) for k, v in payload.get("files", {}).items())
     if "manifest" in payload:
         rows.append(("wrote manifest", payload["manifest"]))
@@ -1549,13 +1585,16 @@ def experiment_new(
     # and half an error.
     from dobladillo.lab import plates as lab
 
-    layout = lab.name_and_assign_wells(built.design, plate_type=plate)
+    order, layout, reuse = _order_of(built, plate=plate, out=emitter)
     written = lab.write_order_files(
-        built.design, directory=directory / "pre" / "order", name=part, plate_type=plate
+        order, directory=directory / "pre" / "order", name=part, plate_type=plate
     )
     (directory / "pre" / "order" / "pipetting.json").write_text(
         json.dumps(lab.pipetting_sheet(layout), indent=2) + "\n"
     )
+    if reuse is not None:
+        written["reuse"] = directory / "pre" / "order" / f"{part}_reuse.json"
+        written["reuse"].write_text(json.dumps(reuse, indent=2) + "\n")
     manifest = provenance.write_order_manifest(
         directory / "pre" / "order",
         name=part,
@@ -1932,6 +1971,125 @@ def experiment_compare_arms(
             "many per arm. Image more before interpreting this."
         )
         raise typer.Exit(1)
+
+
+@experiment_app.command("pattern")
+def experiment_pattern(
+    directory: Path = typer.Argument(..., help="A patterned-rectangle (E8) experiment folder."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Read the designed pattern off every well-formed particle, and say which way round.
+
+    Writes `post/pattern.json`. Scans are `during/raw/pattern-*` (the
+    patterned sample) and `during/raw/control-*` (E1's plain rectangle, the
+    negative control). Each well-formed particle reads `pattern`, `mirrored`,
+    `not_found` or `blank`; the fractions come with 95% intervals.
+
+    Everything it needs comes from the folder -- the pattern from
+    `pre/prediction.json`, the tip radius and E1's reference flat height from
+    `during/instrument.json` -- and it refuses rather than substitutes when
+    one is missing. It does not evaluate the gate.
+    """
+    from dobladillo.experiments import check as run_check
+    from dobladillo.experiments.arms import RecordIncomplete
+    from dobladillo.experiments.pattern import (
+        SAMPLES,
+        SampleResult,
+        measure_sample,
+        read_record,
+        report_markdown,
+        result,
+    )
+    from dobladillo.experiments.pattern import scans_for as pattern_scans
+    from dobladillo.imaging.pattern import SPOT_SIGMA
+    from dobladillo.imaging.readers import UnreadableScan
+    from dobladillo.provenance import folder_chain, short
+
+    emitter = Emitter(as_json)
+    state = run_check(directory)
+    try:
+        record = read_record(directory)
+    except RecordIncomplete as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+    chain = state.chain
+    if not chain.legacy and chain.scan_design != chain.predicted_design:
+        emitter.fail(
+            f"pre/prediction.json predicts design {short(chain.predicted_design)} but the "
+            f"order in pre/order is of design {short(chain.scan_design)}: "
+            + "; ".join(chain.problems or ("the two do not match",)),
+            kind="design_mismatch" if chain.scan_design else "provenance_incomplete",
+        )
+        return
+
+    scans = {sample: pattern_scans(directory, sample) for sample in SAMPLES}
+    if not scans["pattern"]:
+        emitter.fail(
+            "no during/raw/pattern-* scans: name the patterned sample's files pattern-01.spm, "
+            "... and E1's control control-01.spm, ... (see "
+            "experiments/protocols/E8-patterned-rectangle.md)",
+            kind="no_scans",
+        )
+        return
+    measured: dict[str, SampleResult | None] = {}
+    for sample, files in scans.items():
+        if not files:
+            measured[sample] = None
+            continue
+        try:
+            measured[sample] = measure_sample(files, record)
+        except UnreadableScan as e:
+            emitter.fail(str(e), kind="unreadable_scan")
+            return
+    patterned = measured["pattern"]
+    assert patterned is not None
+    if not patterned.readings:
+        emitter.fail(
+            "no well-formed particle in a readable pattern-* scan"
+            + (
+                f"; skipped {len(patterned.skipped)} scan(s) as too coarse to read"
+                if patterned.skipped
+                else ""
+            ),
+            kind="no_particles",
+        )
+        return
+
+    out = result(record, measured, spot_sigma=SPOT_SIGMA)
+    out["record"] = state.as_dict()
+    out["provenance"] = folder_chain(directory, scans=scans["pattern"]).as_dict()
+    post = directory / "post"
+    post.mkdir(exist_ok=True)
+    (post / "pattern.json").write_text(json.dumps(out, indent=2) + "\n")
+    report = post / "pattern.md"
+    kept = ""
+    if report.is_file() and "## Interpretation" in report.read_text():
+        # The interpretation below the line is a person's, and survives a rerun.
+        kept = report.read_text().split("## Interpretation", 1)[1].lstrip("\n")
+    report.write_text(report_markdown(directory, out, state.problems) + kept)
+
+    lines = ["designed, seen from the marked face:"]
+    lines += [f"  {row}" for row in out["designed"]["pattern_seen_from_marked_face"]]
+    for sample in SAMPLES:
+        if out[sample] is None:
+            lines.append(f"{sample}: no scans")
+            continue
+        summary = out[sample]["pattern"]
+        found = summary["found"]
+        marked = summary["found_among_marked"]
+        lines.append(
+            f"{sample}: {summary['read']} well-formed read  {summary['verdicts']}\n"
+            f"  pattern either way round: {found['count']}/{found['total']} "
+            f"({found['fraction']:.0%}, 95% {found['ci95'][0]:.0%}-{found['ci95'][1]:.0%})"
+            f"   among particles showing marks: {marked['count']}/{marked['total']}"
+        )
+        for skipped in out[sample]["skipped"]:
+            lines.append(f"  skipped {skipped['scan']}: {skipped['why']}")
+    if "control_note" in out:
+        lines.append(f"NOTE: {out['control_note']}")
+    lines.append(f"wrote {post / 'pattern.json'} and {report}")
+    lines += [f"RECORD: {p}" for p in state.problems]
+    emitter.result({"directory": str(directory), **out}, f"{directory}\n" + "\n".join(lines))
 
 
 @experiment_app.command("check")

@@ -150,8 +150,19 @@ def find_particles(
     *,
     detect_sigma: float = DETECT_SIGMA,
     min_pixels: int = MIN_PIXELS,
+    peak_percentile: float = 95.0,
 ) -> list[Particle]:
-    """Everything standing proud of the surface, measured at half its height."""
+    """Everything standing proud of the surface, measured at half its height.
+
+    "Its height" is the 95th percentile of the particle's pixels by default.
+    A particle that carries marks taller than itself on more than 5% of its
+    area -- E8's patterned rectangle -- needs `peak_percentile=50`: its 95th
+    percentile is the top of the marks, half of that can reach the sheet's
+    own height, and the outline then breaks into fragments. Measured on
+    synthetic 2 nm sheets carrying 3 nm marks under a 10 nm tip: fewer than
+    half the sheets kept their outline at 95, all of them at 50
+    (tests/test_pattern.py). At 2 nm marks the default still worked.
+    """
     heights = image.heights_nm
     noise = float(heights[background].std())
     seeds, _ = _label(heights > detect_sigma * noise)
@@ -164,7 +175,7 @@ def find_particles(
         # Re-threshold this particle at half ITS own height, so a tall
         # aggregate and a 2 nm sheet are both measured at their own half-way
         # point rather than at one global level.
-        peak = float(np.percentile(heights[seed], 95))
+        peak = float(np.percentile(heights[seed], peak_percentile))
         grown, _ = _label(heights > peak / 2.0)
         this = grown == np.bincount(grown[seed]).argmax() if grown[seed].size else seed
         if this.sum() < min_pixels:
