@@ -189,6 +189,16 @@ def create_server(experiments_root: Path) -> MCPServer:
         """
         return with_folder(name, "experiment", "report")
 
+    @server.tool()
+    def experiment_compare_arms(name: str) -> CallToolResult:
+        """E2's blinded two-arm comparison: fraction flat per arm, verdict both ways.
+
+        Reads per-arm tip radii and the reference height from the record and
+        refuses, with error.kind, when any is missing. Never asks which arm is
+        which: the key stays with the person who holds it.
+        """
+        return with_folder(name, "experiment", "compare-arms")
+
     return server
 
 

@@ -14,10 +14,11 @@ import json
 import sys
 from pathlib import Path
 
-import anyio
 import pytest
 
 pytest.importorskip("mcp")
+
+import anyio  # noqa: E402  (installed with the mcp extra)
 
 from dobladillo import mcp_server  # noqa: E402
 from dobladillo.experiments import scaffold  # noqa: E402
@@ -137,3 +138,13 @@ def test_a_real_stdio_session(tmp_path: Path) -> None:
     assert {"experiment_report", "queue_status", "lint_part"} <= tools
     assert refused.is_error
     assert "no_tip_radius" in refused.content[0].text
+
+
+def test_compare_arms_refuses_through_mcp_without_the_record(tmp_path: Path) -> None:
+    """E2's command, reached by an agent: an empty record is a refusal with a
+    kind, never a comparison against guessed tip radii."""
+    _e1_like_folder(tmp_path, tip_measured=False)
+    server = mcp_server.create_server(tmp_path)
+    result = _call(server, "experiment_compare_arms", name="e1")
+    assert result.is_error
+    assert _payload(result)["error"]["kind"].startswith("no_")
