@@ -13,6 +13,7 @@ from dobladillo.compare import (
     designed,
     half_height_broadening_nm,
 )
+from dobladillo.readings import Measured, When
 
 SIM = Conditions(temperature_c=20.0, sodium_m=0.5, model="oxDNA2")
 AFM = Conditions(temperature_c=23.0, magnesium_m=0.012, model="AFM")
@@ -24,6 +25,17 @@ def _sim(value: float, sd: float = 2.0, n: int = 200) -> Observation:
 
 def _afm(value: float, sd: float = 6.0, n: int = 40) -> Observation:
     return Observation("length_nm", value, "afm_half_height", "measured", AFM, sd, n)
+
+
+def _tip(radius_nm: float) -> Measured[float]:
+    """A tip radius as the session record would supply it."""
+    return Measured(
+        value=radius_nm,
+        quantity="tip_radius",
+        source="test fixture",
+        at=When(timestamp=0.0, basis="stated"),
+        instrument="test",
+    )
 
 
 def test_broadening_follows_the_derived_geometry() -> None:
@@ -67,7 +79,7 @@ def test_nothing_compared_does_not_report_agreement() -> None:
 
 
 def test_deconvolution_makes_the_pair_comparable_and_they_agree() -> None:
-    fixed = deconvolve_tip(_afm(197.0), feature_height_nm=2.0, tip_radius_nm=10.0).observation
+    fixed = deconvolve_tip(_afm(197.0), feature_height_nm=2.0, tip_radius_nm=_tip(10.0)).observation
     result = compare("length_nm", [_sim(188.0), fixed])
     assert result.compared_anything
     assert result.agrees
@@ -78,19 +90,19 @@ def test_deconvolution_costs_certainty() -> None:
     result, and a corrected width must not look better determined than the
     measurement it came from."""
     raw = _afm(197.0)
-    fixed = deconvolve_tip(raw, feature_height_nm=2.0, tip_radius_nm=10.0).observation
+    fixed = deconvolve_tip(raw, feature_height_nm=2.0, tip_radius_nm=_tip(10.0)).observation
     assert fixed.uncertainty_nm > raw.uncertainty_nm
 
 
 def test_deconvolution_refuses_an_observation_it_does_not_apply_to() -> None:
     with pytest.raises(ValueError, match="afm_half_height"):
-        deconvolve_tip(_sim(188.0), feature_height_nm=2.0)
+        deconvolve_tip(_sim(188.0), feature_height_nm=2.0, tip_radius_nm=_tip(10.0))
 
 
 def test_a_salt_mismatch_is_carried_not_dropped() -> None:
     """oxDNA2 has no explicit magnesium, so this mismatch can never be fixed.
     Refusing would make the module useless; ignoring it is the bug."""
-    fixed = deconvolve_tip(_afm(190.0), feature_height_nm=2.0).observation
+    fixed = deconvolve_tip(_afm(190.0), feature_height_nm=2.0, tip_radius_nm=_tip(10.0)).observation
     result = compare("length_nm", [_sim(188.0), fixed])
     assert any("magnesium" in c for c in result.caveats)
 

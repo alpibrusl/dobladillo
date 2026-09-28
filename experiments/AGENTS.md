@@ -21,6 +21,13 @@ rectangle. Guess it and you turn an agreement into a disagreement or the
 reverse, and **nothing downstream can tell**. `experiment report` refuses
 rather than substituting, and that refusal is the feature.
 
+The same rule holds in Python. `deconvolve_tip` and the arm measurement take
+a `Measured` tip radius (`dobladillo.readings`), read from
+`during/instrument.json` by `dobladillo.experiments.instrument`; a `Nominal`
+or a bare float raises `NotMeasured`. Do not construct a `Measured` around a
+number you did not read from the record to make that error go away — the
+reading's `source` is written into every result that uses it.
+
 The same applies to the magnesium concentration, the temperature, the particle
 counts, and anything in `during/log.md`.
 
@@ -44,6 +51,7 @@ counts, and anything in `during/log.md`.
 dobladillo experiment check <folder>     # what is missing, and whether the record holds
 dobladillo afm read <scan.gsf>           # did pixel size and height units survive the export?
 dobladillo experiment report <folder>    # measure, compare, write post/
+dobladillo experiment compare-arms <folder>  # E2: two blinded arms, verdict both ways
 ```
 
 `experiment report` is the one to use. Do **not** hand-assemble the equivalent
