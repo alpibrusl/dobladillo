@@ -32,3 +32,33 @@
   superimposition, planarity, axis bend, and an oxView overlay.
   `dobladillo analyse`, plus `dobladillo sim check`, which refuses to let a
   smoke-test trajectory be analysed as a result.
+
+### 2026-09-28 — rebuild on mature tools (epic #21)
+
+- Licence changed to EUPL-1.2. `tests/test_licences.py` fails on any
+  dependency whose licence has not been reviewed, on an incompatible licence,
+  and on any network import in the package.
+- `routing.azimuth` and the `crossover_azimuth` rule replace
+  `crossover_phase`. The rule separates phasing strain from twist and is
+  calibrated on five published designs (`tests/data/reference_designs`).
+  (#6)
+- Every square part was half misphased and has been re-tiled. The rectangle
+  and twist pair are built on scadnano's `origami_rectangle`; the hinge is
+  tiled by 16-bp column. E1 and E2 orders were regenerated before anything
+  was ordered.
+- The six-helix bundle now tiles scadnano's published 6HB unit, at 17° rms
+  (it was 44°).
+- `dobladillo predict`: a CanDo-class beam shape predictor. It cannot see
+  phase, and says so. (#22)
+- Runs and queues default to `$DOBLADILLO_RUNS`, and the tools warn when a
+  path is under a temp directory. (#16)
+- `sim bundle` refuses designs whose sequences do not pair.
+  `assign_scaffold_sequence` can be called again after a design change.
+- Added `dobladillo experiment compare-arms`, E2's blinded two-arm
+  comparison. It reads tip radii and the reference height from the
+  experiment record and states the verdict under both unblindings. (#18)
+- Added `Measured`/`Nominal` reading types and a single reader for
+  `during/instrument.json`. `deconvolve_tip` now requires a `Measured` tip
+  radius and no longer defaults to 10 nm. `experiment new`'s instrument
+  template gains `measured_radius_between_nm`, `imaging_order` and
+  `reference`. (#12)

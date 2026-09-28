@@ -28,6 +28,7 @@ experimental counterparts.
 - `dobladillo dashboard` — Generate the shareable board. Reads every figure from the toolchain.
 - `dobladillo describe` — Emit the command surface, for an agent to read instead of `--help`.
 - `dobladillo experiment check` — What is missing, and whether the results can be believed.
+- `dobladillo experiment compare-arms` — Compare two blinded arms by flat fraction, and state the verdict both ways.
 - `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.
 - `dobladillo experiment report` — Measure the scans and compare them against what was predicted.
 - `dobladillo geometry` — Show the geometry constants, and where this project disagrees.

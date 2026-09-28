@@ -304,10 +304,14 @@ INSTRUMENT_TEMPLATE: Final[dict[str, Any]] = {
         "nominal_radius_nm": None,
         "measured_radius_before_nm": None,
         "measured_radius_after_nm": None,
+        "measured_radius_between_nm": None,
         "note": "Measure it. A nominal 10 nm tip is routinely 8-20 nm in use, and "
         "the correction goes as sqrt(R). Before AND after: a tip that blunted "
-        "mid-session makes early and late scans differently wrong.",
+        "mid-session makes early and late scans differently wrong. Two-arm "
+        "experiments (E2) also measure it BETWEEN the arms.",
     },
+    "imaging_order": None,
+    "reference": {"flat_height_nm": None, "from": ""},
     "buffer": {"tris_mm": None, "edta_mm": None, "mgcl2_mm": None, "ph": None},
     "temperature_c": None,
     "scan": {"size_nm": None, "pixels": None, "rate_hz": None},

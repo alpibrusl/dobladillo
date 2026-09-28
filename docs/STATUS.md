@@ -20,6 +20,23 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Experiment record, typed (#18, #12)
+
+- **E2's readout is a command.** `dobladillo experiment compare-arms <folder>`
+  does what `experiments/protocols/e2_compare.py` did. It reads per-arm tip
+  radii (before, between and after readings, plus `imaging_order`) and E1's
+  reference height from `during/instrument.json`, and refuses when any is
+  missing. It writes `post/arms.json` and states the verdict under both
+  unblindings.
+- **The tip-radius rule is enforced at the type boundary**
+  (`dobladillo/readings.py`, `dobladillo/experiments/instrument.py`).
+  `deconvolve_tip`, `experiment report` and `compare-arms` accept only
+  `Measured` tip radii.
+- **Still open:** `compare`'s default magnesium and temperature, and
+  `afm measure`'s float tip radius.
+- **The old script is still in the repository.** The E2 protocol no longer
+  uses it.
+
 ## Where runs live (#16)
 
 Runs, queues and trajectories live under `$DOBLADILLO_RUNS`, default
