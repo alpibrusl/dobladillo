@@ -23,7 +23,7 @@ obvious from the papers:
 |---|---|---|---|
 | oxDNA, `oxpy`, `oxDNA_analysis_tools` | GPL-3.0 | yes — builds and runs on Apple Silicon CPU | **use** |
 | AFMReader | GPL-3.0 | local library | **use** |
-| TopoStats | LGPL-3.0 | local library | **use** |
+| TopoStats | GPL-3.0-only in its current `pyproject.toml` (LGPL-3.0 in older releases); but every release since 2.3.0 requires **topoly** (binary wheels only, no published source; PyPI says "Free for non-commercial use", its docs BSD-3-Clause), TensorFlow and Keras, and Python < 3.12 | local library | **excluded while it requires topoly** (checked 2026-09-28, #8); our flatten and segmentation stay |
 | scadnano / caDNAno 2.5 | MIT / MIT-style | local | **use** |
 | primer3-py | GPL-2.0 | local | **use** |
 | Generative SNUPI (routing) | Apache-2.0, pretrained models in the repo | local | **use** |
@@ -293,6 +293,10 @@ simulation results were lost in this project to a cleaned temp directory.
 2. **Swap AFM I/O and processing for AFMReader and TopoStats**, keeping
    `compare`, `classify` and `arms` on top. Correct `PIPELINE.md`: native
    formats *are* readable, and the Gwyddion export step goes away.
+   *AFMReader done (#7). TopoStats blocked (#8): it requires topoly, which
+   ships no source and whose licence contradicts itself, plus TensorFlow and
+   Python < 3.12; see §0 and `tests/test_licences.py`. Our flatten and
+   segmentation stay.*
 3. **Replace routing with the lattice's canonical crossover positions**, with
    the bundle as the first regression case.
 4. **Use `oxDNA_analysis_tools` for alignment, mean structure and RMSF**, and
