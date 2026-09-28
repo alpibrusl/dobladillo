@@ -111,9 +111,10 @@ def from_trajectory(frames: Any, *, skip: int = 0) -> Outline:
 
     Each frame is superimposed on the first before averaging, so tumbling does
     not smear the shape into a disc -- the object's own frame is the only one
-    in which an average shape means anything.
+    in which an average shape means anything. The superposition is oat's
+    (`analysis._oat.superpose`), not ours.
     """
-    from dobladillo.analysis.observables import _kabsch
+    from dobladillo.analysis._oat import superpose
 
     kept = list(frames)[skip:]
     if not kept:
@@ -121,8 +122,7 @@ def from_trajectory(frames: Any, *, skip: int = 0) -> Outline:
     reference = kept[0].positions_nm - kept[0].positions_nm.mean(axis=0)
     stacked = np.zeros_like(reference)
     for frame in kept:
-        centred = frame.positions_nm - frame.positions_nm.mean(axis=0)
-        stacked += centred @ _kabsch(centred, reference)
+        stacked += superpose(frame.positions_nm, reference)
     return envelope(
         stacked / len(kept),
         origin="simulated",

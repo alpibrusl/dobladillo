@@ -883,7 +883,7 @@ def analyse_run(
         analyse,
         oxview_overlay,
     )
-    from dobladillo.analysis.runs import NotAResult, load_run
+    from dobladillo.analysis.runs import NotAResult, load_run, production_trajectory
 
     emitter = Emitter(as_json)
     if not run_dir.is_dir():
@@ -891,6 +891,7 @@ def analyse_run(
         return
     try:
         frames, check = load_run(run_dir, skip=skip, allow_test_mode=allow_test_mode)
+        report = analyse(frames, trajectory=production_trajectory(run_dir), skip=skip)
     except NotAResult as e:
         emitter.fail(str(e), kind="not_a_result")
         return
@@ -898,7 +899,6 @@ def analyse_run(
         emitter.fail(str(e), kind="unusable_trajectory")
         return
 
-    report = analyse(frames)
     payload = report.as_dict()
     payload["conditions"] = check.metadata.get("model", {})
     payload["is_smoke_test"] = bool(check.metadata.get("test_mode"))
@@ -1975,7 +1975,7 @@ def compare_command(
 
     if run_dir is not None:
         from dobladillo.analysis.observables import analyse
-        from dobladillo.analysis.runs import NotAResult, load_run
+        from dobladillo.analysis.runs import NotAResult, load_run, production_trajectory
 
         try:
             frames, check = load_run(run_dir, skip=skip)
@@ -2000,7 +2000,7 @@ def compare_command(
                 kind="design_mismatch",
             )
             return
-        report = analyse(frames)
+        report = analyse(frames, trajectory=production_trajectory(run_dir), skip=skip)
         salt = check.metadata.get("model", {}).get("salt_concentration_m")
         conditions = Conditions(temperature_c=20.0, sodium_m=salt, model="oxDNA2")
         for quantity, key in (("length_nm", "longest"), ("width_nm", "middle")):

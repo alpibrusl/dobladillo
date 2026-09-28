@@ -10,6 +10,12 @@ requires superimposing them, superimposing requires a reference, and a badly
 chosen reference quietly biases the result. Measuring each frame independently
 needs no reference at all, and it yields a spread as well as a mean -- and the
 spread is the thing an AFM histogram can actually be compared against.
+
+What is NOT computed here. The fluctuation needs superimposition, and
+superimposition is a commodity this project once got wrong (the Kabsch
+transpose). Mean structure and RMSF therefore come from oxDNA_analysis_tools
+through `analysis._oat`; this module keeps the observables no tool provides
+and the guard on how many frames they rest on.
 """
 
 from __future__ import annotations
@@ -20,8 +26,11 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from dobladillo.analysis import _oat
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
     from dobladillo.analysis.trajectory import Frame
 
@@ -72,47 +81,6 @@ def principal_extents_nm(positions_nm: np.ndarray) -> tuple[np.ndarray, np.ndarr
     extents = high - low
     order = np.argsort(extents)[::-1]
     return extents[order], axes[order]
-
-
-def _kabsch(mobile: np.ndarray, reference: np.ndarray) -> np.ndarray:
-    """Matrix M such that `mobile @ M` best superimposes onto `reference`.
-
-    Points are stored as ROWS here, which flips the convention: the textbook
-    Kabsch rotation R satisfies q = R p for column vectors, so the row form is
-    its transpose, U V^T rather than V U^T. Getting that backwards produces a
-    valid rotation matrix that rotates the wrong way, and the only symptom is
-    an RMSF far too large -- which is how this was caught, by asking for the
-    fluctuation of a rigid body that merely tumbles.
-    """
-    covariance = mobile.T @ reference
-    u, _, vt = np.linalg.svd(covariance)
-    # Guard against a reflection, which would superimpose a mirror image and
-    # report a suspiciously good fit for a structure that is nothing like it.
-    sign = np.sign(np.linalg.det(u @ vt))
-    correction = np.diag([1.0, 1.0, sign])
-    return u @ correction @ vt
-
-
-def rmsf_nm(frames: Sequence[Frame]) -> tuple[np.ndarray, np.ndarray]:
-    """Per-nucleotide fluctuation about the mean structure, and that structure.
-
-    Needs superimposition, unlike the dimensions: otherwise the object's own
-    tumbling swamps the internal motion this is trying to measure. Iterated
-    once, using the first frame as the initial reference and the resulting mean
-    as the second, which is enough to stop the answer depending on which frame
-    happened to be first.
-    """
-    if len(frames) < 2:
-        raise ValueError("RMSF needs at least two frames")
-
-    centred = [f.positions_nm - f.positions_nm.mean(axis=0) for f in frames]
-    reference = centred[0]
-    for _ in range(2):
-        aligned = np.stack([c @ _kabsch(c, reference) for c in centred])
-        reference = aligned.mean(axis=0)
-
-    displacement = aligned - reference
-    return np.sqrt((displacement**2).sum(axis=2).mean(axis=0)), reference
 
 
 def planarity_nm(positions_nm: np.ndarray) -> float:
@@ -177,6 +145,9 @@ class Report:
     bend_nm: Spread
     rmsf_nm: np.ndarray
     potential_energy: Spread
+    #: oat's mean structure, centred, nm. None for a single frame, where there
+    #: is nothing to average and the frame is the structure.
+    mean_structure_nm: np.ndarray | None = None
 
     @property
     def undersampled(self) -> bool:
@@ -204,6 +175,7 @@ class Report:
                 "relative_standard_error": (
                     round((2 * (self.frames - 1)) ** -0.5, 3) if self.frames > 1 else None
                 ),
+                "computed_by": _oat.provenance() if self.mean_structure_nm is not None else None,
             },
             "potential_energy_per_nucleotide": self.potential_energy.as_dict(),
         }
@@ -291,8 +263,16 @@ def reach(frames: Sequence[Frame], a: Sequence[int], b: Sequence[int], *, bases:
     )
 
 
-def analyse(frames: Sequence[Frame]) -> Report:
-    """Every observable, from a list of frames."""
+def analyse(frames: Sequence[Frame], *, trajectory: Path, skip: int = 0) -> Report:
+    """Every observable, from a list of frames and the file they were read from.
+
+    `frames` are what `read_trajectory(trajectory, skip=skip)` returned. The
+    per-frame observables are measured on them; the fluctuation is computed by
+    oat from the same file with the same `skip`. That is two independent
+    parsers of one file, so they are made to agree on the frame and nucleotide
+    counts before either number is reported -- a mismatch means the frames did
+    not come from this trajectory, and the RMSF would belong to something else.
+    """
     if not frames:
         raise ValueError("no frames to analyse")
 
@@ -307,7 +287,19 @@ def analyse(frames: Sequence[Frame]) -> Report:
         bends.append(axis_bend_nm(frame.positions_nm))
         energies.append(frame.energy[1])
 
-    fluctuation, _ = rmsf_nm(frames) if len(frames) > 1 else (np.zeros(frames[0].nucleotides), None)
+    # One frame has no fluctuation to measure: zero by definition, not by
+    # measurement, and `undersampled` already says so.
+    fluctuation = np.zeros(frames[0].nucleotides)
+    mean_structure = None
+    if len(frames) > 1:
+        oat = _oat.deviations(trajectory, skip=skip)
+        if (oat.frames, oat.nucleotides) != (len(frames), frames[0].nucleotides):
+            raise ValueError(
+                f"oat read {oat.frames} frames of {oat.nucleotides} nucleotides from "
+                f"{trajectory} after skipping {skip}, but {len(frames)} frames of "
+                f"{frames[0].nucleotides} were passed in: they are not the same trajectory"
+            )
+        fluctuation, mean_structure = oat.rmsf_nm, oat.mean_structure_nm
 
     return Report(
         frames=len(frames),
@@ -323,6 +315,7 @@ def analyse(frames: Sequence[Frame]) -> Report:
         bend_nm=_spread(bends),
         rmsf_nm=fluctuation,
         potential_energy=_spread(energies),
+        mean_structure_nm=mean_structure,
     )
 
 

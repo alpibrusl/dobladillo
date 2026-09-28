@@ -291,11 +291,16 @@ RULES: Sequence[Rule] = (
 )
 
 #: Declared but not implemented, and named so it is not mistaken for passing.
-#: "Strong predicted self-structure" needs a thermodynamics backend, which is
-#: the `thermo` extra and is not built yet. Reporting it as skipped beats
-#: reporting a clean design that was never checked.
+#: "Strong predicted self-structure" is not built. primer3 is now a core
+#: dependency and gives hairpin and homodimer minimum free energies, but a
+#: threshold on a single minimum-energy structure is not an ensemble answer:
+#: if the rule turns out to need the partition function over secondary
+#: structures, that is McCaskill's algorithm, implemented from the paper and
+#: validated against primer3's hairpin and dimer numbers -- never NUPACK,
+#: which is non-commercial. Reporting it as skipped beats reporting a clean
+#: design that was never checked.
 UNIMPLEMENTED: Sequence[tuple[str, str]] = (
-    ("self_structure", "needs a thermodynamics backend (the `thermo` extra); not implemented"),
+    ("self_structure", "not implemented (needs an ensemble self-structure model)"),
 )
 
 

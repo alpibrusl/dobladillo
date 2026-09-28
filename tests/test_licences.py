@@ -62,7 +62,9 @@ REVIEWED = {
     "numpy": "BSD-3-Clause",
     "matplotlib": "Matplotlib",  # PSF-based, BSD-compatible
     "scadnano": "MIT",
-    # primer3-py: its pyproject says GPL-2.0-or-later, and its C headers "or any later version".
+    # primer3-py: its pyproject says GPL-2.0-or-later, and its C headers "or any later version";
+    # the repo's LICENSE (libnano/primer3-py) is the GPL-2.0 text. A core dependency since it
+    # became the source of the duplex thermodynamics: GPL-2.0-or-later is on EUPL-1.2's list.
     "primer3-py": "GPL-2.0-or-later",
     "scipy": "BSD-3-Clause",
     # AFMReader: its COPYING is the GPL v3 text, its CITATION.cff says
@@ -71,6 +73,11 @@ REVIEWED = {
     # Apache-2.0, igor2 LGPL-3.0-or-later, tifffile and h5py BSD-3-Clause,
     # loguru and ruamel.yaml MIT. Matters the day anything is distributed.
     "afmreader": "GPL-3.0-only",
+    # oxDNA-analysis-tools: the oxDNA repository's LICENSE (lorenzo-rovigatti/oxDNA) is the
+    # GPL-3.0 text, and nothing in the analysis package grants "or later", so it is recorded as
+    # 3.0-only. Its wheel ships no licence file. What it pulls in transitively was read too:
+    # scikit-learn, joblib, threadpoolctl, cloudpickle BSD-3-Clause; narwhals MIT.
+    "oxdna-analysis-tools": "GPL-3.0-only",
     "pytest": "MIT",
     "ruff": "MIT",
     "mypy": "MIT",

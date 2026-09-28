@@ -5,11 +5,42 @@ sets the bias between the two states, so a design that varies latch length and
 GC content is varying a field in the Ising sense, and this module is the map
 from one to the other.
 
-The parameters are SantaLucia's 1998 unified set, which is a published table of
-numbers rather than anyone's code. They are stated at 1 M Na+; everything that
-moves away from that -- lower monovalent salt, and in our case Mg2+ rather than
-Na+ at all -- is a correction, and the corrections are where the honesty has to
-live. See `SALT_NOTE`.
+The parameters are SantaLucia's 1998 unified set, stated at 1 M Na+; everything
+that moves away from that -- lower monovalent salt, and in our case Mg2+ rather
+than Na+ at all -- is a correction, and the corrections are where the honesty
+has to live. See `SALT_NOTE`.
+
+Where the numbers come from: primer3, not us
+--------------------------------------------
+Enthalpy and entropy are computed by primer3's thermodynamic alignment (`thal`,
+through primer3-py), which carries the same SantaLucia table and the same salt
+correction. This module used to transcribe the table itself. It was right, but
+it was a reimplementation of a commodity, and the one bug it did have -- a
+melting temperature silently wrong on self-complementary sequences -- was
+caught only by disagreeing with primer3. docs/VISION.md s3 draws the
+conclusion: replace the commodity, keep only what nobody else does. What is
+ours is what sits on top: the salt caveat, the kT conversion, the refusal of
+self-complementary latches, and `latch_field_kt`.
+
+primer3-py is therefore a CORE dependency, not an optional extra, and there is
+no hand-written fallback table. The two alternatives were considered and
+rejected:
+
+* A fallback table used when primer3 is absent is a second source of truth,
+  and the environment that runs it is by construction the one where nothing
+  checks it. That is not hypothetical: CI installed only the `dev` extra, so
+  the primer3 cross-check the old table relied on was skipped on every CI run.
+* Keeping primer3 optional "because it is GPL" conflated copyleft with
+  incompatible. GPL-2.0-or-later is on EUPL-1.2's compatibility list, and
+  tests/test_licences.py records the review.
+
+The cost is real and stated: primer3-py is a C extension, and it publishes
+wheels for x86-64 only, so an arm64 install (Apple Silicon, aarch64 Linux)
+compiles it and needs a C compiler. The independent reference did not go
+away either -- the published table now lives in tests/test_thermo.py as
+reference data, and primer3 reached through this adapter has to reproduce it.
+That is what catches the mistakes an adapter makes: mM against M, cal against
+kcal, the monovalent and divalent arguments swapped.
 
 What this module does NOT predict, and the distinction matters for reading
 Stage 0: closing a hinge costs conformational entropy that has nothing to do
@@ -36,6 +67,9 @@ containing magnesium and monovalent cations. Biochemistry 47, 5336-5353.
 
 von Ahsen, N., C. T. Wittwer, and E. Schutz (2001). Oligonucleotide melting
 temperatures under PCR conditions. Clin. Chem. 47, 1956-1961.
+
+Untergasser, A., et al. (2012). Primer3 -- new capabilities and interfaces.
+Nucleic Acids Res. 40, e115. (`thal`, the thermodynamic alignment used here.)
 """
 
 from __future__ import annotations
@@ -43,6 +77,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from typing import Final
+
+from primer3.thermoanalysis import ThermoAnalysis
 
 #: Gas constant, kcal/(mol K).
 R_KCAL: Final = 1.987_204_258_640_83e-3
@@ -52,32 +88,13 @@ T37_K: Final = 310.15
 
 COMPLEMENT: Final = {"A": "T", "T": "A", "G": "C", "C": "G"}
 
-#: Unified nearest-neighbour parameters, SantaLucia 1998 table 1: enthalpy in
-#: kcal/mol and entropy in cal/(mol K), for each 5'->3' dimer paired with its
-#: complement, at 1 M NaCl.
-NEAREST_NEIGHBOUR: Final[dict[str, tuple[float, float]]] = {
-    "AA": (-7.9, -22.2),
-    "AT": (-7.2, -20.4),
-    "TA": (-7.2, -21.3),
-    "CA": (-8.5, -22.7),
-    "GT": (-8.4, -22.4),
-    "CT": (-7.8, -21.0),
-    "GA": (-8.2, -22.2),
-    "CG": (-10.6, -27.2),
-    "GC": (-9.8, -24.4),
-    "GG": (-8.0, -19.9),
-}
-
-#: Helix initiation, by which base pair terminates the duplex. Both ends are
-#: counted, so a duplex with one G-C end and one A-T end takes one of each.
-INITIATION: Final[dict[str, tuple[float, float]]] = {
-    "GC": (0.1, -2.8),
-    "AT": (2.3, 4.1),
-}
-
-#: Entropy added per phosphate by the monovalent salt correction,
-#: cal/(mol K) per ln(M). SantaLucia 1998 eq. 7.
-SALT_ENTROPY_PER_PHOSPHATE: Final = 0.368
+#: Longest duplex primer3's `thal` will align (THAL_MAX_ALIGN in thal.h): the
+#: length up to which a two-state model -- intact duplex or two free strands --
+#: is reasonable. Past it, a ThermoAnalysis call does not raise by itself; it
+#: returns zeros with `structure_found` still True and the error parked in a
+#: message field. Hence `duplex` refuses the length up front AND checks the
+#: result. A latch is a dozen bases; nothing here comes near it.
+PRIMER3_MAX_LENGTH: Final = 60
 
 SALT_NOTE: Final = """\
 Our folding buffer is magnesium, not sodium, and the nearest-neighbour table is
@@ -115,7 +132,11 @@ def gc_fraction(sequence: str) -> float:
 
 
 def sodium_equivalent_m(*, sodium_m: float = 0.0, magnesium_m: float = 0.0) -> float:
-    """Monovalent equivalent of a mixed buffer, M. See `SALT_NOTE`."""
+    """Monovalent equivalent of a mixed buffer, M. See `SALT_NOTE`.
+
+    primer3 applies this same rule internally (`saltCorrectS` in its thal.c,
+    in mM); it is restated here so a `Duplex` records the equivalent it was
+    computed at, and so the tests can hold primer3 to it."""
     if sodium_m < 0 or magnesium_m < 0:
         raise ValueError("concentrations cannot be negative")
     return sodium_m + 0.120 * math.sqrt(magnesium_m * 1000.0)
@@ -140,7 +161,10 @@ class Duplex:
 
     def dg_kcal(self, temperature_k: float = T37_K) -> float:
         """Hybridisation free energy at a temperature. Negative favours the
-        duplex, which is the usual convention and the opposite of the field."""
+        duplex, which is the usual convention and the opposite of the field.
+        Two-state, temperature-independent H and S: primer3 computes its own
+        dG the same way, so this agrees with it at whatever temperature it is
+        asked."""
         return self.dh_kcal - temperature_k * self.ds_cal / 1000.0
 
     def dg_kt(self, temperature_k: float = T37_K) -> float:
@@ -152,6 +176,10 @@ class Duplex:
 
     def melting_k(self, *, strand_m: float = 1e-6) -> float:
         """Tm for two non-self-complementary strands at equal concentration.
+
+        The two-state formula over primer3's H and S, not a table of ours. It
+        stays here because it takes the strand concentration as an argument,
+        and it is held to primer3's own Tm by the tests.
 
         Refuses a self-complementary sequence rather than returning a number
         for it. That case needs the symmetry correction (-1.4 cal/(mol K)) and
@@ -172,45 +200,63 @@ class Duplex:
 
 
 def duplex(sequence: str, *, sodium_m: float = 1.0, magnesium_m: float = 0.0) -> Duplex:
-    """Nearest-neighbour thermodynamics of `sequence` against its complement.
+    """Nearest-neighbour thermodynamics of `sequence` against its complement,
+    computed by primer3.
 
     Defaults to the 1 M Na+ reference conditions the table is stated at, so
     that calling this with no buffer reproduces published values rather than
     quietly applying a correction.
+
+    The buffer goes to primer3 as it is -- monovalent and divalent separately,
+    in the mM primer3 expects -- and primer3 applies the salt correction
+    itself: the von Ahsen equivalent of `SALT_NOTE` and SantaLucia's 0.368 per
+    nearest-neighbour step, the same rule `sodium_equivalent_m` states, which
+    the tests hold the two to. dNTPs are zero: a folding buffer has none, and
+    primer3 would otherwise subtract them from the magnesium.
+
+    Only enthalpy and entropy are kept. primer3's dG is at the one temperature
+    it was asked for, and it is H - T*S from those same two numbers, so
+    `Duplex.dg_kcal` reproduces it at any temperature without a second call.
+    Strand concentration does not enter H or S; it moves only the melting
+    point, which `Duplex.melting_k` takes as its own argument.
     """
     sequence = sequence.upper().strip()
+    # primer3 validates nothing: it scores U, N or lower-case input as if it
+    # were something and returns a confident number. So this is checked here.
     if not _is_dna(sequence):
         raise ValueError(f"not a DNA sequence: {sequence!r}")
     if len(sequence) < 2:
         raise ValueError("a duplex needs at least two base pairs")
-
-    dh = 0.0
-    ds = 0.0
-    for i in range(len(sequence) - 1):
-        dimer = sequence[i : i + 2]
-        if dimer in NEAREST_NEIGHBOUR:
-            step = NEAREST_NEIGHBOUR[dimer]
-        else:
-            # The table lists one of each complementary pair; the other reads
-            # the same duplex from the opposite strand.
-            step = NEAREST_NEIGHBOUR[reverse_complement(dimer)]
-        dh += step[0]
-        ds += step[1]
-
-    for end in (sequence[0], sequence[-1]):
-        init = INITIATION["GC" if end in "GC" else "AT"]
-        dh += init[0]
-        ds += init[1]
+    if len(sequence) > PRIMER3_MAX_LENGTH:
+        raise ValueError(
+            f"{len(sequence)} bp is past primer3's {PRIMER3_MAX_LENGTH} bp two-state limit; "
+            "a duplex that long does not melt as one unit"
+        )
 
     na_eq = sodium_equivalent_m(sodium_m=sodium_m, magnesium_m=magnesium_m)
     if na_eq <= 0:
         raise ValueError("a duplex needs some counterion; salt equivalent is zero")
-    # Phosphates, not base pairs: a duplex of N bp carries 2(N-1) of them, and
-    # SantaLucia's correction is per phosphate on a per-strand basis, so the
-    # (N-1) here is the per-strand count.
-    ds += SALT_ENTROPY_PER_PHOSPHATE * (len(sequence) - 1) * math.log(na_eq)
 
-    return Duplex(sequence=sequence, dh_kcal=dh, ds_cal=ds, sodium_equivalent_m=na_eq)
+    # A fresh ThermoAnalysis per call, rather than primer3's module-level
+    # `calc_heterodimer`: that one keeps its buffer in a shared global and
+    # resets it on every call, which is state nobody here should have to
+    # reason about. Construction costs about two microseconds.
+    analysis = ThermoAnalysis(
+        mv_conc=sodium_m * 1000.0,
+        dv_conc=magnesium_m * 1000.0,
+        dntp_conc=0.0,
+        dna_conc=1000.0,
+        temp_c=T37_K - 273.15,
+    )
+    result = analysis.calc_heterodimer(sequence, reverse_complement(sequence)).check_exc()
+    if not result.structure_found:
+        raise ValueError(f"primer3 found no duplex for {sequence} against its complement")
+    return Duplex(
+        sequence=sequence,
+        dh_kcal=float(result.dh) / 1000.0,
+        ds_cal=float(result.ds),
+        sodium_equivalent_m=na_eq,
+    )
 
 
 def latch_field_kt(

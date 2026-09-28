@@ -26,6 +26,13 @@ if TYPE_CHECKING:
 STAGES = ("01_mc", "02_md_trapped", "03_md_released", "04_production")
 
 
+def production_trajectory(directory: Path) -> Path:
+    """The trajectory a run's observables are measured on. Named once, here,
+    because the frames and the fluctuation are read from it separately and
+    must be read from the same file."""
+    return directory / "traj_04_production.dat"
+
+
 class NotAResult(Exception):
     """Raised when a run exists but must not be treated as a measurement."""
 
@@ -103,7 +110,7 @@ def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
                 "cannot be tied to the design the metadata names"
             )
 
-    trajectory = directory / "traj_04_production.dat"
+    trajectory = production_trajectory(directory)
     if not trajectory.is_file():
         problems.append("no production trajectory")
     elif trajectory.stat().st_size == 0:
@@ -121,4 +128,4 @@ def load_run(
     check = check_run(directory, allow_test_mode=allow_test_mode)
     if not check.ok:
         raise NotAResult("; ".join(check.problems))
-    return read_trajectory(directory / "traj_04_production.dat", skip=skip), check
+    return read_trajectory(production_trajectory(directory), skip=skip), check
