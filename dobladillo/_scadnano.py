@@ -109,7 +109,18 @@ def interhelix_spacing_nm() -> float:
 
 
 def assign_scaffold_sequence(design: sc.Design, *, variant: str, rotation: int) -> None:
-    """Put the M13 sequence on whichever strand is marked as scaffold."""
+    """Put the M13 sequence on whichever strand is marked as scaffold.
+
+    Every strand's old sequence is cleared first, so this can be called again
+    after the design changes -- a deletion or insertion shifts every later
+    base -- and the staples are recomputed rather than left stale. Stale
+    staples are what scadnano would otherwise keep, or refuse to overwrite.
+    Extension sequences (latches) are part of the strands and are cleared too;
+    assign them again afterwards.
+    """
+    for strand in design.strands:
+        for domain in strand.domains:  # scadnano keeps sequences per domain
+            domain.dna_sequence = None
     design.assign_m13_to_scaffold(rotation=rotation, variant=sc.M13Variant(variant))
 
 

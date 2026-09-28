@@ -90,6 +90,25 @@ class Stage:
         return "\n".join(lines) + "\n"
 
 
+def check_sequences_pair(design: sc.Design) -> None:
+    """Refuse a design whose staples do not complement its scaffold.
+
+    Found by losing a run: deletions added to a design AFTER its scaffold
+    sequence was assigned shift every later base, and nothing complains. The
+    oxDNA run starts, traps only the pairs that still happen to match (1754 of
+    ~6900), and the structure comes apart over 19 hours. Geometry says which
+    positions are paired; sequence must agree at every one of them.
+    """
+    geometric = sum(len(v) for v in design.base_pairs(allow_mismatches=True).values())
+    complementary = sum(len(v) for v in design.base_pairs().values())
+    if complementary < geometric:
+        raise ValueError(
+            f"only {complementary} of {geometric} paired positions have complementary "
+            "sequences; was a deletion or insertion added after the scaffold sequence was "
+            "assigned? Assign it again, last"
+        )
+
+
 def mutual_traps(design: sc.Design) -> tuple[str, int]:
     """An external forces file holding every base pair together.
 
@@ -347,6 +366,7 @@ def write_job_bundle(
     """
     if backend not in {"CPU", "CUDA"}:
         raise ValueError(f"backend must be CPU or CUDA, got {backend!r}")
+    check_sequences_pair(design)
 
     directory.mkdir(parents=True, exist_ok=True)
     files = ad.write_oxdna_files(design, directory=directory, name=name)

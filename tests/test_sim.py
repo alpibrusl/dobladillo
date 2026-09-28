@@ -263,3 +263,20 @@ def test_bundle_rejects_an_unknown_backend(tmp_path) -> None:
         write_job_bundle(
             six_helix_bundle().design, directory=tmp_path, name="b", part="bundle", backend="Metal"
         )
+
+
+def test_a_bundle_with_mismatched_sequences_is_refused(tmp_path) -> None:
+    """The mistake that cost a 19-hour run: deletions after sequence
+    assignment. Refused before any file is written."""
+    from dobladillo import _scadnano as ad
+    from dobladillo.parts.bundle import END_NT, six_helix_bundle
+    from dobladillo.sim.jobs import write_job_bundle
+
+    design = six_helix_bundle().design
+    design.add_deletion(0, END_NT + 3)
+    with pytest.raises(ValueError, match="complementary"):
+        write_job_bundle(design, directory=tmp_path / "b", name="b", part="bundle")
+    assert not (tmp_path / "b").exists()
+
+    ad.assign_scaffold_sequence(design, variant="p7249", rotation=5587)
+    write_job_bundle(design, directory=tmp_path / "b", name="b", part="bundle", test_mode=True)
