@@ -207,14 +207,26 @@ def _parts(state: State) -> str:
             badge = '<span class="pill p-ready">clean</span>'
         else:
             badge = f'<span class="pill p-bad">{part.violations} x {_e(part.worst)}</span>'
+        if not part.has_run:
+            run = ""
+        elif part.run_matches is None:
+            run = ' <span class="pill p-blocked">run: no design hash</span>'
+        elif part.run_matches:
+            run = ' <span class="pill p-ready">run: same design</span>'
+        else:
+            run = (
+                f' <span class="pill p-bad">run: design {_e(_short(part.run_design_sha256))}</span>'
+            )
         rows.append(
             f"<tr><td>{_e(part.name)}</td>"
             f'<td class="num">{_e(size)} nm</td>'
-            f'<td class="num">{part.staples}</td><td>{badge}</td></tr>'
+            f'<td class="num">{part.staples}</td>'
+            f'<td><span class="mono">{_e(_short(part.design_sha256))}</span>{run}</td>'
+            f"<td>{badge}</td></tr>"
         )
     return (
         '<div class="scroll"><table><thead><tr><th>part</th><th>size</th>'
-        f"<th>staples</th><th>lint</th></tr></thead><tbody>{''.join(rows)}</tbody>"
+        f"<th>staples</th><th>design</th><th>lint</th></tr></thead><tbody>{''.join(rows)}</tbody>"
         "</table></div>"
     )
 
@@ -251,10 +263,38 @@ def _folders(state: State) -> str:
             f'<span class="pill {"p-ready" if ok else "p-blocked"}">{_e(name)}</span>'
             for name, ok in folder["phases"].items()
         )
-        rows.append(f"<tr><td>{_e(folder['name'])}</td><td>{phases}</td><td>{badge}</td></tr>")
+        rows.append(
+            f"<tr><td>{_e(folder['name'])}</td><td>{phases}</td>"
+            f"<td>{_chain(folder.get('provenance'))}</td><td>{badge}</td></tr>"
+        )
     return (
         '<div class="scroll"><table><thead><tr><th>folder</th><th>phases</th>'
+        "<th>provenance</th>"
         f"<th>state</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>"
+    )
+
+
+def _short(digest: str | None) -> str:
+    return digest[:8] if digest else "none"
+
+
+def _chain(summary: dict[str, Any] | None) -> str:
+    """design → order → scans, each named by its hash, and whether they agree.
+
+    A legacy folder says so in words rather than showing an empty chain,
+    because "no design hash recorded" is the finding, not a blank.
+    """
+    if not summary or summary.get("legacy"):
+        return '<span class="pill p-bad">no design hash recorded</span>'
+    design = summary.get("design_sha256")
+    ordered = summary.get("ordered_designs") or []
+    order_text = ", ".join(_short(d) for d in ordered) if ordered else "no manifest"
+    tone = "p-ready" if summary.get("verified") else "p-bad"
+    word = "chain holds" if summary.get("verified") else "chain broken"
+    return (
+        f'<span class="mono">design {_e(_short(design))} → order {_e(order_text)} → '
+        f"{int(summary.get('scans', 0))} scan(s)</span> "
+        f'<span class="pill {tone}">{word}</span>'
     )
 
 
@@ -349,7 +389,10 @@ nominal one.</p></div>
 <div class="note"><span class="eyebrow">Commit <span class="mono">pre/</span> before the session</span>
 <p>The comparison will reconcile a measurement with whatever is predicted. A prediction
 adjusted after seeing a scan produces output <em>identical</em> to one made in advance, so
-the distinction lives in the record and the tooling checks the timestamps.</p></div>
+the distinction lives in the record and the tooling checks the timestamps.</p>
+<p>The provenance column names the design the prediction is of and the design the
+oligos were ordered from, by content hash. <span class="mono">experiment report</span>
+refuses when they differ: a prediction tested against a different object is not a test.</p></div>
 <pre>dobladillo afm read     during/raw/scan.gsf
 dobladillo experiment report  &lt;folder&gt;</pre></div></section>
 

@@ -66,7 +66,12 @@ class Emitter:
 
 
 def _post_report(
-    *, directory: Path, state: Any, measurements: dict[str, Any], results: dict[str, Any]
+    *,
+    directory: Path,
+    state: Any,
+    measurements: dict[str, Any],
+    results: dict[str, Any],
+    chain: Any = None,
 ) -> str:
     """The page a person reads. Verdict first, caveats kept, nothing hidden."""
     agrees = all(r.agrees for r in results.values())
@@ -94,6 +99,19 @@ def _post_report(
         lines += ["## Problems with the record", ""]
         lines += [f"- {p}" for p in state.problems]
         lines += [""]
+    if chain is not None:
+        from dobladillo.provenance import short
+
+        lines += [
+            "## Provenance",
+            "",
+            f"- design `{short(chain.predicted_design)}`"
+            + ("" if chain.predicted_design else " (no design hash recorded)"),
+            f"- order made from design `{short(chain.scan_design)}`",
+            f"- {len(chain.scans)} scan(s), hashes in `comparison.json`",
+            f"- chain {'VERIFIED' if chain.verified else 'NOT verified'}",
+            "",
+        ]
     lines += [
         "## Against the gate",
         "",
@@ -307,6 +325,8 @@ def _build(
     verify: bool,
 ) -> None:
     payload = part.as_dict()
+    # The root of the provenance chain: every later artefact names this hash.
+    payload["design_sha256"] = _design_hash(part.design)
 
     if verify:
         payload["cadnano_v2_roundtrip"] = ad.roundtrips_through_cadnano_v2(part.design)
@@ -612,6 +632,13 @@ def predict(
     out.result(payload, f"{target}: predicted shape\n" + _table(rows))
 
 
+def _design_hash(design: Any) -> str:
+    """The design's content hash; see `dobladillo.provenance`."""
+    from dobladillo.provenance import design_sha256
+
+    return design_sha256(design)
+
+
 def _make_part(which: str, out: Emitter) -> Any:
     if which == "rectangle":
         from dobladillo.parts.rectangle import rothemund_rectangle
@@ -669,12 +696,25 @@ def lab_order(
     }
 
     if out_dir is not None:
+        from dobladillo import provenance
+
         written = lab.write_order_files(
             built.design, directory=out_dir, name=part, plate_type=plate
         )
         problems += lab.validate_plate_workbook(written["idt_plate_xlsx"], plate_type=plate)
         payload["problems"] = [p.as_dict() for p in problems]
+        # Ties these oligos to the design they came from, wherever they are
+        # written -- including over an experiment's pre/order, where a design
+        # that no longer matches the prediction then shows up as a mismatch.
+        manifest = provenance.write_order_manifest(
+            out_dir,
+            name=part,
+            part=part,
+            design_hash=provenance.design_sha256(built.design),
+            files=list(written.values()),
+        )
         payload["files"] = {k: str(v) for k, v in written.items()}
+        payload["manifest"] = str(manifest)
 
     payload["valid"] = not problems
 
@@ -687,6 +727,8 @@ def lab_order(
         ("order files valid", "yes" if not problems else f"NO, {len(problems)} problems"),
     ]
     rows.extend((f"wrote {k}", v) for k, v in payload.get("files", {}).items())
+    if "manifest" in payload:
+        rows.append(("wrote manifest", payload["manifest"]))
     body = f"{part}: staple order\n" + _table(rows)
     body += "\n\n  Cost assumptions:\n" + _table([("-", a) for a in cost.assumptions])
     for problem in problems[:10]:
@@ -1392,6 +1434,7 @@ def experiment_new(
     Commit `pre/` before taking any data. That commit is what makes the
     ordering evidence rather than an assertion.
     """
+    from dobladillo import provenance
     from dobladillo.experiments import scaffold
 
     emitter = Emitter(as_json)
@@ -1399,10 +1442,14 @@ def experiment_new(
     design = built.as_dict()
     dimensions = design.get("approx_dimensions_nm") or design["approx_arm_dimensions_nm"]
     ordered = sorted((float(v) for v in dimensions.values()), reverse=True)
+    # The design's identity, taken before the order labels any strand. Every
+    # later link -- the order manifest, each scan, the comparison -- names it.
+    design_hash = provenance.design_sha256(built.design)
 
     prediction = {
         "part": part,
         "generated_by": f"dobladillo {__version__}",
+        "provenance": provenance.design_record(design_hash, part=part),
         "predicted_nm": {
             "length": round(ordered[0], 1),
             "width": round(ordered[-1], 1),
@@ -1446,12 +1493,21 @@ def experiment_new(
     (directory / "pre" / "order" / "pipetting.json").write_text(
         json.dumps(lab.pipetting_sheet(layout), indent=2) + "\n"
     )
+    manifest = provenance.write_order_manifest(
+        directory / "pre" / "order",
+        name=part,
+        part=part,
+        design_hash=design_hash,
+        files=[*written.values(), directory / "pre" / "order" / "pipetting.json"],
+    )
 
     payload = {
         "directory": str(directory),
         "part": part,
+        "design_sha256": design_hash,
         "prediction": prediction["predicted_nm"],
         "order_files": {k: str(v) for k, v in written.items()},
+        "order_manifest": str(manifest),
         "next": "Fill in pre/plan.md's gate, then COMMIT pre/ before taking data.",
     }
     rows = [
@@ -1461,6 +1517,7 @@ def experiment_new(
             "predicted",
             f"{prediction['predicted_nm']['length']} x {prediction['predicted_nm']['width']} nm",
         ),
+        ("design", provenance.short(design_hash)),
     ]
     rows += [(f"order {k}", str(v)) for k, v in written.items()]
     rows.append(("next", "fill in the gate in pre/plan.md, then commit pre/"))
@@ -1510,6 +1567,33 @@ def experiment_report(
         )
         return
     prediction = json.loads(prediction_path.read_text())
+
+    # Provenance, before anything is measured. A prediction that names its
+    # design must be tested against scans of that design, and the scans'
+    # design is the design of the order the sample was folded from. A legacy
+    # prediction names no design: that is a record problem, already in
+    # `state.problems`, and the report goes ahead and says so.
+    chain = state.chain
+    if not chain.legacy:
+        from dobladillo.provenance import short
+
+        if chain.scan_design is None:
+            emitter.fail(
+                f"pre/prediction.json is of design {short(chain.predicted_design)}, but which "
+                "design the scans are of cannot be established: "
+                + "; ".join(chain.problems or ("pre/order has no manifest",)),
+                kind="provenance_incomplete",
+            )
+            return
+        if chain.scan_design != chain.predicted_design:
+            emitter.fail(
+                f"the scans are of design {short(chain.scan_design)} (the design pre/order "
+                f"was made from) but pre/prediction.json predicts design "
+                f"{short(chain.predicted_design)}. Comparing them would test a prediction "
+                "against a different object. Scaffold a new experiment for the new design",
+                kind="design_mismatch",
+            )
+            return
 
     instrument_path = directory / "during" / "instrument.json"
     if not instrument_path.is_file():
@@ -1563,6 +1647,11 @@ def experiment_report(
     if not particles:
         emitter.fail("no particles clear of the frame edge", kind="no_particles")
         return
+
+    from dobladillo.provenance import folder_chain
+
+    # Re-read with exactly the scans measured, so each is hashed and named.
+    chain = folder_chain(directory, scans=list(scans))
 
     predicted = prediction["predicted_nm"]
     conditions = Conditions(
@@ -1625,11 +1714,18 @@ def experiment_report(
         "record": state.as_dict(),
         "comparisons": {k: v.as_dict() for k, v in results.items()},
         "agrees": all(v.agrees for v in results.values()),
+        "provenance": chain.as_dict(),
     }
     (post / "measurements.json").write_text(json.dumps(measurements, indent=2) + "\n")
     (post / "comparison.json").write_text(json.dumps(comparison, indent=2) + "\n")
     (post / "report.md").write_text(
-        _post_report(directory=directory, state=state, measurements=measurements, results=results)
+        _post_report(
+            directory=directory,
+            state=state,
+            measurements=measurements,
+            results=results,
+            chain=chain,
+        )
     )
 
     payload = {
@@ -1668,6 +1764,20 @@ def experiment_check(
         detail = state if phase.complete else f"{state}, missing {', '.join(phase.missing)}"
         rows.append((str(phase.phase), detail))
     rows.append(("ready for", report.ready_for or "nothing: all three are complete"))
+    if report.chain is not None:
+        from dobladillo.provenance import short
+
+        chain = report.chain
+        rows.append(
+            (
+                "provenance",
+                "no design hash recorded"
+                if chain.legacy
+                else f"design {short(chain.predicted_design)}, order "
+                f"{short(chain.scan_design)}, {len(chain.scans)} raw file(s): "
+                + ("verified" if chain.verified else "NOT verified"),
+            )
+        )
     for problem in report.problems:
         rows.append(("PROBLEM", problem))
     emitter.result(payload, f"{directory}\n" + _table(rows))
@@ -1722,6 +1832,24 @@ def compare_command(
             frames, check = load_run(run_dir, skip=skip)
         except NotAResult as e:
             emitter.fail(str(e), kind="not_a_result")
+            return
+        from dobladillo.provenance import design_sha256, short
+
+        # A run of another design -- an older tiling, a different joint -- is
+        # a comparison of two objects. Refuse on a recorded mismatch; a run
+        # older than the record carries no hash, and that is said, not hidden.
+        run_design = (check.metadata.get("provenance") or {}).get("design_sha256")
+        if run_design is None:
+            emitter.note(
+                "note: this run's metadata records no design hash, so nothing checks "
+                f"that it is a run of the current {part}"
+            )
+        elif run_design != design_sha256(built.design):
+            emitter.fail(
+                f"the run is of design {short(run_design)}, but {part} is now design "
+                f"{short(design_sha256(built.design))}: comparing them compares two objects",
+                kind="design_mismatch",
+            )
             return
         report = analyse(frames)
         salt = check.metadata.get("model", {}).get("salt_concentration_m")
@@ -1790,6 +1918,7 @@ def compare_command(
     results = {q: compare(q, obs) for q, obs in observations.items()}
     payload = {
         "part": part,
+        "design_sha256": _design_hash(built.design),
         "sources": {
             "designed": True,
             "simulated": run_dir is not None and str(run_dir),

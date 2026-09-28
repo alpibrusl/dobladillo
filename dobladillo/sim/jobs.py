@@ -412,9 +412,16 @@ def write_job_bundle(
     files["run"] = run
 
     nucleotides = len(ad.topology_bases(files["topology"]))
+    from dobladillo.provenance import simulation_record
+
     metadata = {
         "part": part,
         "design_name": name,
+        # The simulation's parent in the provenance chain: which design this
+        # is a run of, and the hashes of the topology and starting
+        # configuration written from it. `analysis.runs.check_run` checks the
+        # topology against this, and `compare --run` the design.
+        "provenance": simulation_record(design, part=part, files=files),
         "nucleotides": nucleotides,
         "trapped_pairs": pairs,
         "model": {

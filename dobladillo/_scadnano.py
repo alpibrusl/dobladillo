@@ -284,6 +284,20 @@ def read_design(path: Path) -> sc.Design:
     return sc.Design.from_scadnano_file(str(path))
 
 
+def design_json(design: sc.Design) -> dict[str, Any]:
+    """The design as scadnano's own JSON data model, parsed back to a dict.
+
+    This is exactly what a .sc file holds, before any indentation is applied.
+    `dobladillo.provenance` hashes a canonical form of it; going through
+    scadnano's serialiser rather than walking the objects ourselves means a
+    field scadnano adds is covered without anybody remembering to add it here.
+    """
+    import json
+
+    parsed: dict[str, Any] = json.loads(design.to_json(suppress_indent=False))
+    return parsed
+
+
 def write_all(design: sc.Design, *, directory: Path, name: str) -> dict[str, Path]:
     """Write every format Q1 needs, and say where each went.
 
