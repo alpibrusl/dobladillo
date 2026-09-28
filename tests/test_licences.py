@@ -62,7 +62,9 @@ REVIEWED = {
     "numpy": "BSD-3-Clause",
     "matplotlib": "Matplotlib",  # PSF-based, BSD-compatible
     "scadnano": "MIT",
-    # primer3-py: its pyproject says GPL-2.0-or-later, and its C headers "or any later version".
+    # primer3-py: its pyproject says GPL-2.0-or-later, and its C headers "or any later version";
+    # the repo's LICENSE (libnano/primer3-py) is the GPL-2.0 text. A core dependency since it
+    # became the source of the duplex thermodynamics: GPL-2.0-or-later is on EUPL-1.2's list.
     "primer3-py": "GPL-2.0-or-later",
     "scipy": "BSD-3-Clause",
     "pytest": "MIT",

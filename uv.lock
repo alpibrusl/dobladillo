@@ -275,6 +275,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "primer3-py" },
     { name = "pyyaml" },
     { name = "typer" },
 ]
@@ -294,16 +295,13 @@ imaging = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-thermo = [
-    { name = "primer3-py" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "numpy", specifier = ">=1.26" },
-    { name = "primer3-py", marker = "extra == 'thermo'", specifier = ">=2.0" },
+    { name = "primer3-py", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
@@ -312,7 +310,7 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'imaging'", specifier = ">=1.11" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["design", "thermo", "imaging", "mechanics", "dev"]
+provides-extras = ["design", "imaging", "mechanics", "dev"]
 
 [[package]]
 name = "et-xmlfile"

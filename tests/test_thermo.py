@@ -1,21 +1,33 @@
-"""Nearest-neighbour thermodynamics, checked against an independent
-implementation wherever one is installed.
+"""Nearest-neighbour thermodynamics: primer3, held to the published table.
 
-primer3-py is GPLv2 and therefore an optional extra here, so these tests skip
-in an environment without it. That is the point of having both: the parameter
-table is transcribed from a paper, and a transcription error in one of thirty
-numbers would be invisible in every internal consistency check.
+`sequence.thermo` computes duplex enthalpy and entropy through primer3 and no
+longer carries a table of its own. The table did not disappear; it moved here,
+as reference data. primer3 is someone else's code and our adapter is the part
+that can be wrong -- mM against M, cal against kcal, magnesium passed as
+sodium -- and every one of those mistakes shows up as a disagreement with the
+paper. So these are conformance tests: the dependency, reached through our
+adapter, must reproduce SantaLucia 1998 on every latch the ladder can choose.
+
+These tests used to skip without the optional `thermo` extra, and CI never
+installed it, so the cross-check never ran there. primer3 is a core
+dependency now and nothing here skips.
 """
 
 from __future__ import annotations
 
 import math
 
+import primer3 as _p3
 import pytest
 
+from dobladillo.hamiltonian.bracket import (
+    DESIGN_MAGNESIUM_M,
+    DESIGN_TEMPERATURE_K,
+    candidate_latches,
+)
 from dobladillo.hamiltonian.model import Ising, distribution
 from dobladillo.sequence.thermo import (
-    NEAREST_NEIGHBOUR,
+    PRIMER3_MAX_LENGTH,
     R_KCAL,
     T37_K,
     duplex,
@@ -26,17 +38,57 @@ from dobladillo.sequence.thermo import (
     sodium_equivalent_m,
 )
 
-try:  # pragma: no cover - environment dependent
-    import primer3 as _p3
-
-    has_primer3 = True
-except ImportError:  # pragma: no cover - environment dependent
-    has_primer3 = False
-
-needs_primer3 = pytest.mark.skipif(not has_primer3, reason="primer3-py is an optional extra")
-
 #: Deliberately none of them self-complementary; that case is tested apart.
 CASES = ("CGTTGA", "AGTCGTAC", "GGCATTACCG", "ACGGTCATTGCA", "TTTTTTTT", "GCGGCGGC")
+
+#: Unified nearest-neighbour parameters, SantaLucia 1998 table 1: enthalpy in
+#: kcal/mol and entropy in cal/(mol K), for each 5'->3' dimer paired with its
+#: complement, at 1 M NaCl. Reference data, transcribed from the paper.
+SANTALUCIA_1998: dict[str, tuple[float, float]] = {
+    "AA": (-7.9, -22.2),
+    "AT": (-7.2, -20.4),
+    "TA": (-7.2, -21.3),
+    "CA": (-8.5, -22.7),
+    "GT": (-8.4, -22.4),
+    "CT": (-7.8, -21.0),
+    "GA": (-8.2, -22.2),
+    "CG": (-10.6, -27.2),
+    "GC": (-9.8, -24.4),
+    "GG": (-8.0, -19.9),
+}
+
+#: Helix initiation by terminal pair, SantaLucia 1998. Both ends count.
+INITIATION_1998: dict[str, tuple[float, float]] = {"GC": (0.1, -2.8), "AT": (2.3, 4.1)}
+
+#: Salt correction, cal/(mol K) per nearest-neighbour step per ln(M); eq. 7.
+SALT_ENTROPY_PER_STEP = 0.368
+
+#: How far primer3 is allowed to sit from the 1998 table. It is not zero, and
+#: why is known: primer3 carries the SantaLucia & Hicks 2004 initiation
+#: (dS = -5.7 e.u. for the duplex plus a terminal A-T penalty) where 1998
+#: splits it by end (-2.8 per G-C end, so -5.6). Every duplex therefore
+#: differs by a constant 0.1 cal/(mol K), which is 0.03 kcal/mol, 0.025 kT of
+#: field at 25 C, and it shifts every latch alike. Anything larger is a real
+#: disagreement.
+DS_TOLERANCE_CAL = 0.2
+DH_TOLERANCE_KCAL = 0.05
+DG_TOLERANCE_KCAL = 0.05
+
+
+def _published(sequence: str, *, na_eq_m: float = 1.0) -> tuple[float, float]:
+    """dH (kcal/mol) and dS (cal/(mol K)) summed straight from the paper."""
+    dh = ds = 0.0
+    for i in range(len(sequence) - 1):
+        dimer = sequence[i : i + 2]
+        step = SANTALUCIA_1998.get(dimer) or SANTALUCIA_1998[reverse_complement(dimer)]
+        dh += step[0]
+        ds += step[1]
+    for end in (sequence[0], sequence[-1]):
+        init = INITIATION_1998["GC" if end in "GC" else "AT"]
+        dh += init[0]
+        ds += init[1]
+    ds += SALT_ENTROPY_PER_STEP * (len(sequence) - 1) * math.log(na_eq_m)
+    return dh, ds
 
 
 def test_reverse_complement_is_an_involution() -> None:
@@ -44,15 +96,15 @@ def test_reverse_complement_is_an_involution() -> None:
         assert reverse_complement(reverse_complement(s)) == s
 
 
-def test_the_parameter_table_covers_every_dimer() -> None:
+def test_the_reference_table_covers_every_dimer() -> None:
     """Ten entries cover sixteen dimers, because each stands for itself and
-    its reverse complement. If one were missing, `duplex` would raise a
+    its reverse complement. If one were missing, the reference would raise a
     KeyError on some ordinary sequence rather than on an obvious one."""
     bases = "ACGT"
     for a in bases:
         for b in bases:
             dimer = a + b
-            assert dimer in NEAREST_NEIGHBOUR or reverse_complement(dimer) in NEAREST_NEIGHBOUR
+            assert dimer in SANTALUCIA_1998 or reverse_complement(dimer) in SANTALUCIA_1998
 
 
 def test_gc_content_raises_free_energy_magnitude() -> None:
@@ -125,24 +177,72 @@ def test_the_conformational_offset_shifts_the_field_by_half_itself() -> None:
     )
 
 
-@needs_primer3
-@pytest.mark.parametrize("sequence", CASES)
-def test_enthalpy_and_entropy_match_primer3(sequence: str) -> None:
+@pytest.mark.parametrize("sequence", CASES + candidate_latches())
+def test_primer3_through_the_adapter_reproduces_the_published_table(sequence: str) -> None:
+    """At the 1 M Na+ the table is stated at, over every latch the bracketing
+    ladder can choose from, not just a handful."""
     ours = duplex(sequence, sodium_m=1.0)
+    dh, ds = _published(sequence)
+    assert ours.dh_kcal == pytest.approx(dh, abs=DH_TOLERANCE_KCAL)
+    assert ours.ds_cal == pytest.approx(ds, abs=DS_TOLERANCE_CAL)
+    assert ours.dg_kcal() == pytest.approx(dh - T37_K * ds / 1000.0, abs=DG_TOLERANCE_KCAL)
+
+
+@pytest.mark.parametrize("sequence", ("GCATGCAT", "GACTAGTCATGA", "GATA"))
+def test_the_design_buffer_reaches_primer3_as_magnesium(sequence: str) -> None:
+    """The ladder's buffer: 12 mM Mg on top of the 1 M Na default. The
+    published salt rule on the von Ahsen equivalent must come out, which it
+    only does if the magnesium went in as magnesium and in mM."""
+    ours = duplex(sequence, magnesium_m=DESIGN_MAGNESIUM_M)
+    na_eq = sodium_equivalent_m(sodium_m=1.0, magnesium_m=DESIGN_MAGNESIUM_M)
+    assert ours.sodium_equivalent_m == pytest.approx(na_eq)
+    dh, ds = _published(sequence, na_eq_m=na_eq)
+    assert ours.ds_cal == pytest.approx(ds, abs=DS_TOLERANCE_CAL)
+    assert ours.dh_kcal == pytest.approx(dh, abs=DH_TOLERANCE_KCAL)
+
+
+def test_magnesium_is_not_mistaken_for_sodium() -> None:
+    """Negative control for the test above. 12 mM of magnesium is worth about
+    416 mM of sodium; passed as 12 mM of sodium it would be a much weaker
+    buffer, and this checks the difference is visible at all."""
+    as_magnesium = duplex("GCATGCAT", sodium_m=0.0, magnesium_m=0.012)
+    as_sodium = duplex("GCATGCAT", sodium_m=0.012, magnesium_m=0.0)
+    equivalent = duplex("GCATGCAT", sodium_m=sodium_equivalent_m(magnesium_m=0.012))
+    assert as_magnesium.ds_cal == pytest.approx(equivalent.ds_cal, abs=1e-6)
+    assert as_sodium.dg_kcal() - as_magnesium.dg_kcal() > 0.5
+
+
+@pytest.mark.parametrize("temperature_c", (25.0, 37.0, 60.0))
+def test_free_energy_at_any_temperature_is_primer3s(temperature_c: float) -> None:
+    """Only H and S are kept, and dG is rebuilt from them. That is exactly
+    what primer3 does internally, so the rebuilt value must be its own number
+    at whatever temperature primer3 is asked -- not merely close to it."""
+    sequence = "GACTAGTCATGA"
     theirs = _p3.calc_heterodimer(
         sequence,
         reverse_complement(sequence),
         mv_conc=1000.0,
-        dv_conc=0.0,
+        dv_conc=12.0,
         dntp_conc=0.0,
         dna_conc=1000.0,
+        temp_c=temperature_c,
     )
-    assert ours.dh_kcal == pytest.approx(theirs.dh / 1000.0, abs=0.05)
-    assert ours.ds_cal == pytest.approx(theirs.ds, abs=0.2)
-    assert ours.dg_kcal() == pytest.approx(theirs.dg / 1000.0, abs=0.05)
+    ours = duplex(sequence, magnesium_m=0.012)
+    assert ours.dg_kcal(temperature_c + 273.15) == pytest.approx(theirs.dg / 1000.0, abs=1e-9)
 
 
-@needs_primer3
+def test_the_ladder_field_is_the_published_one_up_to_the_known_offset() -> None:
+    """The quantity the ladder is built from, at the ladder's own conditions:
+    within the constant initiation offset above and nothing more."""
+    na_eq = sodium_equivalent_m(sodium_m=1.0, magnesium_m=DESIGN_MAGNESIUM_M)
+    t = DESIGN_TEMPERATURE_K
+    for sequence in candidate_latches():
+        dh, ds = _published(sequence, na_eq_m=na_eq)
+        published = -((dh - t * ds / 1000.0) / (R_KCAL * t)) / 2.0
+        ours = latch_field_kt(duplex(sequence, magnesium_m=DESIGN_MAGNESIUM_M), temperature_k=t)
+        assert ours == pytest.approx(published, abs=0.03), sequence
+
+
 @pytest.mark.parametrize("sequence", CASES)
 def test_melting_matches_primer3_for_non_self_complementary_duplexes(sequence: str) -> None:
     ours = duplex(sequence, sodium_m=1.0)
@@ -155,6 +255,16 @@ def test_melting_matches_primer3_for_non_self_complementary_duplexes(sequence: s
         dna_conc=1000.0,
     )
     assert ours.melting_c(strand_m=1e-6) == pytest.approx(theirs.tm, abs=0.5)
+
+
+def test_a_duplex_past_primer3s_limit_is_refused_rather_than_zeroed() -> None:
+    """primer3 aligns at most 60 bp. Past that its result is zeros with
+    `structure_found` still true -- a duplex of no energy, not an error -- so
+    the length is refused before primer3 is asked."""
+    at_limit = ("ACGGTCATTGCA" * 6)[:PRIMER3_MAX_LENGTH]
+    assert duplex(at_limit).dh_kcal < -400.0
+    with pytest.raises(ValueError, match="two-state"):
+        duplex(at_limit + "A")
 
 
 def test_rejects_things_that_are_not_dna() -> None:
