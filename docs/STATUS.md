@@ -34,7 +34,8 @@ calibrated on designs we did not write:
 | old rectangle / twist pair / hinge | 89–91° | 46–48% | — |
 | rectangle, twist pair (scadnano `origami_rectangle`) | 21°, 21°, 18° | 0 | 0, 0, −310° |
 | hinge (`_lattice`, column parity) | 17° | 0 | 0 |
-| six-helix bundle | 44° | 1% | 0 |
+| six-helix bundle, 28/14 spans | 44° | 1% | 0 |
+| six-helix bundle, scadnano's 6HB unit | 17° | 0 | 0 |
 
 The uncorrected twist-pair arm's −310° matches the 309° predicted from the
 lattice alone. That is an independent check on both.
@@ -44,7 +45,9 @@ lattice alone. That is an independent check on both.
 - The hinge now has 132 staples, not 144; E3's protocol volumes are updated.
   **The hinge joint sweep and latch-reach runs above were made on the old
   tiling** and need re-running before they inform E3 or E4.
-- The bundle is still misphased; its lint test is a strict xfail.
+- The bundle was misphased too (44°). It now tiles scadnano's published 42-bp
+  unit (17°). Whether that removes the oxDNA arc is running now; see
+  docs/BUNDLE_BEND.md.
 
 ## Q4: verified, and what it took
 

@@ -190,3 +190,30 @@ is to build a small beam finite-element predictor from the published method
 (issue #22), validate it against *this* bundle's oxDNA arc, and iterate
 routing against it in seconds (issue #5). Then route with the lattice's
 canonical crossover positions rather than ours (#6). See `docs/VISION.md`.
+
+---
+
+## Third routing: scadnano's published unit (2026-09-28)
+
+`routing.azimuth`, calibrated on published designs, explained the refutation.
+Honeycomb allows each neighbour pair one crossover phase in the 21-bp repeat,
+and on the ring that phase is different for each of the SIX pairs: 7, 21 and
+35 mod 42 in turn. The 28/14 routing gave each of two *families* one phase,
+so two thirds of the crossovers stayed off:
+
+| routing | phasing rms | wrong face |
+|---|---:|---:|
+| original, 21/21 | 62° | 4 crossovers |
+| 28/14 spans | 44° | 1% |
+| scadnano's 6HB unit + unpaired scaffold ends | **17°** | 0 |
+| published honeycomb designs | 19–22° | 0 |
+
+`parts/bundle.py` now tiles the 42-bp repeating unit of scadnano's example
+bundle (MIT). Every staple is 42 nt. The scaffold turns through 5 unpaired
+bases at each helix end, because a raster cannot put all six end turns in
+phase.
+
+**Physics not yet measured.** An oxDNA run with the same recipe as the two
+above (1e6 steps per relaxation stage, 1e6 production steps, 200 frames) was
+started on 2026-09-28. This design is straight only if that run's order
+parameter falls well below 0.99 and the sagitta well below 50 nm.

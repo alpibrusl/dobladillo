@@ -161,28 +161,39 @@ def test_ring_centre_is_hollow() -> None:
 
 
 def test_bundle_scaffold_accounting_is_exact(bundle) -> None:
-    assert bundle.scaffold.routed_nt == HELICES * bundle.length
+    from dobladillo.parts.bundle import END_NT
+
+    assert bundle.scaffold.routed_nt == HELICES * (bundle.length + 2 * END_NT)
     assert bundle.scaffold.routed_nt + bundle.scaffold.unused_nt == bundle.scaffold.total_nt
 
 
-def test_bundle_every_scaffold_base_is_paired_exactly_once(bundle) -> None:
+def test_bundle_pairs_every_scaffold_base_but_the_turning_ends(bundle) -> None:
+    """Every base is paired exactly once, except END_NT at each helix end,
+    left single-stranded on purpose so the scaffold turns without a phase."""
+    from dobladillo.parts.bundle import END_NT
+
     scaffold_nt = ad.scaffold_strand(bundle.design).dna_length()
     staple_nt = sum(s.dna_length() for s in ad.staples(bundle.design))
-    assert staple_nt == scaffold_nt
+    assert staple_nt == scaffold_nt - 2 * END_NT * HELICES
 
 
 def test_bundle_staple_count_and_lengths_are_pinned(bundle) -> None:
-    """Two staple sizes, not one, and that is the fix rather than a regression.
-
-    Equal spans tile at multiples of 21 and put every crossover at the same
-    helical phase, which is what bent the first version into a 269 nm arc.
-    Spans of 28 and 14 put the two pair families at different phases, at the
-    cost of 56 nt and 28 nt staples instead of a uniform 42. Both are inside
-    the hard length limits and outside the preferred band, so the linter warns
-    and does not block. See docs/BUNDLE_BEND.md.
-    """
+    """168 staples of 42 nt: scaffold's published unit, four blocks of six
+    staples per 168 bp. The 28/14 split that came before it made 56 and 28 nt
+    staples and was still misphased; see parts/bundle.py."""
     assert bundle.staple_count == 168
-    assert set(bundle.staple_lengths) == {28, 56}
+    assert set(bundle.staple_lengths) == {42}
+
+
+def test_bundle_is_phased_like_published_designs(bundle) -> None:
+    from dobladillo.routing.azimuth import measure
+
+    report = measure(bundle.design)
+    assert report.rms_deg < 22
+    assert not report.wrong_face
+    # The scaffold's six end turns, in single-stranded DNA by design -- and
+    # no others: a staple crossover there would be a tiling bug.
+    assert report.unconstrained == 2 * (HELICES - 1)
 
 
 def test_bundle_needs_no_twist_correction(bundle) -> None:

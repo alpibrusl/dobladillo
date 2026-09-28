@@ -27,9 +27,9 @@ trust it (`tests/data/reference_designs/`):
 
 | design | lattice | raw rms | phasing rms | twist |
 |---|---|---:|---:|---:|
-| Nature 2009 monolith (caDNAno test data) | honeycomb | 20.5 | 20.1 | 15 deg |
+| Nature 2009 monolith (caDNAno test data) | honeycomb | 19.1 | 19.0 | 6 deg |
 | Nature 2009 square nut (caDNAno test data) | honeycomb | 20.9 | 20.4 | 20 deg |
-| scadnano example 6-helix bundle | honeycomb | 22.3 | 22.3 | 0 deg |
+| scadnano example 6-helix bundle | honeycomb | 22.2 | 22.2 | 0 deg |
 | scadnano 16-helix rectangle, with deletions | square | 31.4 | 21.4 | 75 deg |
 | scadnano 16-helix rectangle, no deletions | square | 66.4 | 18.7 | -216 deg |
 
@@ -111,6 +111,7 @@ class AzimuthReport:
     """
 
     crossovers: tuple[Crossover, ...] = field(default_factory=tuple)
+    unconstrained: int = 0
     twist_deg_per_bp: float = 0.0
     accumulated_twist_deg: float = 0.0
     raw_rms_deg: float = 0.0
@@ -145,6 +146,7 @@ class AzimuthReport:
                 round(len(self.wrong_face) / len(self.crossovers), 3) if self.crossovers else 0.0
             ),
             "acceptable": self.acceptable,
+            "unconstrained_crossovers": self.unconstrained,
             "raw_rms_strain_deg": round(self.raw_rms_deg, 1),
             "twist_deg_per_bp": round(self.twist_deg_per_bp, 3),
             "accumulated_twist_deg": round(self.accumulated_twist_deg, 1),
@@ -221,18 +223,18 @@ def _duplexes(design: sc.Design) -> dict[int, list[tuple[int, int]]]:
     return runs
 
 
-def _segment(offset: int, runs: list[tuple[int, int]]) -> int:
-    """Which duplex run an offset belongs to; the nearest one if it is in none."""
-    if not runs:
-        return 0
-    return min(
-        range(len(runs)),
-        key=lambda i: (
-            0
-            if runs[i][0] <= offset < runs[i][1]
-            else min(abs(offset - runs[i][0]), abs(offset - (runs[i][1] - 1)))
-        ),
-    )
+def _segment(offset: int, runs: list[tuple[int, int]]) -> int | None:
+    """Which duplex run an offset belongs to, or None if it is single-stranded.
+
+    A crossover made from unpaired bases -- a scaffold turning through a few
+    free bases at the end of a helix -- has no backbone orientation to get
+    wrong, so it is not scored. It is counted, as `unconstrained`, so a design
+    cannot hide crossovers there without the report saying so.
+    """
+    for i, (lo, hi) in enumerate(runs):
+        if lo <= offset < hi:
+            return i
+    return None
 
 
 def _wrap(x: np.ndarray) -> np.ndarray:
@@ -263,6 +265,7 @@ def measure(design: sc.Design) -> AzimuthReport:
     deletions, insertions = _skips(design)
     duplexes = _duplexes(design)
     per_helix: list[tuple[int, list[tuple[int, int, bool]], np.ndarray, np.ndarray]] = []
+    unconstrained = 0
     for helix in helices.values():
         all_addresses = helix.crossover_addresses(
             helices, allow_intrahelix=False, allow_intergroup=False
@@ -270,7 +273,11 @@ def measure(design: sc.Design) -> AzimuthReport:
         runs = duplexes.get(helix.idx, [])
         groups: dict[int, list[tuple[int, int, bool]]] = {}
         for address in all_addresses:
-            groups.setdefault(_segment(address[1], runs), []).append(address)
+            segment = _segment(address[1], runs)
+            if segment is None:
+                unconstrained += 1
+                continue
+            groups.setdefault(segment, []).append(address)
         for addresses in groups.values():
             actual = np.array(
                 [
@@ -312,6 +319,7 @@ def measure(design: sc.Design) -> AzimuthReport:
     raw_all = np.concatenate(raw) if raw else np.array([])
     return AzimuthReport(
         crossovers=tuple(found),
+        unconstrained=unconstrained,
         twist_deg_per_bp=rate,
         accumulated_twist_deg=rate * float(np.median(spans)) if spans else 0.0,
         raw_rms_deg=float(np.sqrt((raw_all**2).mean())) if len(raw_all) else 0.0,

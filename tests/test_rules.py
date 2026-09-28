@@ -56,24 +56,15 @@ def _fired(design: sc.Design, rule: str) -> bool:
     "part",
     [
         pytest.param(rothemund_rectangle, id="rectangle"),
-        pytest.param(
-            six_helix_bundle,
-            id="bundle",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="bundle routing still misphased: 44 deg rms against 20-22 for "
-                "published honeycomb designs (crossover_azimuth); see docs/STATUS.md",
-            ),
-        ),
+        pytest.param(six_helix_bundle, id="bundle"),
     ],
 )
 def test_reference_parts_have_no_hard_violations(part) -> None:
     """The parts this project generates must satisfy their own rules.
 
     It has caught real defects: the first rectangle put a staple crossover on
-    the scaffold's turn, and every square part put half its crossovers on the
-    wrong face. The bundle is marked as a known failure rather than dropped,
-    so that fixing it is what turns this test green.
+    the scaffold's turn, every square part put half its crossovers on the
+    wrong face, and the bundle bonded two of its three pairs off phase.
     """
     report = lint(part().design)
     assert report.ok, [v.as_dict() for v in report.hard]
