@@ -64,7 +64,7 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         relevance=5,
         difficulty=1,
         success=0.90,
-        blocked_by="",
+        blocked_by="square-lattice tiling puts half its crossovers on the wrong face (see STATUS)",
         why="The most reproduced structure in the field. It gates everything: if it "
         "does not fold and image here, the problem is in our chain and every later "
         "result inherits it.",
@@ -76,7 +76,7 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         relevance=4,
         difficulty=2,
         success=0.75,
-        blocked_by="",
+        blocked_by="square-lattice tiling puts half its crossovers on the wrong face (see STATUS)",
         why="Validates the twist correction that every square-lattice dimension "
         "rests on. Whether deleting one base every 64 cancels the twist in practice "
         "is visible in an AFM image and nowhere else.",
@@ -89,7 +89,7 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         relevance=5,
         difficulty=2,
         success=0.70,
-        blocked_by="a folded-hinge footprint prediction",
+        blocked_by="square-lattice tiling puts half its crossovers on the wrong face (see STATUS); and a folded-hinge footprint prediction",
         why="The cheapest thing that can invalidate the hinge line. One construct "
         "rather than eight, and the original plan went straight from 'no hinge has "
         "ever been folded' to an eight-construct ladder with a FRET readout.",
