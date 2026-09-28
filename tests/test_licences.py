@@ -67,6 +67,11 @@ REVIEWED = {
     # became the source of the duplex thermodynamics: GPL-2.0-or-later is on EUPL-1.2's list.
     "primer3-py": "GPL-2.0-or-later",
     "scipy": "BSD-3-Clause",
+    # oxDNA-analysis-tools: the oxDNA repository's LICENSE (lorenzo-rovigatti/oxDNA) is the
+    # GPL-3.0 text, and nothing in the analysis package grants "or later", so it is recorded as
+    # 3.0-only. Its wheel ships no licence file. What it pulls in transitively was read too:
+    # scikit-learn, joblib, threadpoolctl, cloudpickle BSD-3-Clause; narwhals MIT.
+    "oxdna-analysis-tools": "GPL-3.0-only",
     "pytest": "MIT",
     "ruff": "MIT",
     "mypy": "MIT",

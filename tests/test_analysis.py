@@ -15,18 +15,18 @@ import json
 import numpy as np
 import pytest
 
+from dobladillo.analysis import _oat
 from dobladillo.analysis.observables import (
     analyse,
     axis_bend_nm,
     planarity_nm,
     principal_extents_nm,
-    rmsf_nm,
 )
 from dobladillo.analysis.runs import NotAResult, check_run, load_run
-from dobladillo.analysis.trajectory import Frame, read_trajectory
+from dobladillo.analysis.trajectory import read_trajectory
 from dobladillo.parts.bundle import six_helix_bundle
 from dobladillo.sim.jobs import write_job_bundle
-from dobladillo.units import nm_to_oxdna
+from dobladillo.units import OXDNA_LENGTH_UNIT_NM, nm_to_oxdna
 
 
 def _slab(nx=40, ny=20, nz=3, spacing=1.0, rng=None) -> np.ndarray:
@@ -37,15 +37,36 @@ def _slab(nx=40, ny=20, nz=3, spacing=1.0, rng=None) -> np.ndarray:
     return grid
 
 
-def _frame(positions_nm: np.ndarray, step: int = 0) -> Frame:
-    return Frame(
-        step=step,
-        box_nm=np.array([500.0, 500.0, 500.0]),
-        energy=(-1.0, -1.5, 0.5),
-        positions_nm=positions_nm,
-        base_vectors=np.zeros_like(positions_nm),
-        normals=np.zeros_like(positions_nm),
-    )
+def _write_trajectory(path, positions_nm, *, rotations=None):
+    """An oxDNA trajectory file of these frames, positions given in nm.
+
+    The fluctuation is computed by oat from a FILE, so tests of it need one.
+    Orientation vectors are written too, rotated with the frame when a
+    rotation is given: oat averages and renormalises them, and a zero vector
+    would divide by zero there.
+    """
+    lines = []
+    for i, positions in enumerate(positions_nm):
+        rotation = np.eye(3) if rotations is None else rotations[i]
+        a1 = np.array([1.0, 0.0, 0.0]) @ rotation
+        a3 = np.array([0.0, 0.0, 1.0]) @ rotation
+        lines += [f"t = {i * 1000}", "b = 1000 1000 1000", "E = -1 -1.5 0.5"]
+        for row in nm_to_oxdna(positions):
+            lines.append(" ".join(f"{v:.8f}" for v in [*row, *a1, *a3, 0, 0, 0, 0, 0, 0]))
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
+def _analysed(tmp_path, positions_nm, *, skip=0, rotations=None):
+    path = _write_trajectory(tmp_path / "traj.dat", positions_nm, rotations=rotations)
+    return analyse(read_trajectory(path, skip=skip), trajectory=path, skip=skip)
+
+
+def _random_rotation(rng) -> np.ndarray:
+    rotation, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+    if np.linalg.det(rotation) < 0:
+        rotation[:, 0] *= -1
+    return rotation
 
 
 # --------------------------------------------------------------- dimensions
@@ -113,36 +134,135 @@ def test_a_straight_rod_does_not_bend_and_a_curved_one_does() -> None:
     assert axis_bend_nm(arc) > 5.0
 
 
-def test_rmsf_sees_through_tumbling() -> None:
+def test_rmsf_sees_through_tumbling(tmp_path) -> None:
     """A rigid object that only rotates is not fluctuating.
 
     Without superimposition its RMSF would be enormous, which is the whole
-    reason the alignment is there.
+    reason the alignment is there. This is also the test that caught the
+    transposed Kabsch this project once wrote; it now holds oat to it.
     """
     rng = np.random.default_rng(1)
     shape = _slab(nx=20, ny=10, nz=2)
-    frames = []
-    for step in range(4):
-        rotation, _ = np.linalg.qr(rng.normal(size=(3, 3)))
-        if np.linalg.det(rotation) < 0:
-            rotation[:, 0] *= -1
-        frames.append(_frame(shape @ rotation + rng.normal(0, 5, 3), step))
-
-    fluctuation, _ = rmsf_nm(frames)
-    assert fluctuation.max() < 0.05
+    rotations = [_random_rotation(rng) for _ in range(4)]
+    positions = [shape @ r + rng.normal(0, 5, 3) for r in rotations]
+    report = _analysed(tmp_path, positions, rotations=rotations)
+    assert report.rmsf_nm.max() < 0.05
 
 
-def test_rmsf_reports_real_motion() -> None:
+def test_rmsf_reports_real_motion(tmp_path) -> None:
     rng = np.random.default_rng(2)
     shape = _slab(nx=20, ny=10, nz=2)
-    frames = [_frame(shape + rng.normal(0, 0.3, shape.shape), s) for s in range(6)]
-    fluctuation, _ = rmsf_nm(frames)
-    assert 0.2 < fluctuation.mean() < 0.8
+    positions = [shape + rng.normal(0, 0.3, shape.shape) for _ in range(6)]
+    report = _analysed(tmp_path, positions)
+    assert 0.2 < report.rmsf_nm.mean() < 0.8
 
 
-def test_rmsf_needs_more_than_one_frame() -> None:
-    with pytest.raises(ValueError, match="two frames"):
-        rmsf_nm([_frame(_slab())])
+def test_rmsf_comes_back_in_nanometres(tmp_path) -> None:
+    """oat converts units inside `deviations`, with its own constant, and
+    `dobladillo.units` is supposed to be the only place that happens. A flat
+    sheet whose nucleotides move 0.5 nm up and down out of plane, in a
+    checkerboard so nothing rotates or translates, has an RMSF of exactly
+    0.5 nm -- and only if the two constants agree."""
+    assert _oat.OAT_LENGTH_UNIT_NM == OXDNA_LENGTH_UNIT_NM
+    sheet = _slab(nx=20, ny=10, nz=1, spacing=2.0)
+    checker = np.where((sheet[:, 0] + sheet[:, 1]) / 2.0 % 2 == 0, 1.0, -1.0)
+    up, down = sheet.copy(), sheet.copy()
+    up[:, 2] += 0.5 * checker
+    down[:, 2] -= 0.5 * checker
+    report = _analysed(tmp_path, [up, down] * 3)
+    assert report.rmsf_nm == pytest.approx(np.full(len(sheet), 0.5), abs=0.005)
+
+
+def test_one_frame_has_no_fluctuation_and_asks_oat_nothing(tmp_path) -> None:
+    report = _analysed(tmp_path, [_slab()])
+    assert report.mean_structure_nm is None
+    assert not report.rmsf_nm.any()
+    assert report.as_dict()["rmsf_nm"]["computed_by"] is None
+
+
+def test_the_rmsf_says_which_tool_computed_it(tmp_path) -> None:
+    rng = np.random.default_rng(5)
+    shape = _slab(nx=10, ny=5, nz=2)
+    report = _analysed(tmp_path, [shape + rng.normal(0, 0.1, shape.shape) for _ in range(3)])
+    assert report.as_dict()["rmsf_nm"]["computed_by"].startswith("oxDNA_analysis_tools")
+
+
+def test_skipped_frames_are_skipped_by_oat_too(tmp_path) -> None:
+    """Frames and fluctuation are read from the file separately. Frames 0-1
+    here are wildly displaced; skip them and the fluctuation must be the
+    quiet remainder's, which it is only if oat skipped the same frames."""
+    rng = np.random.default_rng(6)
+    shape = _slab(nx=15, ny=8, nz=2)
+    noisy = [shape + rng.normal(0, 5.0, shape.shape) for _ in range(2)]
+    quiet = [shape + rng.normal(0, 0.05, shape.shape) for _ in range(4)]
+    report = _analysed(tmp_path, noisy + quiet, skip=2)
+    assert report.frames == 4
+    assert report.rmsf_nm.mean() < 0.2
+
+
+def test_frames_from_another_trajectory_are_refused(tmp_path) -> None:
+    """Negative control for the cross-check between the two readers."""
+    rng = np.random.default_rng(8)
+    shape = _slab(nx=10, ny=5, nz=2)
+    path = _write_trajectory(
+        tmp_path / "traj.dat", [shape + rng.normal(0, 0.1, shape.shape) for _ in range(5)]
+    )
+    frames = read_trajectory(path)
+    with pytest.raises(ValueError, match="not the same trajectory"):
+        analyse(frames[:3], trajectory=path)
+
+
+def test_oat_writes_nothing_beside_the_trajectory(tmp_path) -> None:
+    """oat drops a `.pyidx` index next to any trajectory it reads. Run
+    directories are results and may be read-only, so it must land elsewhere."""
+    rng = np.random.default_rng(9)
+    shape = _slab(nx=10, ny=5, nz=2)
+    run = tmp_path / "run"
+    run.mkdir()
+    path = _write_trajectory(
+        run / "traj.dat", [shape + rng.normal(0, 0.1, shape.shape) for _ in range(3)]
+    )
+    _oat.deviations(path)
+    assert sorted(p.name for p in run.iterdir()) == ["traj.dat"]
+
+
+def test_oats_process_pool_is_put_back_after_use(tmp_path) -> None:
+    """The pool is swapped for a serial loop only for the call's duration."""
+    import oxDNA_analysis_tools.deviations as oat_deviations
+    import oxDNA_analysis_tools.mean as oat_mean
+
+    before = (oat_mean.oat_multiprocesser, oat_deviations.oat_multiprocesser)
+    shape = _slab(nx=10, ny=5, nz=2)
+    path = _write_trajectory(tmp_path / "traj.dat", [shape, shape + 0.1])
+    _oat.deviations(path)
+    assert (oat_mean.oat_multiprocesser, oat_deviations.oat_multiprocesser) == before
+    assert before[0] is not _oat._serial
+
+
+def test_superpose_undoes_a_rotation_in_the_right_direction() -> None:
+    """The transposed-Kabsch regression, on oat's function: a valid rotation
+    turned the wrong way still returns a rotation, so check the RESULT lands
+    on the reference, not that a matrix is orthogonal."""
+    rng = np.random.default_rng(10)
+    shape = _slab(nx=12, ny=6, nz=3)
+    reference = shape - shape.mean(axis=0)
+    turned = reference @ _random_rotation(rng) + np.array([4.0, -2.0, 7.0])
+    assert _oat.superpose(turned, reference) == pytest.approx(reference, abs=1e-8)
+
+
+def test_superpose_does_not_fit_a_mirror_image() -> None:
+    """Negative control: a reflection would superimpose a mirror image
+    perfectly and report a structure as something it is not."""
+    shape = _slab(nx=12, ny=6, nz=3, rng=np.random.default_rng(11))
+    reference = shape - shape.mean(axis=0)
+    mirrored = reference * np.array([1.0, 1.0, -1.0])
+    residual = np.abs(_oat.superpose(mirrored, reference) - reference).max()
+    assert residual > 0.5
+
+
+def test_superpose_refuses_mismatched_structures() -> None:
+    with pytest.raises(ValueError, match="same particles"):
+        _oat.superpose(_slab(nx=5, ny=4, nz=2), _slab(nx=6, ny=4, nz=2))
 
 
 # ------------------------------------------------------------------ parsing
@@ -237,43 +357,50 @@ def test_plots_are_written_and_are_not_empty(tmp_path) -> None:
 
     rng = np.random.default_rng(4)
     shape = _slab(nx=25, ny=10, nz=2)
-    frames = [_frame(shape + rng.normal(0, 0.15, shape.shape), s * 100) for s in range(4)]
-    written = write_plots(frames, directory=tmp_path, title="synthetic")
+    path = _write_trajectory(
+        tmp_path / "traj.dat", [shape + rng.normal(0, 0.15, shape.shape) for _ in range(4)]
+    )
+    frames = read_trajectory(path)
+    report = analyse(frames, trajectory=path)
+    written = write_plots(frames, report, directory=tmp_path / "plots", title="synthetic")
     assert set(written) == {"structure", "convergence"}
-    for path in written.values():
-        assert path.stat().st_size > 5000
+    for written_path in written.values():
+        assert written_path.stat().st_size > 5000
 
 
-def test_report_carries_the_spread_not_just_the_mean() -> None:
+def test_report_carries_the_spread_not_just_the_mean(tmp_path) -> None:
     """An AFM histogram has a width, so the prediction needs one too."""
     rng = np.random.default_rng(3)
     shape = _slab(nx=30, ny=12, nz=2, spacing=2.0)
-    frames = [_frame(shape + rng.normal(0, 0.2, shape.shape), s) for s in range(5)]
-    report = analyse(frames).as_dict()
+    report = _analysed(
+        tmp_path, [shape + rng.normal(0, 0.2, shape.shape) for _ in range(5)]
+    ).as_dict()
     assert report["frames"] == 5
     for axis in ("longest", "middle", "shortest"):
         assert report["dimensions_nm"][axis]["sd"] > 0
     assert report["dimensions_nm"]["longest"]["mean"] > report["dimensions_nm"]["middle"]["mean"]
 
 
-def test_a_thin_trajectory_says_so() -> None:
+def test_a_thin_trajectory_says_so(tmp_path) -> None:
     """The overnight run produced four frames because production inherited the
     relaxation checkpoint count. Nothing in the report said the numbers were
     four-sample statistics, which is how a thin result becomes a wrong one."""
-    from dobladillo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF, analyse
+    from dobladillo.analysis.observables import FRAMES_FOR_A_TRUSTWORTHY_RMSF
 
     rng = np.random.default_rng(7)
 
     def frames(n: int) -> list:
-        return [_frame(_slab(rng=rng), step=i * 1000) for i in range(n)]
+        return [_slab(nx=10, ny=5, nz=2, rng=rng) for _ in range(n)]
 
-    thin = analyse(frames(4))
+    (tmp_path / "thin").mkdir()
+    (tmp_path / "thick").mkdir()
+    thin = _analysed(tmp_path / "thin", frames(4))
     assert thin.undersampled
     assert thin.as_dict()["undersampled"] is True
     # 1/sqrt(2*3) = 0.408
     assert thin.as_dict()["rmsf_nm"]["relative_standard_error"] == pytest.approx(0.408, abs=0.001)
 
-    thick = analyse(frames(FRAMES_FOR_A_TRUSTWORTHY_RMSF))
+    thick = _analysed(tmp_path / "thick", frames(FRAMES_FOR_A_TRUSTWORTHY_RMSF))
     assert not thick.undersampled
     assert thick.as_dict()["rmsf_nm"]["relative_standard_error"] < 0.11
 

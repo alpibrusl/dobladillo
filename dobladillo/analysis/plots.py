@@ -23,11 +23,12 @@ import numpy as np  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from dobladillo.analysis.observables import principal_extents_nm, rmsf_nm  # noqa: E402
+from dobladillo.analysis.observables import principal_extents_nm  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from dobladillo.analysis.observables import Report
     from dobladillo.analysis.trajectory import Frame
 
 INK = "#151E1D"
@@ -48,14 +49,23 @@ def _style(ax: Axes) -> None:
     ax.title.set_color(INK)
 
 
-def structure_figure(frames: Sequence[Frame], *, title: str) -> Figure:
+def structure_figure(frames: Sequence[Frame], report: Report, *, title: str) -> Figure:
     """The object seen along its own axes, coloured by how much it moves.
 
     Two views because one is never enough: along the long axis you see the
     cross-section, across it you see the profile, and a structure that is
     subtly wrong is usually only wrong in one of them.
+
+    The structure and its colouring are the report's -- oat's mean structure
+    and RMSF -- so the picture shows the numbers that were reported rather
+    than a second computation of them. A one-frame report has no mean, so the
+    frame itself is drawn, uniformly coloured.
     """
-    fluctuation, mean_structure = rmsf_nm(frames)
+    fluctuation = report.rmsf_nm
+    if report.mean_structure_nm is not None:
+        mean_structure = report.mean_structure_nm
+    else:
+        mean_structure = frames[0].positions_nm
     extents, axes = principal_extents_nm(mean_structure)
     projected = (mean_structure - mean_structure.mean(axis=0)) @ axes.T
 
@@ -134,12 +144,14 @@ def convergence_figure(frames: Sequence[Frame], *, title: str) -> Figure:
     return fig
 
 
-def write_plots(frames: Sequence[Frame], *, directory: Path, title: str) -> dict[str, Path]:
+def write_plots(
+    frames: Sequence[Frame], report: Report, *, directory: Path, title: str
+) -> dict[str, Path]:
     directory.mkdir(parents=True, exist_ok=True)
     written: dict[str, Path] = {}
 
     structure = directory / "structure.png"
-    structure_figure(frames, title=title).savefig(structure, dpi=180, facecolor="white")
+    structure_figure(frames, report, title=title).savefig(structure, dpi=180, facecolor="white")
     written["structure"] = structure
 
     if len(frames) > 1:

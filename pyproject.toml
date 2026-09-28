@@ -22,6 +22,14 @@ dependencies = [
     # optional source of truth is one CI never checks. A C extension with
     # x86-64 wheels only, so arm64 installs compile it (needs a C compiler).
     "primer3-py>=2.0",
+    # Trajectory alignment, mean structure and RMSF (dobladillo.analysis._oat).
+    # GPL-3.0; see tests/test_licences.py. Pinned to the oxDNA release the
+    # simulations run on, and taken from that tag rather than PyPI, whose
+    # newest upload (2.0.5, 2024) predates it. Pure Python plus one Cython
+    # reader; it does not need oxpy or a compiled oxDNA. Always built from
+    # source, so installs need a C compiler. Pulls in scikit-learn and through
+    # it scipy, joblib, threadpoolctl, cloudpickle (BSD-3-Clause) and narwhals (MIT).
+    "oxDNA-analysis-tools @ git+https://github.com/lorenzo-rovigatti/oxDNA@v3.7.0#subdirectory=analysis",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +54,10 @@ dobladillo = "dobladillo.cli:app"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+# oxDNA-analysis-tools is a git reference; see the dependency's comment.
+allow-direct-references = true
 
 [tool.ruff]
 line-length = 100
@@ -75,7 +87,7 @@ strict = true
 # scadnano ships no py.typed marker, so everything crossing that boundary is
 # Any. The adapter converts at the edge rather than letting it spread; this
 # only stops mypy complaining that the import itself is untyped.
-module = ["scadnano.*", "openpyxl.*", "scipy.*", "nanoindent.*", "primer3.*"]
+module = ["scadnano.*", "openpyxl.*", "scipy.*", "nanoindent.*", "primer3.*", "oxDNA_analysis_tools.*"]
 ignore_missing_imports = true
 
 [tool.ruff.lint.per-file-ignores]
