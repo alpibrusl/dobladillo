@@ -166,7 +166,16 @@ def find_particles(
         # point rather than at one global level.
         peak = float(np.percentile(heights[seed], 95))
         grown, _ = _label(heights > peak / 2.0)
-        this = grown == np.bincount(grown[seed]).argmax() if grown[seed].size else seed
+        # Which grown region this particle is: the one covering most of its
+        # seed -- never label 0, the substrate. A tall clump whose 95th
+        # percentile is more than twice most of its pixels has most of its
+        # seed BELOW its own half height, and taking the plain argmax then
+        # picked the substrate: the clump became a frame-sized "particle"
+        # touching the edge, was excluded, and vanished from the count. Four
+        # of five synthetic aggregates did, until E9 counted them.
+        overlap = np.bincount(grown[seed]) if grown[seed].size else np.zeros(1, dtype=int)
+        overlap[0] = 0
+        this = grown == overlap.argmax() if overlap.any() else seed
         if this.sum() < min_pixels:
             continue
         particles.append(_measure(heights, this, image.pixel_nm, label, image.shape))
