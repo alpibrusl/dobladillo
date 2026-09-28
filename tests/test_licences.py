@@ -68,6 +68,9 @@ REVIEWED = {
     "pytest": "MIT",
     "ruff": "MIT",
     "mypy": "MIT",
+    # The official MCP Python SDK, modelcontextprotocol/python-sdk. Used over
+    # stdio only; the package itself still opens no connection.
+    "mcp": "MIT",
 }
 
 #: Reviewed and rejected, so nobody re-proposes them without re-reading this.

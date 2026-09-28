@@ -39,6 +39,9 @@ imaging = ["scipy>=1.11"]
 # Install nanoindent from its own checkout. See mechanics.NANOINDENT_NOTE.
 mechanics = []
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "scipy>=1.11"]
+mcp = [
+    "mcp>=2.2,<3",  # MCPServer; FastMCP in 1.x had another API
+]
 
 [project.scripts]
 dobladillo = "dobladillo.cli:app"

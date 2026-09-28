@@ -2180,6 +2180,22 @@ emits the whole surface with options, types and defaults.
 """
 
 
+@app.command("mcp")
+def mcp_serve(root: Path = EXPERIMENTS_ROOT) -> None:
+    """Serve the parts, rules, queue and experiments to an agent over MCP (stdio).
+
+    Needs the `mcp` extra. Tools wrap this CLI's --json output, so refusals
+    arrive with the same error kinds. No tool orders, pre-registers, folds or
+    images: those are human gates.
+    """
+    try:
+        from dobladillo.mcp_server import main
+    except ImportError as e:  # the optional extra is not installed
+        typer.echo(f"error: the MCP server needs the `mcp` extra ({e})", err=True)
+        raise typer.Exit(2) from e
+    main(root)
+
+
 @app.command("skill")
 def skill() -> None:
     """Print a SKILL.md for this tool, generated from its own commands."""

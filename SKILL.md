@@ -35,6 +35,7 @@ experimental counterparts.
 - `dobladillo lab order` — Plates, pooling map and cost for ordering a part's staples.
 - `dobladillo lab protocol` — The folding protocol sheet, with the magnesium screen laid out.
 - `dobladillo lint` — Check a design against the rules. Exits non-zero on a hard violation.
+- `dobladillo mcp` — Serve the parts, rules, queue and experiments to an agent over MCP (stdio).
 - `dobladillo predict` — Predict a design's equilibrium bend and twist in seconds (beam model).
 - `dobladillo rules` — List the design rules, and what is knowingly not checked.
 - `dobladillo scaffolds` — List the scaffold strands available, asked of scadnano directly.
