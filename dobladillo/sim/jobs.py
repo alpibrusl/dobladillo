@@ -152,6 +152,10 @@ METAL_SETTINGS: Final = {
     "backend_precision": "mixed",
     "Metal_avoid_cpu_calculations": 1,
     "Metal_list": "verlet",
+    # oxDNA aborts above 1 MB/s of output by default. At 0.1-0.3 ms/step the
+    # GPU writes a 4 MB configuration every second or two, and the first
+    # validation run lost its production stage to that guard after 56 frames.
+    "max_io": 100,
 }
 
 #: The Metal backend implements the Brownian (`john`) thermostat and not
