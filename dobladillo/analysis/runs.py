@@ -78,6 +78,15 @@ def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
         return RunCheck(directory, ("no metadata.json: not a bundle this toolchain made",), {})
     metadata = json.loads(meta_path.read_text())
 
+    backend = (metadata.get("backend") or {}).get("name")
+    if backend == "Metal":
+        from dobladillo.sim.jobs import METAL_VALIDATION
+
+        if METAL_VALIDATION is None:
+            problems.append(
+                "run on the Metal backend, which has not passed its validation against "
+                "the CPU backend (sim.jobs.METAL_VALIDATION): not a result yet"
+            )
     if metadata.get("test_mode") and not allow_test_mode:
         problems.append("this is a test-mode bundle; its trajectory is a smoke test, not a result")
 

@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from dobladillo import _scadnano as ad
 from dobladillo.constants import OXDNA_NA_PROXY_M
@@ -141,6 +141,39 @@ def mutual_traps(design: sc.Design) -> tuple[str, int]:
     return "\n".join(blocks), pairs
 
 
+#: The Apple-GPU backend: oxDNA PR #224 (lorenzo-rovigatti/oxDNA), kept on
+#: the maintainer's advice as a separate branch -- here alpibrupa/oxDNA,
+#: branch `metal-backend`, pinned at this commit. Apple GPUs have no hardware
+#: double; `mixed` is the fork's software double-float, which matched the CPU
+#: backend to ~2e-6 in energy on its own example.
+METAL_FORK: Final = "alpibrupa/oxDNA@metal-backend"
+METAL_COMMIT: Final = "6f73a293504f6cea99c3d1a119982a4dfba13273"
+METAL_SETTINGS: Final = {
+    "backend_precision": "mixed",
+    "Metal_avoid_cpu_calculations": 1,
+    "Metal_list": "verlet",
+}
+
+#: The Metal backend implements the Brownian (`john`) thermostat and not
+#: `bussi`. The thermostat sets the dynamics, not the equilibrium, so shape
+#: observables are comparable -- which is exactly what the validation run
+#: checks rather than assumes (see METAL_VALIDATION).
+METAL_THERMOSTAT: Final = {"thermostat": "john", "diff_coeff": 2.5}
+
+#: Evidence that Metal runs reproduce CPU runs, or None. `analysis.runs.check_run`
+#: refuses a Metal run while this is None: a 143,000-line unreviewed fork does
+#: not get to produce results on its word.
+METAL_VALIDATION: Final[str | None] = None
+
+
+def _on_metal(settings: dict[str, Any]) -> dict[str, Any]:
+    """An MD stage's settings, moved to the Metal backend."""
+    out = {k: v for k, v in settings.items() if k not in ("thermostat", "bussi_tau")}
+    out.update(METAL_SETTINGS)
+    out.update(METAL_THERMOSTAT)
+    return out
+
+
 def _interval(steps: int, points: int) -> int:
     """How often to print so that roughly `points` are written in `steps`."""
     return max(1, steps // max(1, points))
@@ -183,8 +216,13 @@ def stages(
     temperature: str,
     backend: str,
 ) -> list[Stage]:
-    """The four stages, in the order they must run."""
-    return [
+    """The four stages, in the order they must run.
+
+    On `backend="Metal"` the three MD stages move to the Apple GPU; the Monte
+    Carlo stage stays on the CPU, as it does for CUDA (and the Metal backend
+    has no MC).
+    """
+    chain = [
         Stage(
             "01_mc",
             {
@@ -298,6 +336,12 @@ def stages(
             "gets analysed, so nothing artificial should be acting on it.",
         ),
     ]
+    if backend == "Metal":
+        chain = [
+            Stage(st.name, _on_metal(st.options) if st.name != "01_mc" else st.options, st.comment)
+            for st in chain
+        ]
+    return chain
 
 
 RUN_SCRIPT = """#!/bin/sh
@@ -364,8 +408,8 @@ def write_job_bundle(
     does not claim otherwise, but it says how long it was, because "short" is
     a property a reader of the results needs.
     """
-    if backend not in {"CPU", "CUDA"}:
-        raise ValueError(f"backend must be CPU or CUDA, got {backend!r}")
+    if backend not in {"CPU", "CUDA", "Metal"}:
+        raise ValueError(f"backend must be CPU, CUDA or Metal, got {backend!r}")
     check_sequences_pair(design)
 
     directory.mkdir(parents=True, exist_ok=True)
@@ -433,6 +477,22 @@ def write_job_bundle(
                 "another, nor directly to a measurement in a magnesium buffer."
             ),
             "temperature": temperature,
+        },
+        "backend": {
+            "name": "CPU" if test_mode else backend,
+            **(
+                {
+                    "fork": METAL_FORK,
+                    "commit": METAL_COMMIT,
+                    "settings": METAL_SETTINGS,
+                    "thermostat": METAL_THERMOSTAT,
+                    "thermostat_note": "bussi is not implemented on Metal; john replaces it "
+                    "in the MD stages. It changes the dynamics, not the equilibrium.",
+                    "validation": METAL_VALIDATION,
+                }
+                if backend == "Metal" and not test_mode
+                else {}
+            ),
         },
         "units": {
             "length_unit_nm": OXDNA_LENGTH_UNIT_NM,

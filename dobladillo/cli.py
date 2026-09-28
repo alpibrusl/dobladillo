@@ -893,7 +893,10 @@ app.add_typer(sim_app, name="sim")
 def sim_bundle(
     part: str = PART_ARGUMENT,
     out_dir: Path = typer.Option(..., "--out", help="Directory to write the bundle into."),
-    backend: str = typer.Option("CUDA", help="oxDNA backend for the real run: CPU or CUDA."),
+    backend: str = typer.Option(
+        "CUDA",
+        help="oxDNA backend for the real run: CPU, CUDA or Metal (Apple GPU; see sim.jobs).",
+    ),
     test_mode: bool = typer.Option(
         False, "--test", help="Short stages, CPU, to prove the bundle runs end to end."
     ),

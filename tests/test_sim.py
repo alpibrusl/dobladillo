@@ -280,3 +280,50 @@ def test_a_bundle_with_mismatched_sequences_is_refused(tmp_path) -> None:
 
     ad.assign_scaffold_sequence(design, variant="p7249", rotation=5587)
     write_job_bundle(design, directory=tmp_path / "b", name="b", part="bundle", test_mode=True)
+
+
+def test_a_metal_bundle_moves_md_to_the_gpu_and_says_what_it_changed(tmp_path) -> None:
+    """Metal: MC stays on the CPU, MD moves to the GPU with the one thermostat
+    the backend implements, and the metadata records the substitution."""
+    import json
+
+    from dobladillo.parts.bundle import six_helix_bundle
+    from dobladillo.sim.jobs import METAL_COMMIT, write_job_bundle
+
+    job = write_job_bundle(
+        six_helix_bundle().design,
+        directory=tmp_path / "b",
+        name="b",
+        part="bundle",
+        backend="Metal",
+    )
+    inputs = {f.name: f.read_text() for f in (tmp_path / "b").glob("input_*")}
+    assert "backend = CPU" in inputs["input_01_mc"]
+    for stage in ("input_02_md_trapped", "input_03_md_released", "input_04_production"):
+        assert "backend = Metal" in inputs[stage]
+        assert "backend_precision = mixed" in inputs[stage]
+        assert "thermostat = john" in inputs[stage]
+        assert "bussi" not in inputs[stage]
+    backend = json.loads((tmp_path / "b" / "metadata.json").read_text())["backend"]
+    assert backend["name"] == "Metal" and backend["commit"] == METAL_COMMIT
+    assert "john" in backend["thermostat_note"]
+    assert job.metadata["backend"]["name"] == "Metal"
+
+
+def test_a_metal_run_is_not_a_result_until_metal_is_validated(tmp_path) -> None:
+    from dobladillo.analysis.runs import check_run
+    from dobladillo.parts.bundle import six_helix_bundle
+    from dobladillo.sim import jobs
+
+    jobs.write_job_bundle(
+        six_helix_bundle().design,
+        directory=tmp_path / "b",
+        name="b",
+        part="bundle",
+        backend="Metal",
+    )
+    problems = check_run(tmp_path / "b").problems
+    if jobs.METAL_VALIDATION is None:
+        assert any("Metal backend" in p for p in problems)
+    else:
+        assert not any("Metal backend" in p for p in problems)
