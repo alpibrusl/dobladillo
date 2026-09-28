@@ -378,3 +378,22 @@ def test_predict_refuses_to_vouch_for_a_misphased_design() -> None:
     payload = json.loads(good.output)
     assert payload["valid"] is True
     assert payload["straight"] is True
+
+
+def test_sim_warns_when_runs_would_live_in_a_temp_directory(tmp_path: Path) -> None:
+    """#16: two sets of results were lost when a session's temp directory was
+    cleaned. A run takes hours; writing it where a cleaner can reach it now
+    says so, on stderr, so --json output stays parseable."""
+    from dobladillo.sim.queue import RUNS_ROOT, temp_root_warning
+
+    assert temp_root_warning(Path("/tmp/somewhere")) is not None
+    assert temp_root_warning(tmp_path) is not None  # pytest's own tmp is a temp dir
+    assert temp_root_warning(RUNS_ROOT) is None
+    assert "tmp" not in str(RUNS_ROOT)
+
+    result = runner.invoke(
+        app, ["sim", "bundle", "rectangle", "--out", str(tmp_path / "b"), "--test", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "temporary directory" in result.stderr
+    json.loads(result.stdout)  # the warning did not leak into the JSON

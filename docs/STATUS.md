@@ -20,6 +20,16 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Where runs live (#16)
+
+Runs, queues and trajectories live under `$DOBLADILLO_RUNS`, default
+`~/Workspace/bio/dobladillo-runs`: outside the repository, because each
+trajectory is hundreds of MB, and never in a temp directory. `sim bundle`,
+`sim sweep`, `sim enqueue` and `sim run` warn on stderr when a path is under
+one. On 2026-09-28 the only surviving bent-bundle trajectory (28/14) and the
+two running reference runs were moved there from a session scratchpad. The
+locally built oxDNA is at `~/Workspace/bio/oxDNA/build/bin/oxDNA`.
+
 ## Beam shape predictor (#22), 2026-09-28
 
 `dobladillo predict <part|file.sc>`, 0.3 s per design. It is a CanDo-class

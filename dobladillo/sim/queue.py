@@ -46,6 +46,32 @@ POLL_SECONDS: Final = 10.0
 
 State = Literal["queued", "running", "done", "failed"]
 
+#: Where runs and queues live unless told otherwise: $DOBLADILLO_RUNS, else a
+#: directory next to the checkout. Not the repository -- trajectories are
+#: hundreds of MB each -- and never a temp directory: two sets of results,
+#: the corrected hinge joint sweep among them, were lost when a session's
+#: temporary directory was cleaned (#16).
+RUNS_ROOT: Final = Path(
+    os.environ.get("DOBLADILLO_RUNS", "~/Workspace/bio/dobladillo-runs")
+).expanduser()
+
+#: Directory prefixes that get cleaned without asking.
+_TEMP_PREFIXES: Final = ("/tmp", "/private/tmp", "/var/folders", "/private/var/folders")
+
+
+def temp_root_warning(path: Path) -> str | None:
+    """A warning if `path` sits somewhere that is cleaned without asking."""
+    import tempfile
+
+    resolved = str(path.expanduser().resolve())
+    prefixes = (*_TEMP_PREFIXES, str(Path(tempfile.gettempdir()).resolve()))
+    if any(resolved == p or resolved.startswith(p.rstrip("/") + "/") for p in prefixes):
+        return (
+            f"{path} is under a temporary directory and may be deleted without warning; "
+            f"runs take hours, so keep them under {RUNS_ROOT} or set $DOBLADILLO_RUNS"
+        )
+    return None
+
 
 def default_workers() -> int:
     """Performance cores minus the ones held back, at least one."""

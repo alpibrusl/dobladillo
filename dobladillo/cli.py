@@ -765,6 +765,7 @@ def sim_bundle(
     from dobladillo.sim.jobs import write_job_bundle
 
     emitter = Emitter(as_json)
+    _warn_if_temporary(emitter, out_dir)
     built = _make_part(part, emitter)
     try:
         job = write_job_bundle(
@@ -942,9 +943,30 @@ def build_pair(
     emitter.result(payload, "twist pair\n" + _table(rows))
 
 
+def _default_queue_root() -> Path:
+    from dobladillo.sim.queue import RUNS_ROOT
+
+    return RUNS_ROOT / "oxqueue"
+
+
 QUEUE_ROOT_OPTION = typer.Option(
-    Path("oxqueue"), "--root", help="Queue directory. One file per job lives under it."
+    _default_queue_root(),
+    "--root",
+    help="Queue directory. One file per job lives under it. Defaults to "
+    "$DOBLADILLO_RUNS/oxqueue, never a temp directory.",
 )
+
+
+def _warn_if_temporary(emitter: Emitter, *paths: Path) -> list[str]:
+    """Say so, on stderr, for every path a cleaner could delete mid-run."""
+    from dobladillo.sim.queue import temp_root_warning
+
+    found = [w for w in (temp_root_warning(p) for p in paths) if w]
+    for warning in found:
+        emitter.note(f"warning: {warning}")
+    return found
+
+
 OXDNA_OPTION = typer.Option(
     None, "--oxdna", envvar="OXDNA", help="Path to the oxDNA binary. Defaults to $OXDNA or PATH."
 )
@@ -960,6 +982,7 @@ def sim_enqueue(
     from dobladillo.sim.queue import enqueue
 
     emitter = Emitter(as_json)
+    warnings = _warn_if_temporary(emitter, root, *bundles)
     added = []
     for bundle in bundles:
         try:
@@ -967,7 +990,11 @@ def sim_enqueue(
         except ValueError as e:
             emitter.fail(str(e), kind="not_a_bundle")
             return
-    payload = {"root": str(root), "queued": [{"id": j.id, "bundle": j.bundle} for j in added]}
+    payload = {
+        "root": str(root),
+        "queued": [{"id": j.id, "bundle": j.bundle} for j in added],
+        "warnings": warnings,
+    }
     rows = [(j.id, j.bundle) for j in added]
     emitter.result(payload, f"queued {len(added)}\n" + _table(rows))
 
@@ -997,6 +1024,9 @@ def sim_run(
     if shutil.which(binary) is None and not Path(binary).exists():
         emitter.fail(f"oxDNA not found at {binary!r}; set --oxdna or $OXDNA", kind="no_oxdna")
         return
+    from dobladillo.sim.queue import load
+
+    _warn_if_temporary(emitter, root, *(Path(j.bundle) for j in load(root)))
     outcome = run(root, oxdna=binary, workers=workers, once=once)
     emitter.result(
         outcome,
@@ -1062,6 +1092,7 @@ def sim_sweep(
     from dobladillo.sim.queue import enqueue
 
     emitter = Emitter(as_json)
+    _warn_if_temporary(emitter, out_dir, root)
     try:
         lengths = [int(v) for v in joint.split(",") if v.strip()]
     except ValueError:
