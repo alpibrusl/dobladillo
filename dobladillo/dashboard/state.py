@@ -39,10 +39,24 @@ class PartState:
     #: part. Empty is the normal case and is not a gap: a part that has never
     #: been simulated has nothing to draw against its design.
     outlines: tuple[Any, ...] = ()
+    #: The design's content hash (`dobladillo.provenance`), and the hash the
+    #: simulated run drawn on the shape card records, if one is there. A run
+    #: of an older design drawn against the current one is the silent failure
+    #: this is here to show.
+    design_sha256: str = ""
+    run_design_sha256: str | None = None
+    has_run: bool = False
 
     @property
     def clean(self) -> bool:
         return self.violations == 0
+
+    @property
+    def run_matches(self) -> bool | None:
+        """True or False when a run records its design; None when it cannot say."""
+        if not self.has_run or self.run_design_sha256 is None:
+            return None
+        return self.run_design_sha256 == self.design_sha256
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +67,12 @@ class PartState:
             "clean": self.clean,
             "worst": self.worst,
             "outlines": [o.as_dict() for o in self.outlines],
+            "design_sha256": self.design_sha256,
+            "run": (
+                None
+                if not self.has_run
+                else {"design_sha256": self.run_design_sha256, "matches": self.run_matches}
+            ),
         }
 
 
@@ -121,8 +141,11 @@ def _part_state(name: str, runs_root: Path) -> PartState:
         "bundle": six_helix_bundle,
         "hinge": bistable_hinge,
     }
+    from dobladillo.provenance import design_sha256
+
     part = builders[name]()
     info = part.as_dict()
+    run_meta = _run_metadata(runs_root / name)
     dimensions = info.get("approx_dimensions_nm") or info["approx_arm_dimensions_nm"]
     hard = [v for v in lint(part.design).violations if v.severity is Severity.VIOLATION]
     sizes = {k: round(float(v), 1) for k, v in dimensions.items()}
@@ -133,7 +156,24 @@ def _part_state(name: str, runs_root: Path) -> PartState:
         violations=len(hard),
         worst=hard[0].rule if hard else "",
         outlines=_outlines(name, sizes, runs_root),
+        design_sha256=design_sha256(part.design),
+        run_design_sha256=(run_meta.get("provenance") or {}).get("design_sha256"),
+        has_run=bool(run_meta),
     )
+
+
+def _run_metadata(run: Path) -> dict[str, Any]:
+    """A run directory's metadata.json, or {} when there is no run to speak of."""
+    import json
+
+    path = run / "metadata.json"
+    if not path.is_file():
+        return {}
+    try:
+        loaded = json.loads(path.read_text())
+    except (OSError, ValueError):  # pragma: no cover - a partial write
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def _folders(root: Path) -> list[dict[str, Any]]:
@@ -153,9 +193,25 @@ def _folders(root: Path) -> list[dict[str, Any]]:
                 "believable": report.results_believable,
                 "problems": list(report.problems),
                 "phases": {p.phase: p.complete for p in report.phases},
+                "provenance": _chain_summary(report.chain),
             }
         )
     return out
+
+
+def _chain_summary(chain: Any) -> dict[str, Any]:
+    """The part of a folder's provenance chain a person reads at a glance."""
+    if chain is None:  # pragma: no cover - check() always reads one
+        return {"legacy": True, "verified": False, "links": []}
+    return {
+        "legacy": chain.legacy,
+        "verified": chain.verified,
+        "design_sha256": chain.predicted_design,
+        "order_design_sha256": chain.scan_design,
+        "ordered_designs": sorted({o.design_sha256 or "" for o in chain.orders}),
+        "scans": len(chain.scans),
+        "links": [link.as_dict() for link in chain.links],
+    }
 
 
 def gather(*, experiments_root: Path | None = None, runs_root: Path | None = None) -> State:

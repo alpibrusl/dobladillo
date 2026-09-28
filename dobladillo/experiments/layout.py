@@ -148,6 +148,9 @@ class Check:
     prediction: Recorded | None = None
     first_raw: Recorded | None = None
     problems: tuple[str, ...] = field(default_factory=tuple)
+    #: The folder's provenance chain (`dobladillo.provenance.FolderChain`).
+    #: Its problems are already in `problems`; this is kept for the hashes.
+    chain: Any = None
 
     @property
     def ready_for(self) -> Phase | None:
@@ -178,6 +181,7 @@ class Check:
                 else {"source": self.first_raw.source, "at": self.first_raw.timestamp}
             ),
             "problems": list(self.problems),
+            "provenance": None if self.chain is None else self.chain.as_dict(),
         }
 
 
@@ -234,19 +238,35 @@ def check(root: Path) -> Check:
                 "Commit pre/ before taking data and this becomes evidence"
             )
 
+    # The provenance chain: whether the prediction, the order and the scans
+    # all name one design. A legacy folder -- one whose prediction predates
+    # the chain -- gets a record problem here rather than a crash, and nothing
+    # is written into it. See `dobladillo.provenance`.
+    from dobladillo.provenance import folder_chain
+
+    chain = folder_chain(root)
+    if prediction.source != "missing":
+        problems.extend(chain.problems)
+
     return Check(
         root=root,
         phases=tuple(states),
         prediction=prediction if prediction.source != "missing" else None,
         first_raw=first_raw,
         problems=tuple(problems),
+        chain=chain,
     )
 
 
 def scaffold(
     root: Path, *, slug: str, prediction: dict[str, Any], plan: str, protocol: str
 ) -> Path:
-    """Create an experiment folder. Refuses to overwrite one."""
+    """Create an experiment folder. Refuses to overwrite one.
+
+    When the prediction names its design (`prediction["provenance"]
+    ["design_sha256"]`, as `experiment new` writes it), the folder's own
+    provenance record, `pre/provenance.json`, is written alongside it.
+    """
     directory = root / slug
     if directory.exists():
         raise FileExistsError(f"{directory} already exists; pick another name or work in it")
@@ -261,6 +281,15 @@ def scaffold(
     (directory / "pre" / "plan.md").write_text(plan)
     (directory / "pre" / "protocol.md").write_text(protocol)
     (directory / "pre" / "prediction.json").write_text(json.dumps(prediction, indent=2) + "\n")
+    recorded = prediction.get("provenance") or {}
+    if recorded.get("design_sha256"):
+        from dobladillo.provenance import write_folder_record
+
+        write_folder_record(
+            directory / "pre",
+            design_hash=recorded["design_sha256"],
+            part=str(prediction.get("part", "")),
+        )
     (directory / "during" / "log.md").write_text(SESSION_LOG_TEMPLATE)
     (directory / "during" / "instrument.json").write_text(
         json.dumps(INSTRUMENT_TEMPLATE, indent=2) + "\n"

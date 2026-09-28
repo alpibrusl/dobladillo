@@ -79,8 +79,19 @@ def test_an_uncommitted_folder_says_its_timestamps_are_not_evidence(tmp_path: Pa
 
 
 def test_a_prediction_committed_before_the_data_is_clean(repo: Path) -> None:
-    directory = _make(repo)
-    (directory / "pre" / "order" / "bulk.csv").write_text("name,sequence\n")
+    """Clean means the whole record, so this folder carries the provenance
+    chain `experiment new` writes; without it the design check fires, as
+    tests/test_provenance.py shows."""
+    from dobladillo.provenance import design_record, write_order_manifest
+
+    design = "a" * 64
+    prediction = {**PREDICTION, "provenance": design_record(design, part="rectangle")}
+    directory = scaffold(repo, slug="x", prediction=prediction, plan="# p\n", protocol="# p\n")
+    order = directory / "pre" / "order"
+    (order / "bulk.csv").write_text("name,sequence\n")
+    write_order_manifest(
+        order, name="rectangle", part="rectangle", design_hash=design, files=[order / "bulk.csv"]
+    )
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "pre-register")
 

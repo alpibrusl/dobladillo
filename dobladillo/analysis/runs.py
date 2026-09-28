@@ -47,6 +47,7 @@ class RunCheck:
             "problems": list(self.problems),
             "conditions": self.metadata.get("model", {}),
             "steps": self.metadata.get("steps", {}),
+            "design_sha256": (self.metadata.get("provenance") or {}).get("design_sha256"),
         }
 
 
@@ -87,6 +88,19 @@ def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
             problems.append(
                 f"topology has {counted} nucleotides, metadata says {expected}: "
                 "this trajectory is not of the design it claims to be"
+            )
+
+    # A bundle written since the provenance chain existed records its
+    # topology's hash. An older one does not, and that is not a problem with
+    # the run -- it predates the record -- so only a mismatch is reported.
+    recorded = (metadata.get("provenance") or {}).get("files", {}).get("topology")
+    if recorded and topology.is_file():
+        from dobladillo.provenance import file_sha256
+
+        if file_sha256(topology) != recorded:
+            problems.append(
+                "topology file changed since the bundle was written: this trajectory "
+                "cannot be tied to the design the metadata names"
             )
 
     trajectory = directory / "traj_04_production.dat"

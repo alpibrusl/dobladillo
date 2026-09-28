@@ -284,6 +284,40 @@ def read_design(path: Path) -> sc.Design:
     return sc.Design.from_scadnano_file(str(path))
 
 
+def design_json(design: sc.Design) -> dict[str, Any]:
+    """The design as scadnano's own JSON data model, parsed back to a dict.
+
+    This is exactly what a .sc file holds, before any indentation is applied.
+    `dobladillo.provenance` hashes a canonical form of it; going through
+    scadnano's serialiser rather than walking the objects ourselves means a
+    field scadnano adds is covered without anybody remembering to add it here.
+    """
+    import json
+
+    parsed: dict[str, Any] = json.loads(design.to_json(suppress_indent=False))
+    return parsed
+
+
+def scadnano_text(design: sc.Design) -> str:
+    """Exactly what `write_scadnano_file` puts in a .sc file, as text."""
+    text: str = design.to_json()
+    return text
+
+
+def cadnano_v2_text(design: sc.Design, *, name: str) -> str:
+    """The caDNAno v2 JSON, named explicitly.
+
+    `write_cadnano_v2_file` names the design after the path it writes to, so
+    the file carries the writer's directory -- a temporary one, or a home
+    directory -- and two exports of one design differ. Passing the name
+    keeps both the path and the variation out.
+
+    Raises ValueError for a design caDNAno v2 cannot express (extensions).
+    """
+    text: str = design.to_cadnano_v2_json(name=name)
+    return text
+
+
 def write_all(design: sc.Design, *, directory: Path, name: str) -> dict[str, Path]:
     """Write every format Q1 needs, and say where each went.
 

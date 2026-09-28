@@ -31,6 +31,8 @@ experimental counterparts.
 - `dobladillo experiment compare-arms` — Compare two blinded arms by flat fraction, and state the verdict both ways.
 - `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.
 - `dobladillo experiment report` — Measure the scans and compare them against what was predicted.
+- `dobladillo export` — Write a local archive of a part in Nanobase's layout. Never uploads.
+- `dobladillo export-check` — Validate an export archive against its layout. Exits non-zero if it departs.
 - `dobladillo geometry` — Show the geometry constants, and where this project disagrees.
 - `dobladillo lab order` — Plates, pooling map and cost for ordering a part's staples.
 - `dobladillo lab protocol` — The folding protocol sheet, with the magnesium screen laid out.
