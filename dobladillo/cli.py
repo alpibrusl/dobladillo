@@ -479,7 +479,9 @@ lab_app = typer.Typer(help="What the bench needs: plates, pooling, protocol.", n
 app.add_typer(lab_app, name="lab")
 
 PART_ARGUMENT = typer.Argument(
-    ..., help="Which part: rectangle, bundle, hinge, twist-corrected or twist-uncorrected."
+    ...,
+    help="Which part: rectangle, bundle, hinge, hinge-locked-open, hinge-locked-latched, "
+    "twist-corrected or twist-uncorrected.",
 )
 PLATE_OPTION = typer.Option(96, "--plate", help="Well plate format: 96 or 384.")
 
@@ -697,14 +699,28 @@ def _make_part(which: str, out: Emitter) -> Any:
         from dobladillo.parts.hinge import bistable_hinge
 
         return bistable_hinge()
+    if which in ("hinge-locked-open", "hinge-locked-latched"):
+        # E4's two FRET references: the same hinge, locked in one state.
+        from dobladillo.hamiltonian.bracket import locked_references
+        from dobladillo.parts.hinge import bistable_hinge
+
+        if which == "hinge-locked-open":
+            return bistable_hinge(latch_sequence=None)
+        refs = locked_references()
+        seqs, helices = refs.latched_sequences, refs.latched_helices
+        return bistable_hinge(
+            latch_sequence=seqs[0],
+            latch_helix=helices[0],
+            extra_latches=tuple(zip(seqs[1:], helices[1:], strict=True)),
+        )
     if which in ("twist-corrected", "twist-uncorrected"):
         from dobladillo.parts.twist_pair import twist_pair
 
         pair = twist_pair()
         return pair.corrected if which == "twist-corrected" else pair.uncorrected
     out.fail(
-        f"unknown part {which!r}; use rectangle, bundle, hinge, twist-corrected "
-        "or twist-uncorrected",
+        f"unknown part {which!r}; use rectangle, bundle, hinge, hinge-locked-open, "
+        "hinge-locked-latched, twist-corrected or twist-uncorrected",
         kind="unknown_part",
     )
     return None
@@ -2267,9 +2283,10 @@ def dashboard_command(
 @app.command("bracket")
 def bracket_command(as_json: bool = JSON_OPTION) -> None:
     """The latch ladder that guarantees Stage 0 lands in its measurement window."""
-    from dobladillo.hamiltonian.bracket import ladder
+    from dobladillo.hamiltonian.bracket import ladder, locked_references
 
     rungs = ladder()
+    refs = locked_references(rungs)
     low, high = rungs.offset_range_kt
     payload = {
         "window_kt": round(rungs.window_kt, 3),
@@ -2280,8 +2297,18 @@ def bracket_command(as_json: bool = JSON_OPTION) -> None:
         "largest_gap_kt": round(rungs.largest_gap_kt, 3),
         "covers_its_range": rungs.covers_its_range,
         "measurable_conformational_offset_kt": [round(low, 1), round(high, 1)],
+        "locked_references": refs.as_dict(),
+        "order_parts": ["hinge-locked-open", "hinge-locked-latched"],
     }
     rows = [(r.sequence, f"{r.length_bp} bp, h = {r.field_kt:.2f} kT") for r in rungs.rungs]
+    rows.append(("locked open", "no latch: p(latched) = 0 (lab order hinge-locked-open)"))
+    rows.append(
+        (
+            "locked latched",
+            f"{' + '.join(refs.latched_sequences)}, h = {refs.latched_field_kt:.1f} kT "
+            "(lab order hinge-locked-latched)",
+        )
+    )
     Emitter(as_json).result(payload, rungs.summary() + "\n" + _table(rows))
 
 

@@ -159,3 +159,79 @@ def test_latch_variants_share_every_staple_but_the_latch_carriers() -> None:
     a, b = sequences("GCATGCAT"), sequences("GACTTCAG")
     assert len(a - b) == 2
     assert len(a & b) == len(a) - 2
+
+
+# ------------------------------------------------ E4's locked FRET references
+
+
+def _locked_latched():
+    from dobladillo.hamiltonian.bracket import locked_references
+
+    refs = locked_references()
+    seqs, helices = refs.latched_sequences, refs.latched_helices
+    return refs, bistable_hinge(
+        latch_sequence=seqs[0],
+        latch_helix=helices[0],
+        extra_latches=tuple(zip(seqs[1:], helices[1:], strict=True)),
+    )
+
+
+def _extensions(design) -> list[str]:
+    from dobladillo import _scadnano as ad
+
+    return [
+        d.dna_sequence
+        for s in ad.staples(design)
+        for d in s.domains
+        if not hasattr(d, "helix") and d.dna_sequence
+    ]
+
+
+def test_the_locked_open_reference_has_no_latch_and_shares_the_pool() -> None:
+    from dobladillo import _scadnano as ad
+
+    open_ = bistable_hinge(latch_sequence=None)
+    assert _extensions(open_.design) == []
+    assert open_.brick().ports == ()
+    with pytest.raises(ValueError, match="locked-open"):
+        open_.field_kt()
+    rung = {s.dna_sequence for s in ad.staples(bistable_hinge().design)}
+    locked = {s.dna_sequence for s in ad.staples(open_.design)}
+    assert len(rung - locked) == 2  # only the two latch carriers differ
+
+
+def test_the_locked_latched_reference_holds_at_every_measurable_offset() -> None:
+    """At the top of the ladder's offset range it must still be >= 99.9%
+    latched, or every p read against it is biased by the difference."""
+    from dobladillo.hamiltonian.bracket import LOCKED_CERTAINTY, probability
+
+    refs, lock = _locked_latched()
+    assert refs.p_latched_at_worst_offset >= LOCKED_CERTAINTY
+    assert probability(lock.field_kt(conformational_kt=refs.offset_range_kt[1])) >= 0.99
+    assert len(refs.latched_sequences) >= 2  # one latch that strong would need 22 bp
+
+
+def test_every_lock_latch_is_placed_with_its_own_sequence() -> None:
+    from dobladillo.sequence.thermo import reverse_complement
+
+    refs, lock = _locked_latched()
+    placed = sorted(_extensions(lock.design))
+    wanted = sorted(
+        [*refs.latched_sequences, *(reverse_complement(s) for s in refs.latched_sequences)]
+    )
+    assert placed == wanted
+
+
+def test_the_lock_keeps_every_oligo_orderable() -> None:
+    from dobladillo.constants import STAPLE_LENGTH_NT
+
+    _, lock = _locked_latched()
+    assert max(lock.staple_lengths) <= STAPLE_LENGTH_NT[1]
+    assert lint(lock.design).ok
+
+
+def test_latches_on_one_helix_or_with_one_sequence_are_refused() -> None:
+    with pytest.raises(ValueError, match="one helix"):
+        bistable_hinge(extra_latches=(("GATTACAG", 1),))
+    with pytest.raises(ValueError, match="differ"):
+        bistable_hinge(extra_latches=((DEFAULT_LATCH, 5),))

@@ -225,3 +225,108 @@ def ladder(
         i = reachable[-1]
         chosen.append(scored[i])
     return Ladder(rungs=tuple(chosen), window_kt=window)
+
+
+#: How surely each locked reference must sit in its state, at BOTH ends of the
+#: conformational offsets the ladder can measure. A reference that is 99%
+#: latched is a 1% bias in every p(latched) read against it.
+LOCKED_CERTAINTY: Final = 0.999
+
+#: Helices the locked-latched reference puts latches on, in the order they are
+#: added: spread across the arm, so the closed hinge is held along its width
+#: and not pinned at one corner.
+LOCK_HELICES: Final = (1, 6, 10, 3, 8)
+
+
+@dataclass(frozen=True)
+class LockedReferences:
+    """The two constructs a bulk FRET readout cannot do without.
+
+    A plate reader returns a population-averaged efficiency. Turning it into
+    p(latched) takes the efficiency of each pure state, and the only way to
+    measure a pure state is a construct that cannot leave it (Lee et al.,
+    Biophys J 88, 2939 (2005); Hellenkamp et al., Nat Methods 15, 669 (2018)).
+    E4's order was the eight rungs alone; these two complete it.
+
+    - locked open: the hinge with no latch at all, so p(latched) = 0;
+    - locked latched: several of the ladder's strongest latches on different
+      helices. They all form when the hinge closes, so their fields add. One
+      latch that strong would need 22 bp, and its carrier staple would be
+      70 nt, over the 60-nt limit.
+
+    Every other staple is the rungs' own, so both share E4's staple pool.
+    """
+
+    latched_sequences: tuple[str, ...]
+    latched_helices: tuple[int, ...]
+    latched_field_kt: float
+    offset_range_kt: tuple[float, float]
+
+    @property
+    def p_latched_at_worst_offset(self) -> float:
+        """The lock's p(latched) at the highest cost the ladder can measure."""
+        return probability(self.latched_field_kt - self.offset_range_kt[1] / 2.0)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "locked_open": {"latches": [], "p_latched": 0.0},
+            "locked_latched": {
+                "latches": [
+                    {"sequence": s, "helix": h}
+                    for s, h in zip(self.latched_sequences, self.latched_helices, strict=True)
+                ],
+                "field_kt": round(self.latched_field_kt, 2),
+                "p_latched_at_worst_offset": round(self.p_latched_at_worst_offset, 6),
+            },
+            "certainty_required": LOCKED_CERTAINTY,
+        }
+
+
+def locked_references(
+    rungs: Ladder | None = None,
+    *,
+    temperature_k: float = DESIGN_TEMPERATURE_K,
+    magnesium_m: float = DESIGN_MAGNESIUM_M,
+) -> LockedReferences:
+    """The locked-open and locked-latched references for this ladder.
+
+    Latches are added, strongest first, from the ladder's own candidate set
+    (12 bp at most, so no carrier staple passes 60 nt), each on its own helix,
+    until the lock is at least LOCKED_CERTAINTY latched even at the top of
+    the ladder's measurable offset range.
+    """
+    rungs = rungs or ladder(temperature_k=temperature_k, magnesium_m=magnesium_m)
+    worst = rungs.offset_range_kt[1]
+    scored = sorted(
+        (
+            (latch_field_kt(duplex(s, magnesium_m=magnesium_m), temperature_k=temperature_k), s)
+            for s in candidate_latches()
+        ),
+        reverse=True,
+    )
+    chosen: list[str] = []
+    total = 0.0
+    for field, sequence in scored:
+        if len(chosen) == len(LOCK_HELICES):
+            break
+        if any(sequence in (c, _reverse_complement(c)) for c in chosen):
+            continue
+        chosen.append(sequence)
+        total += field
+        if probability(total - worst / 2.0) >= LOCKED_CERTAINTY:
+            return LockedReferences(
+                latched_sequences=tuple(chosen),
+                latched_helices=LOCK_HELICES[: len(chosen)],
+                latched_field_kt=total,
+                offset_range_kt=rungs.offset_range_kt,
+            )
+    raise ValueError(
+        f"{len(LOCK_HELICES)} latches reach only {total:.1f} kT, short of a lock that holds "
+        f"at an offset of {worst:.1f} kT"
+    )
+
+
+def _reverse_complement(sequence: str) -> str:
+    from dobladillo.sequence.thermo import reverse_complement
+
+    return reverse_complement(sequence)

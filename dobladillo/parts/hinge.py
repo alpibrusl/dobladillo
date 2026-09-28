@@ -89,11 +89,16 @@ class Hinge:
     arm_helices: int
     arm_length: int
     joint_nt: int
-    latch: Duplex
+    #: None for the locked-open reference: no latch, so never latched.
+    latch: Duplex | None
     latch_helix: int
     scaffold: ad.ScaffoldAccounting
     staple_count: int
     staple_lengths: tuple[int, ...]
+    #: Further latches, each (duplex, helix), on other helices. They close
+    #: together with the first, so their fields add: this is the locked-latched
+    #: reference, strong enough to stay shut whatever the conformational cost.
+    extra_latches: tuple[tuple[Duplex, int], ...] = ()
 
     @property
     def total_length(self) -> int:
@@ -109,9 +114,13 @@ class Hinge:
     def field_kt(self, *, temperature_k: float = 310.15, conformational_kt: float = 0.0) -> float:
         """The predicted Ising field. Sequence only unless the conformational
         cost measured by Stage 0 is supplied; see `sequence.thermo`."""
+        if self.latch is None:
+            raise ValueError("a locked-open hinge has no latch: p(latched) is 0 by construction")
+        # Every latch forms when the hinge closes, so their free energies add;
+        # the conformational cost is paid once, with the first.
         return latch_field_kt(
             self.latch, temperature_k=temperature_k, conformational_kt=conformational_kt
-        )
+        ) + sum(latch_field_kt(d, temperature_k=temperature_k) for d, _ in self.extra_latches)
 
     def brick(self, *, channel: int = 0) -> Brick:
         """This hinge as a brick, with its latch halves declared as ports.
@@ -122,6 +131,8 @@ class Hinge:
         hinges on one core needs every latch on a different channel, and
         `interfaces.crosstalk` is what says whether it is.
         """
+        if self.latch is None:
+            return Brick(name="hinge-locked-open", ports=())
         return Brick(
             name=f"hinge-{self.latch.sequence}",
             ports=(
@@ -152,14 +163,20 @@ class Hinge:
             "arm_helices": self.arm_helices,
             "arm_length_bp": self.arm_length,
             "joint_nt": self.joint_nt,
-            "latch": {
+            "latch": None
+            if self.latch is None
+            else {
                 "sequence": self.latch.sequence,
                 "length_bp": self.latch.length_bp,
                 "gc_fraction": round(self.latch.gc_fraction, 3),
                 "dg_kcal_per_mol_37c": round(self.latch.dg_kcal(), 2),
                 "helix": self.latch_helix,
             },
-            "predicted_field_kt": round(self.field_kt(), 3),
+            "extra_latches": [
+                {"sequence": d.sequence, "length_bp": d.length_bp, "helix": h}
+                for d, h in self.extra_latches
+            ],
+            "predicted_field_kt": None if self.latch is None else round(self.field_kt(), 3),
             "conformational_offset": "not predicted; measured as the intercept of a Stage 0 sweep",
             "scaffold": self.scaffold.as_dict(),
             "staple_count": self.staple_count,
@@ -205,8 +222,9 @@ def bistable_hinge(
     arm_helices: int = DEFAULT_ARM_HELICES,
     arm_length: int = DEFAULT_ARM_LENGTH,
     joint_nt: int = DEFAULT_JOINT_NT,
-    latch_sequence: str = DEFAULT_LATCH,
+    latch_sequence: str | None = DEFAULT_LATCH,
     latch_helix: int = DEFAULT_LATCH_HELIX,
+    extra_latches: tuple[tuple[str, int], ...] = (),
     scaffold_variant: str = "p7249",
     scaffold_rotation: int = 5587,
     twist_corrected: bool = True,
@@ -216,6 +234,17 @@ def bistable_hinge(
     `arm_length` must be a multiple of 64: an even number of 16-bp columns
     keeps the last column's crossovers off the scaffold's turn, and whole
     64-bp periods let the twist correction be exact.
+
+    `latch_sequence=None` builds the locked-open reference: the same hinge,
+    every staple identical, but no latch extensions, so it can never latch.
+    FRET needs it (see `hamiltonian.fret_estimate`): a bulk efficiency is a
+    population average, and turning it into p(latched) takes the efficiency
+    of each pure state, measured on constructs locked in that state.
+
+    `extra_latches`, as (sequence, helix) pairs, adds latches on other helices.
+    That is how the locked-LATCHED reference is built without an oligo longer
+    than the 60-nt limit. One latch strong enough to stay shut at every offset
+    Stage 0 can measure needs 22 bp, and its carrier staple would then be 70 nt.
     """
     if arm_length % SPAN_MULTIPLE_NT:
         raise ValueError(f"arm_length must be a multiple of {SPAN_MULTIPLE_NT}, got {arm_length}")
@@ -226,13 +255,29 @@ def bistable_hinge(
     if not 0 <= latch_helix < arm_helices:
         raise ValueError(f"latch_helix {latch_helix} is outside 0..{arm_helices - 1}")
 
-    latch_sequence = latch_sequence.upper().strip()
-    if is_self_complementary(latch_sequence):
+    latches: list[tuple[str, int]] = []
+    if latch_sequence is not None:
+        latches.append((latch_sequence.upper().strip(), latch_helix))
+    elif extra_latches:
+        raise ValueError("extra latches need a first latch")
+    latches += [(seq.upper().strip(), helix) for seq, helix in extra_latches]
+    if len({h for _, h in latches}) != len(latches):
+        raise ValueError("two latches on one helix would share a carrier staple")
+    if len({seq for seq, _ in latches}) != len(latches):
         raise ValueError(
-            f"latch {latch_sequence} is self-complementary: the two arms' extensions would "
-            "bind their own copies as readily as each other"
+            "latches must differ: identical halves on different helices pair across helices"
         )
-    latch = duplex(latch_sequence)
+    duplexes: list[Duplex] = []
+    for seq, helix in latches:
+        if not 0 <= helix < arm_helices:
+            raise ValueError(f"latch helix {helix} is outside 0..{arm_helices - 1}")
+        if is_self_complementary(seq):
+            raise ValueError(
+                f"latch {seq} is self-complementary: the two arms' extensions "
+                "would bind their own copies as readily as each other"
+            )
+        duplexes.append(duplex(seq))
+    latch = duplexes[0] if duplexes else None
 
     total = 2 * arm_length + joint_nt
     available = ad.scaffold_length(scaffold_variant)
@@ -243,12 +288,13 @@ def bistable_hinge(
             f"but {scaffold_variant} has {available}"
         )
 
-    anchor_a = _latch_anchor(
-        arm_length=arm_length, latch_helix=latch_helix, arm_helices=arm_helices, arm="a"
-    )
-    anchor_b = _latch_anchor(
-        arm_length=arm_length, latch_helix=latch_helix, arm_helices=arm_helices, arm="b"
-    )
+    anchors = [
+        (
+            _latch_anchor(arm_length=arm_length, latch_helix=h, arm_helices=arm_helices, arm="a"),
+            _latch_anchor(arm_length=arm_length, latch_helix=h, arm_helices=arm_helices, arm="b"),
+        )
+        for _, h in latches
+    ]
 
     design = ad.new_design(helices=arm_helices, max_offset=total, grid="square")
     add_raster_scaffold(design, helices=arm_helices, length=total)
@@ -259,8 +305,7 @@ def bistable_hinge(
         helices=arm_helices,
         start=0,
         stop=arm_length,
-        extension_at=anchor_a,
-        extension_nt=latch.length_bp,
+        extensions={a: len(seq) for (seq, _), (a, _b) in zip(latches, anchors, strict=True)},
         first_parity=_FIRST_PARITY["a"],
     )
     tile_staples(
@@ -268,8 +313,10 @@ def bistable_hinge(
         helices=arm_helices,
         start=arm_b_start,
         stop=total,
-        extension_at=(anchor_b[0], arm_b_start + anchor_b[1]),
-        extension_nt=latch.length_bp,
+        extensions={
+            (b[0], arm_b_start + b[1]): len(seq)
+            for (seq, _), (_a, b) in zip(latches, anchors, strict=True)
+        },
         first_parity=_FIRST_PARITY["b"],
     )
 
@@ -282,19 +329,22 @@ def bistable_hinge(
 
     ad.assign_scaffold_sequence(design, variant=scaffold_variant, rotation=scaffold_rotation)
 
-    # The two latch halves, now that the scaffold has fixed everything it can.
-    placed = ad.assign_extension_sequence(
-        design, min_offset=0, max_offset=arm_length, sequence=latch_sequence
-    )
-    placed += ad.assign_extension_sequence(
-        design,
-        min_offset=arm_b_start,
-        max_offset=total,
-        sequence=reverse_complement(latch_sequence),
-    )
-    if placed != 2:
+    # The latch halves, now that the scaffold has fixed everything it can.
+    placed = 0
+    for (seq, _), (a, b) in zip(latches, anchors, strict=True):
+        placed += ad.assign_extension_sequence(
+            design, min_offset=0, max_offset=arm_length, sequence=seq, anchor=a
+        )
+        placed += ad.assign_extension_sequence(
+            design,
+            min_offset=arm_b_start,
+            max_offset=total,
+            sequence=reverse_complement(seq),
+            anchor=(b[0], arm_b_start + b[1]),
+        )
+    if placed != 2 * len(latches):
         raise AssertionError(
-            f"expected one latch extension per arm, placed {placed}; the anchors are "
+            f"expected one extension per latch per arm, placed {placed}; the anchors are "
             "wrong and the design would be ordered without a latch"
         )
 
@@ -306,6 +356,7 @@ def bistable_hinge(
         joint_nt=joint_nt,
         latch=latch,
         latch_helix=latch_helix,
+        extra_latches=tuple((d, h) for d, (_, h) in zip(duplexes[1:], latches[1:], strict=True)),
         scaffold=ad.ScaffoldAccounting(
             variant=scaffold_variant,
             total_nt=available,

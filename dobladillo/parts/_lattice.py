@@ -155,6 +155,7 @@ def tile_staples(
     extension_at: tuple[int, int] | None = None,
     extension_nt: int = 0,
     first_parity: int = 0,
+    extensions: dict[tuple[int, int], int] | None = None,
 ) -> None:
     """Tile `[start, stop)` across `helices`, one column at a time.
 
@@ -172,7 +173,8 @@ def tile_staples(
     Getting it wrong puts every scaffold turn on the wrong face, about 140 deg.
 
     `extension_at` is a (lower helix, column start offset) naming the one pair
-    staple that carries an extension.
+    staple that carries an extension; `extensions` maps several such anchors
+    to their lengths, for a part with more than one.
     """
     check_span(start, stop)
     if helices < 4 or helices % 2:
@@ -180,13 +182,15 @@ def tile_staples(
     for column_start in range(start, stop, DOMAIN_NT):
         parity = ((column_start - start) // DOMAIN_NT + first_parity) % 2
         for lower in range(parity, helices - 1, 2):
-            carries = extension_at == (lower, column_start)
+            wanted = dict(extensions or {})
+            if extension_at is not None:
+                wanted[extension_at] = extension_nt
             add_column_staple(
                 design,
                 lower=lower,
                 start=column_start,
                 helices=helices,
-                extension_nt=extension_nt if carries else 0,
+                extension_nt=wanted.get((lower, column_start), 0),
             )
 
 

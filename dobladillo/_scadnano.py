@@ -132,7 +132,12 @@ def scaffold_strand(design: sc.Design) -> sc.Strand:
 
 
 def assign_extension_sequence(
-    design: sc.Design, *, min_offset: int, max_offset: int, sequence: str
+    design: sc.Design,
+    *,
+    min_offset: int,
+    max_offset: int,
+    sequence: str,
+    anchor: tuple[int, int] | None = None,
 ) -> int:
     """Give an unpaired extension its sequence, after the scaffold has been laid.
 
@@ -142,6 +147,10 @@ def assign_extension_sequence(
     pre-assigned strand sequence against a wildcard of the nominal length and
     raises on the off-by-one. So extensions are left blank at build time and
     filled here, keyed by the span their bound domains occupy.
+
+    `anchor`, a (helix, start offset) of one of the staple's bound domains,
+    picks one extension when a span carries several -- a locked hinge has a
+    latch on three helices of each arm, each with its own sequence.
 
     Returns the number of extensions assigned, so a caller can tell the
     difference between doing nothing and doing what it meant to.
@@ -153,6 +162,8 @@ def assign_extension_sequence(
             continue
         bound = [d for d in strand.domains if isinstance(d, sc.Domain)]
         if not bound or not all(min_offset <= d.start and d.end <= max_offset for d in bound):
+            continue
+        if anchor is not None and not any((d.helix, d.start) == anchor for d in bound):
             continue
         for extension in extensions:
             design.assign_dna(strand, sequence, assign_complement=False, domain=extension)

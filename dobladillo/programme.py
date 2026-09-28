@@ -96,7 +96,7 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
     ),
     Experiment(
         id="E4",
-        title="Bracketing ladder, 8 latches",
+        title="Bracketing ladder, 8 latches + 2 locked references",
         epic=2,
         relevance=5,
         difficulty=3,
@@ -104,7 +104,10 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         blocked_by="hamiltonian/fret.py",
         why="Locates the conformational offset. Without it Stage 0 can return ten "
         "saturated measurements and no information, because a FRET probability is "
-        "informative over only about 2.9 kT and the offset slides the whole sweep.",
+        "informative over only about 2.9 kT and the offset slides the whole sweep. "
+        "The ladder's rungs are read against two locked references, open and "
+        "latched (`bracket`), without which a bulk FRET efficiency cannot be "
+        "turned into p(latched).",
     ),
     Experiment(
         id="E5",
