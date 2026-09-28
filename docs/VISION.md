@@ -11,6 +11,66 @@ that worked are the things no other tool does.
 
 ---
 
+## 0. The constraint: open source, self-hosted, no external servers
+
+Decided 2026-09-28. Every dependency must be open source under an OSI licence
+and run on hardware we control. No web services in the loop — not for design,
+simulation, analysis or publishing. It rules out several tools this document
+first recommended, and the audit is worth keeping because the reasons are not
+obvious from the papers:
+
+| tool | licence | self-hosted | verdict |
+|---|---|---|---|
+| oxDNA, `oxpy`, `oxDNA_analysis_tools` | GPL-3.0 | yes — builds and runs on Apple Silicon CPU | **use** |
+| AFMReader | GPL-3.0 | local library | **use** |
+| TopoStats | LGPL-3.0 | local library | **use** |
+| scadnano / caDNAno 2.5 | MIT / MIT-style | local | **use** |
+| primer3-py | GPL-2.0 | local | **use** |
+| Generative SNUPI (routing) | Apache-2.0, pretrained models in the repo | local | **use** |
+| mrDNA | Illinois/NCSA (OSI) | needs a CUDA GPU | only on a GPU machine we host |
+| CanDo | web server running Abaqus (commercial) | no | **excluded** |
+| Off-Lattice CanDo | needs ADINA and MATLAB (commercial); off-lattice only | — | **excluded** |
+| SNUPI (the predictor) | binary in a paper supplement, non-commercial | — | **excluded** |
+| NUPACK | non-commercial academic only | — | **excluded** |
+| NADOC | **no licence file** — public but all rights reserved | local | **excluded until licensed** |
+| Nanobase.org | external server | — | local export format only; no upload |
+
+**What that leaves unfilled: a fast shape predictor.** Every fast option is
+proprietary, unlicensed, a remote service, or needs CUDA. NADOC's local
+Euler–Bernoulli beam model is the closest match and cannot be used without a
+licence. So this is the one place where the rule in §3 — replace, don't
+reimplement — inverts: **build a small beam finite-element predictor here**,
+and validate it against the oxDNA trajectories already in hand. The bent
+bundle is ready-made ground truth: 50 nm sagitta, bend direction fixed at
+order parameter 0.995, 200 frames. A predictor that cannot reproduce that arc
+is not ready for the inner loop.
+
+**When a tool is excluded but its method is known, implement it.** An
+algorithm published in a paper is free to implement; code is not. Two
+conditions, both from this project's own history:
+
+1. **From the method, never from unlicensed code.** Implement from the paper
+   and the textbook. NADOC's source is public and all-rights-reserved — do not
+   read it into ours. The same goes for any repository without a licence.
+2. **Every reimplementation ships with an independent reference.** The four
+   worst silent bugs here were all in reimplementations — routing, index
+   mapping, background fitting, alignment — and each was caught only by
+   comparison against something not written here. A reimplementation without
+   a reference to disagree with is how those bugs got in.
+
+| excluded tool | its method | implement? | reference to validate against |
+|---|---|---|---|
+| CanDo, SNUPI, NADOC's beam model | finite-element beam model of the helix bundle, crossovers as constraints (Castro et al. 2011; Kim et al. 2012) | **yes, now** — nothing compliant fills the gap | our oxDNA trajectories: the bent bundle, the rectangle |
+| NUPACK | McCaskill partition function over secondary structures | only if the missing `self_structure` rule needs it | primer3's hairpin and dimer calculations on the same sequences |
+| mrDNA's ARBD engine | GPU Brownian dynamics | no — run mrDNA on a self-hosted CUDA machine if one exists | — |
+
+**Licence of dobladillo itself.** Importing GPL-3.0 libraries (oxpy,
+AFMReader) means a distributed dobladillo must be GPL-3.0-compatible. The
+natural choice is GPL-3.0. It is private today, so nothing is forced yet; the
+decision belongs before the first public release.
+
+---
+
 ## 1. What the bugs say
 
 Every silent defect found in this project, by root cause. Silent means the run
@@ -46,7 +106,9 @@ auxetic and modular behaviour. Algebraic approaches ("origami monoids",
 bioRxiv 2025) and generative wireframe design (NAR 2025) sit alongside it.
 Shape → routing is becoming a solved inference problem rather than hand work.
 
-**Fast shape prediction is minutes, not days.** CanDo and SNUPI are
+**Fast shape prediction is minutes, not days** — elsewhere. (None of the
+tools in this paragraph is usable under §0; they are here as the state of the
+art and as the published methods our own predictor follows.) CanDo and SNUPI are
 finite-element models that minimise the stress a crossover pattern exerts and
 predict bend, twist and flexibility directly — SNUPI reports bending and
 torsional persistence lengths, and runs a 100 ns dynamic simulation of a
@@ -91,13 +153,13 @@ prediction to a measurement with the conditions and definitions reconciled.
 
 | layer | use | instead of our |
 |---|---|---|
-| lattice routing | caDNAno lattice rules via scadnano; Generative SNUPI for free-form | hand-coded crossover offsets |
-| fast shape | CanDo / SNUPI / mrDNA / GNN | oxDNA for every shape question |
+| lattice routing | caDNAno lattice rules via scadnano; Generative SNUPI (Apache-2.0) for free-form | hand-coded crossover offsets |
+| fast shape | **none compliant exists** — build a beam FE model here (§0), validated against oxDNA; mrDNA on a self-hosted CUDA machine if one exists | oxDNA for every shape question |
 | slow physics | oxDNA through `oxpy`, analysis through `oxDNA_analysis_tools` | our own Kabsch, RMSF, mean structure |
 | AFM I/O | AFMReader | GSF-only reader and the Gwyddion export step |
 | AFM processing | TopoStats (flatten, grains, tracing) | our flatten and segmentation |
-| thermodynamics | NUPACK or primer3 | our transcription of SantaLucia 1998 |
-| sharing | Nanobase-compatible export | nothing |
+| thermodynamics | primer3 (NUPACK is non-commercial, excluded) | our transcription of SantaLucia 1998 |
+| sharing | a local, Nanobase-compatible export archive; no upload | nothing |
 
 Each replacement keeps a thin adapter and the tests that caught our bugs. The
 tests become conformance checks on the dependency: the bow scan, the
@@ -127,8 +189,9 @@ all-zeros GSF, the extension partition.
 
 ```
 spec ──▶ route ──▶ predict (fast) ──▶ verify (slow) ──▶ order ──▶ fold ──▶ image ──▶ compare ──▶ registry
-         caDNAno   CanDo/SNUPI/      oxDNA via oxpy    plates    bench or   AFMReader   ours      Nanobase
-         SNUPI-gen mrDNA/GNN         queued, parallel  [HUMAN]   handler    +TopoStats  (keep)    export
+         caDNAno   beam FE (ours,    oxDNA via oxpy    plates    bench or   AFMReader   ours      local
+         SNUPI-gen validated vs      queued, parallel  [HUMAN]   handler    +TopoStats  (keep)    archive
+                   oxDNA)
                    minutes           hours                       [HUMAN]    [HUMAN or
                                                                              agentic AFM]
 ```
@@ -176,7 +239,9 @@ fast-predictor stage. An agent that changes a stage is graded against its twin
 before it touches a real run.
 
 **A benchmark of known answers.** The Rothemund rectangle, a standard 6HB, and
-published CanDo examples with their measured shapes. Any change to routing or
+published designs with their experimentally measured shapes — the
+measurements as data, not the services that produced predictions for them.
+Any change to routing or
 prediction is scored against them. This is what would have caught the bundle
 the day it was written.
 
@@ -192,10 +257,11 @@ simulation results were lost in this project to a cleaned temp directory.
 
 ## 6. What to do next, in order
 
-1. **Re-diagnose the bundle with a fast predictor.** Export caDNAno JSON, run
-   CanDo or SNUPI, and see whether they predict the arc. If they do, iterate
-   routing in minutes against them — starting with scaffold crossovers along
-   the length, which this design does not have. Only then spend an oxDNA run.
+1. **Build the beam FE predictor and validate it on the bundle.** It must
+   reproduce the oxDNA arc before it is trusted. Then iterate routing in
+   minutes against it — starting with scaffold crossovers along the length,
+   which this design does not have — and spend an oxDNA run only on the
+   routing that the predictor says is straight.
 2. **Swap AFM I/O and processing for AFMReader and TopoStats**, keeping
    `compare`, `classify` and `arms` on top. Correct `PIPELINE.md`: native
    formats *are* readable, and the Gwyddion export step goes away.

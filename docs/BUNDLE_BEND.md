@@ -181,10 +181,12 @@ the next hypothesis — untested.
 
 ### What should happen instead of another hand-written fix
 
-Stop deriving crossover positions by hand. Export the design to caDNAno JSON
-and let a finite-element shape predictor answer the question in minutes
-rather than a 7-hour oxDNA run: CanDo and SNUPI both minimise the stress a
-crossover pattern exerts and predict bend and twist directly, and mrDNA gives
-an atomistic structure of a 7–8 kbp origami in under fifteen minutes. Then
-route with the lattice's canonical crossover positions rather than ours. See
-`docs/VISION.md`.
+Stop deriving crossover positions by hand, and stop spending seven-hour
+oxDNA runs on shape questions. Under the project's constraint — open source,
+self-hosted, no external servers — none of the published fast predictors is
+usable: CanDo is a server running commercial Abaqus, SNUPI a non-commercial
+binary, NADOC's beam model is unlicensed, mrDNA needs CUDA. So the next step
+is to build a small beam finite-element predictor from the published method
+(issue #22), validate it against *this* bundle's oxDNA arc, and iterate
+routing against it in seconds (issue #5). Then route with the lattice's
+canonical crossover positions rather than ours (#6). See `docs/VISION.md`.
