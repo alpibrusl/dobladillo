@@ -20,6 +20,20 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Decisions of 2026-09-28, applied
+
+- **E1 and E2 were re-scaffolded** into `experiments/2026-09-28-rectangle-afm`
+  and `2026-09-28-twist-pair`, and the old folders are marked SUPERSEDED.
+  **Their gates are unwritten**, and `experiment check` says so; each plan
+  quotes the old gate as a proposal.
+- **E1 has a positive-control arm:** a bought known-good rectangle, imaged
+  into `during/raw/control/`.
+- **E4 has its two locked references:** `bracket` and `lab order
+  hinge-locked-*`.
+- **The staple rules are relaxed** to what published, folded designs contain.
+  The benchmark passes, and the Nature 2009 and Dietz designs lint clean.
+- **E8 (pattern), E9 (dimer) and E10 (3D bundle)** are being built.
+
 ## Benchmark, twins, thermodynamics, analysis (#14, #15, #10, #9)
 
 - **Benchmark.** `dobladillo benchmark` scores the designs against sourced

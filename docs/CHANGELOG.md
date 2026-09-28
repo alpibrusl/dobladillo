@@ -103,3 +103,16 @@
   γ self-check. `experiments/protocols/e4_dryrun.py` runs E4 end to end
   on synthetic data. A beam-predictor twin (`mechanics/twin.py`) provides
   designs with textbook answers.
+- Removed `experiments/protocols/e2_compare.py`. (#18)
+- Staple rules relaxed to the published evidence (maintainer's decision):
+  - staple length hard floor 16 nt;
+  - `seed_domain` is now a warning;
+  - `min_domain` is hard below 2 nt and warns below 5;
+  - `crossover_azimuth` judges placement and warns on designed strain.
+  Crossovers into single-stranded DNA are unscored.
+- E4 gains locked-open and locked-latched FRET references. Hinges can carry
+  several latches (`extra_latches`); `bracket` reports both references;
+  `lab order hinge-locked-open` and `lab order hinge-locked-latched`.
+- E1 and E2 were re-scaffolded into `experiments/2026-09-28-*` with the
+  provenance chain; the old folders are marked SUPERSEDED. E1 gains a
+  positive-control arm. `experiment check` flags an unwritten gate.
