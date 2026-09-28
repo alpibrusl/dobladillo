@@ -79,7 +79,8 @@ def test_the_current_bundle_passes(full: dict[str, Any]) -> None:
 def test_the_composite_beam_is_reproduced(full: dict[str, Any]) -> None:
     observed = _case(full, "shape/composite-beam-6hb")["observed"]
     assert observed["expected_radius_nm"] == pytest.approx(168.0, abs=0.05)
-    assert observed["radius_nm"] == pytest.approx(168.0, rel=0.01)
+    assert observed["predicted_radius_nm"] == pytest.approx(168.0, rel=0.01)
+    assert _case(full, "shape/symmetric-6hb")["status"] == "pass"
 
 
 def test_the_dietz_bend_is_reported_as_a_known_failure(full: dict[str, Any]) -> None:
@@ -171,8 +172,13 @@ def test_a_predictor_with_the_wrong_stiffness_is_caught(monkeypatch: pytest.Monk
         return original(design, dataclasses.replace(p, bend_pn_nm2=2 * p.bend_pn_nm2))
 
     monkeypatch.setattr(beam, "predict", stiffer)
-    report = benchmark.run(only=["shape/composite-beam-6hb"])
-    assert [c.status for c in report.cases] == ["fail"]
+    report = benchmark.run(only=["shape/composite-beam", "shape/symmetric"])
+    assert {c.id: c.status for c in report.cases} == {
+        "shape/composite-beam-6hb": "fail",
+        "shape/composite-beam-6hb-half-strain": "fail",
+        "shape/symmetric-6hb": "pass",  # stiffness cannot break a symmetry
+    }
+    assert not report.ok
 
 
 def test_a_known_failure_that_starts_passing_fails_the_run(tmp_path: Path) -> None:
@@ -233,7 +239,7 @@ def test_bend_angle_matches_length_over_radius_for_uniform_curvature() -> None:
     from dobladillo.mechanics.beam import BeamParameters, predict
 
     p = BeamParameters(twist_stretch_pn_nm=0.0)
-    design = benchmark.one_helix_shortened()
+    design = benchmark.beam_twin("twin:0/21").design
     shape = predict(design, p)
     angle = benchmark.bend_angle_deg(design, p)
     assert angle == pytest.approx(math.degrees(shape.length_nm / shape.radius_nm), rel=0.03)

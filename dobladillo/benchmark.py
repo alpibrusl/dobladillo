@@ -23,8 +23,11 @@ in):
   fails it"; that was written while the current bundle was the 28/14 routing.
   Since it was re-tiled onto scadnano's published 6HB unit, the old routings
   are the known-bad cases and the current bundle is expected to PASS;
-- the **composite-beam case**, a textbook answer: a 6HB with one helix wanting
-  to be 1/21 shorter bends to R = 168.0 nm with twist-stretch coupling off;
+- the **composite-beam cases**, textbook answers built by the predictor's
+  synthetic twin (`mechanics.twin`): a 6HB with one helix wanting to be 1/21
+  shorter bends to R = 168.0 nm with twist-stretch coupling off, half the
+  strain doubles the radius, and opposite helices shortened together stay
+  straight by symmetry;
 - one **measured curvature**: the 120 deg bundle of Dietz, Douglas & Shih,
   *Science* 2009, whose design is in caDNAno's BSD-licensed test data and
   whose measured angle (121 +- 8.4 deg) is in the open author manuscript.
@@ -61,6 +64,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
     import scadnano as sc
+
+    from dobladillo.mechanics.twin import BeamTwin
 
 #: Where the manifest lives in a checkout. The designs it names sit beside it.
 DEFAULT_MANIFEST: Final = Path(__file__).resolve().parent.parent / "tests/data/known_answers.json"
@@ -141,22 +146,21 @@ class BenchmarkReport:
 # --------------------------------------------------------------- designs
 
 
-def one_helix_shortened() -> sc.Design:
-    """The current 6HB with a deletion every 21 bp on helix 0 only, mid-domain.
+def beam_twin(spec: str) -> BeamTwin:
+    """A shape-predictor twin from its manifest name, e.g. `twin:0/21,3/21`.
 
-    The composite-beam case: the same construction as `tests/test_beam.py`.
+    Each `helix/period` puts one deletion every `period` bp on that helix of
+    the current 6HB (`mechanics.twin`). The answer is composite-beam theory
+    or symmetry, never the model.
     """
-    from dobladillo.parts.bundle import END_NT, six_helix_bundle
+    from dobladillo.mechanics.twin import shortened_bundle
 
-    design = six_helix_bundle().design
-    for offset in range(END_NT + 3, END_NT + 1176, 21):
-        design.add_deletion(0, offset)
-    return design
-
-
-CONSTRUCTS: Final[dict[str, Callable[[], sc.Design]]] = {
-    "bundle-one-helix-shortened": one_helix_shortened,
-}
+    body = spec.removeprefix("twin:")
+    shortened: dict[int, int] = {}
+    for item in filter(None, body.split(",")):
+        helix, _, period = item.partition("/")
+        shortened[int(helix)] = int(period)
+    return shortened_bundle(shortened)
 
 
 def _part(name: str) -> sc.Design:
@@ -172,7 +176,7 @@ def _part(name: str) -> sc.Design:
 
 
 def load_design(spec: str, root: Path) -> sc.Design:
-    """A design named in the manifest: a file beside it, a part, or a construct.
+    """A design named in the manifest: a file beside it, a part, or a beam twin.
 
     `.json` is cadnano v2 (caDNAno's own test data is in that format), `.sc`
     is scadnano.
@@ -181,11 +185,8 @@ def load_design(spec: str, root: Path) -> sc.Design:
 
     if spec.startswith("part:"):
         return _part(spec.removeprefix("part:"))
-    if spec.startswith("construct:"):
-        name = spec.removeprefix("construct:")
-        if name not in CONSTRUCTS:
-            raise ValueError(f"unknown construct {name!r} in the benchmark manifest")
-        return CONSTRUCTS[name]()
+    if spec.startswith("twin:"):
+        return beam_twin(spec).design
     path = root / spec
     if path.suffix == ".json":
         return sc.Design.from_cadnano_v2(json_dict=json.loads(path.read_text()))
@@ -318,52 +319,18 @@ def check_prediction_valid(case: dict[str, Any], design: sc.Design) -> tuple[boo
     return _expect_bool(case, valid), observed
 
 
-def composite_beam_radius_nm(p: Any) -> float:
-    """Textbook radius for one of six helices wanting to be 1/21 shorter.
-
-    Six helices on a hexagon of circumradius D, stretch modulus S, bending
-    rigidity EI each. The section's axial stiffness about the neutral axis is
-    S * sum(y_i^2) = S * 6 D^2 / 2, plus 6 EI from the helices' own bending;
-    the eccentric misfit strain eps = 1/21 at distance D gives a moment S eps D.
-    """
-    S, EI, D = p.stretch_pn, p.bend_pn_nm2, p.interhelix_nm
-    return float((S * 6 * D**2 / 2 + 6 * EI) / (S * (1 / 21) * D))
-
-
-def _azimuth_of_helix(design: sc.Design, helix: int) -> float:
-    """Direction from the cross-section's centroid to one helix, degrees."""
-    import scadnano as sc
-
-    xy = {}
-    for idx, h in design.helices.items():
-        pos = sc.grid_position_to_position(h.grid_position, design.grid, design.geometry)
-        xy[idx] = np.array([pos.x, pos.y])
-    d = xy[helix] - np.mean(list(xy.values()), axis=0)
-    return float(np.degrees(np.arctan2(d[1], d[0])) % 360.0)
-
-
 def check_composite_beam(case: dict[str, Any], design: sc.Design) -> tuple[bool, dict[str, Any]]:
-    from dobladillo.mechanics.beam import BeamParameters, predict
+    """The beam model against composite-beam theory, via its synthetic twin.
 
-    p = BeamParameters(twist_stretch_pn_nm=0.0)
-    expected = composite_beam_radius_nm(p)
-    direction = _azimuth_of_helix(design, 0)
-    shape = predict(design, p)
-    rel = abs(shape.radius_nm - expected) / expected
-    turn = abs((shape.bend_direction_deg - direction + 180.0) % 360.0 - 180.0)
-    met = (
-        not shape.straight
-        and rel <= case["tolerance_rel"]
-        and turn <= case["tolerance_direction_deg"]
-    )
-    observed = {
-        "expected_radius_nm": round(expected, 1),
-        "radius_nm": round(shape.radius_nm, 1),
-        "relative_error": round(rel, 4),
-        "expected_direction_deg": round(direction, 1),
-        "bend_direction_deg": round(shape.bend_direction_deg, 1),
-    }
-    return met == (case["expect"] == "pass"), observed
+    `design` is the twin's own design; it is rebuilt with its answer here,
+    because the answer comes from how it was built, not from the file.
+    """
+    from dobladillo.mechanics.twin import grade
+
+    (graded,) = grade([beam_twin(case["design"])])
+    observed = graded.as_dict()
+    observed.pop("source")
+    return graded.ok == (case["expect"] == "pass"), observed
 
 
 def bend_angle_deg(design: sc.Design, parameters: Any = None) -> float:

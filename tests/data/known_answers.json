@@ -185,11 +185,25 @@
       "id": "shape/composite-beam-6hb",
       "stage": "shape",
       "check": "composite_beam",
-      "design": "construct:bundle-one-helix-shortened",
+      "design": "twin:0/21",
       "expect": "pass",
-      "source": "composite-beam theory (any strength-of-materials text, e.g. Timoshenko & Gere): six helices on a hexagon of circumradius D, one wanting to be 1/21 shorter, kappa = S eps D / (3 S D^2 + 6 EI), R = 168.0 nm with the model's own S, EI and D, toward the short helix. Twist-stretch coupling off, because the formula has none",
-      "tolerance_rel": 0.01,
-      "tolerance_direction_deg": 1.0
+      "source": "composite-beam theory (any strength-of-materials text, e.g. Timoshenko & Gere): six helices on a hexagon of circumradius D, one wanting to be 1/21 shorter, kappa = S eps D / (3 S D^2 + 6 EI), R = 168.0 nm with the model's own S, EI and D, toward the short helix. Twist-stretch coupling off, because the formula has none. Graded by mechanics.twin: radius within 1%, direction within 1 deg"
+    },
+    {
+      "id": "shape/composite-beam-6hb-half-strain",
+      "stage": "shape",
+      "check": "composite_beam",
+      "design": "twin:0/42",
+      "expect": "pass",
+      "source": "composite-beam theory: half the misfit strain, twice the radius (336 nm)"
+    },
+    {
+      "id": "shape/symmetric-6hb",
+      "stage": "shape",
+      "check": "composite_beam",
+      "design": "twin:0/21,3/21",
+      "expect": "pass",
+      "source": "symmetry: opposite helices shortened equally leave no moment about the centroid, so the bundle shortens and stays straight (to within 1% of one helix's curvature; see mechanics.twin.STRAIGHT_REL_TOL)"
     },
     {
       "id": "shape/dietz09-bend-120",
