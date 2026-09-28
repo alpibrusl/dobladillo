@@ -38,6 +38,17 @@ Castro 2011, Kim 2012 and Gore 2006, not from anyone's code.
 The E2 figure is new information, not a change to E2's recorded prediction,
 which stays as written.
 
+`predict` judges its own validity by crossover *placement* only
+(`measure(count_skips=False)`). Deletions and insertions strain crossovers on
+purpose; that is how a curved design bends, and the model handles it.
+
+**Physical reference, running.** On 2026-09-28 an oxDNA run started on the 6HB
+with a deletion every 21 bp on helix 0, using the same recipe as the bundle
+runs. The model predicts R = 196 nm toward helix 0 (168 nm without
+twist-stretch coupling). If oxDNA disagrees by more than its own
+frame-to-frame spread, the model's parameters or its class are wrong for
+designed curvature.
+
 ## Square re-tiling, 2026-09-28
 
 Every square-lattice part put half its staple crossovers on the wrong face of

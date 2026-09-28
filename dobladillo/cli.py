@@ -581,7 +581,9 @@ def predict(
     except ValueError as e:
         out.fail(str(e), kind="unsupported_design")
         return
-    phasing = measure(design)
+    # Deletions and insertions strain crossovers on purpose -- that is how a
+    # curved design bends, and the model handles it. Only placement counts.
+    phasing = measure(design, count_skips=False)
     payload = {"design": target, **result.as_dict()}
     payload["cannot_see"] = "misphased crossovers; see `lint --rule crossover_azimuth`"
     payload["valid"] = phasing.acceptable

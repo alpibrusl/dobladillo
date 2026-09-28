@@ -112,3 +112,14 @@ def test_misphased_crossovers_are_invisible_to_this_model() -> None:
 
 def test_it_answers_in_seconds() -> None:
     assert predict(six_helix_bundle().design).seconds < 5.0
+
+
+def test_a_deliberately_curved_design_is_not_mistaken_for_a_misphased_one() -> None:
+    """Deletions strain crossovers on purpose -- that is how a design bends.
+    The full azimuth measure reports that strain; the placement-only one,
+    which `predict` uses to decide whether it can answer, must not."""
+    from dobladillo.routing.azimuth import measure
+
+    design = _one_helix_shortened()
+    assert not measure(design).acceptable
+    assert measure(design, count_skips=False).acceptable

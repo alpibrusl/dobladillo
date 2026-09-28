@@ -252,7 +252,7 @@ def _relax(actual: np.ndarray, target: np.ndarray) -> np.ndarray:
 _Group = tuple[int, int, list[tuple[int, int, bool]], np.ndarray, np.ndarray]
 
 
-def _crossover_groups(design: sc.Design) -> tuple[list[_Group], int]:
+def _crossover_groups(design: sc.Design, *, count_skips: bool = True) -> tuple[list[_Group], int]:
     """Crossovers grouped by duplex: (helix, run start, addresses, actual, target).
 
     Also returns how many crossovers sit in single-stranded DNA and so belong
@@ -261,7 +261,7 @@ def _crossover_groups(design: sc.Design) -> tuple[list[_Group], int]:
     from scadnano.scadnano import angle_from_helix_to_helix
 
     geometry, grid, helices = design.geometry, design.grid, design.helices
-    deletions, insertions = skips(design)
+    deletions, insertions = skips(design) if count_skips else ({}, {})
     runs_by_helix = duplexes_by_helix(design)
     groups_out: list[_Group] = []
     unconstrained = 0
@@ -301,25 +301,7 @@ def _crossover_groups(design: sc.Design) -> tuple[list[_Group], int]:
     return groups_out, unconstrained
 
 
-def relaxed_rolls(design: sc.Design) -> dict[tuple[int, int], float]:
-    """The roll each duplex settles at, keyed by (helix, first offset of its run).
-
-    Chosen as scadnano's `relax_helix_rolls` chooses it, with no twist fitted
-    out: a model that is meant to PREDICT twist must start from the helices'
-    own rotation, not from one with the twist already removed. Designs leave
-    `roll` at 0, and scadnano's backbone angles then sit ~95 deg from where
-    the crossovers need them even on its own example bundle; a structural
-    model starting there would be solving for a rotation no helix makes.
-    """
-    from scadnano.scadnano import minimum_strain_angle
-
-    return {
-        (helix, start): float(minimum_strain_angle(list(zip(actual % 360.0, target, strict=True))))
-        for helix, start, _, actual, target in _crossover_groups(design)[0]
-    }
-
-
-def measure(design: sc.Design) -> AzimuthReport:
+def measure(design: sc.Design, *, count_skips: bool = True) -> AzimuthReport:
     """Residual strain of every inter-helix crossover, split into twist and phasing.
 
     Twist is fitted as ONE rate for the whole design -- the lattice mismatch
@@ -328,8 +310,15 @@ def measure(design: sc.Design) -> AzimuthReport:
     helix into separate duplexes. A rate per helix was tried first and
     overfits: a helix with four crossovers can absorb a real phasing error
     into a "twist" of its own.
+
+    `count_skips=False` ignores deletions and insertions, and so asks a
+    narrower question: is every crossover on a lattice position its
+    neighbour allows? A curved design strains its crossovers ON PURPOSE with
+    deletions and insertions; that strain is real, and the default reports
+    it. But it is not misphasing, and the beam model, which cannot see
+    misphasing, needs to know only about the latter.
     """
-    per_helix, unconstrained = _crossover_groups(design)
+    per_helix, unconstrained = _crossover_groups(design, count_skips=count_skips)
 
     def strains_at(rate: float) -> list[np.ndarray]:
         return [
