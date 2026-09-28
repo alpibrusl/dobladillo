@@ -20,6 +20,24 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Agent access, provenance, AFM ingest (#11, #13, #19, #7, #8)
+
+- **MCP server:** `dobladillo mcp`. E1's analysis runs end to end through its
+  tools; refusals arrive with their `kind`; a real stdio session is tested.
+- **Provenance:** E1 and E2 now carry the record problem "no design hash
+  recorded", because both were re-tiled after their predictions were
+  written. As a result, `experiment check` exits 1 on them. Whether to
+  re-scaffold them is the experimentalist's decision.
+- **Export:** local only. Publication fields are left for a person to fill in
+  before any deposit, and simulation results are not exported yet.
+- **AFM ingest:** native formats are read directly. Still open: a real
+  partner file, with an independently known pixel size, committed as a
+  fixture. Square pixels are assumed, not checked, for `.spm`, `.ibw` and
+  `.gwy`.
+- **#8 is blocked at the dependency:** TopoStats ≥ 2.3 needs topoly,
+  TensorFlow and Python < 3.12. Re-check when topoly becomes optional
+  upstream.
+
 ## Experiment record, typed (#18, #12)
 
 - **E2's readout is a command.** `dobladillo experiment compare-arms <folder>`
