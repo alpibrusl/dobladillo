@@ -35,14 +35,15 @@ counts, and anything in `during/log.md`.
   predicted, and editing it retroactively is the exact failure the folder
   layout exists to prevent.
 - **Anything in `during/raw/`.** Do not rename, crop, convert, tidy or
-  "clean up" a raw file. Export a `.gsf` copy alongside the native one if the
-  toolchain needs it; never in place of it.
+  "clean up" a raw file. Native Bruker, JPK, Asylum, Gwyddion and WSXM `.stp`
+  files are read directly. Only for another format, export a `.gsf` copy
+  alongside the native one; never in place of it.
 
 ## The commands
 
 ```bash
 dobladillo experiment check <folder>     # what is missing, and whether the record holds
-dobladillo afm read <scan.gsf>           # did pixel size and height units survive the export?
+dobladillo afm read <scan>               # did pixel size and height units come through?
 dobladillo experiment report <folder>    # measure, compare, write post/
 ```
 

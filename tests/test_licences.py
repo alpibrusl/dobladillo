@@ -65,6 +65,12 @@ REVIEWED = {
     # primer3-py: its pyproject says GPL-2.0-or-later, and its C headers "or any later version".
     "primer3-py": "GPL-2.0-or-later",
     "scipy": "BSD-3-Clause",
+    # AFMReader: its COPYING is the GPL v3 text, its CITATION.cff says
+    # GPL-3.0-or-later, and its PyPI classifier says LGPLv3. The most
+    # restrictive reading is recorded. What it pulls in was read too: pySPM
+    # Apache-2.0, igor2 LGPL-3.0-or-later, tifffile and h5py BSD-3-Clause,
+    # loguru and ruamel.yaml MIT. Matters the day anything is distributed.
+    "afmreader": "GPL-3.0-only",
     "pytest": "MIT",
     "ruff": "MIT",
     "mypy": "MIT",

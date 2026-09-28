@@ -191,20 +191,26 @@ is the mean of the two values on either side of it; likewise for Y.
 
 ## Day 3 — Analysis (about 1 hour), still blind
 
-### 11. Export and check every image
+### 11. Check every image
 
-Export a `.gsf` of the height channel next to each native file, and run
-`uv run dobladillo afm read <file>` on each (common-techniques §10).
+The native files are read directly; there is nothing to export. Run
+`uv run dobladillo afm read <file>` on each (common-techniques §10). Only if
+your instrument's format is not read, export a `.gsf` of the height channel
+next to each native file and use those instead.
 
 ### 12. Run the comparison
 
 ```bash
 uv run python experiments/protocols/e2_compare.py \
-    --x experiments/2026-09-23-twist-pair/during/raw/X-*.gsf --tip-x <radius for X> \
-    --y experiments/2026-09-23-twist-pair/during/raw/Y-*.gsf --tip-y <radius for Y> \
+    --x experiments/2026-09-23-twist-pair/during/raw/X-*.spm --tip-x <radius for X> \
+    --y experiments/2026-09-23-twist-pair/during/raw/Y-*.spm --tip-y <radius for Y> \
     --reference-height <E1's flat-sheet height> \
     --out experiments/2026-09-23-twist-pair/post/arms.json
 ```
+
+Use your instrument's extension in place of `.spm` (`.jpk`, `.ibw`, ...), or
+`.gsf` if you exported. One extension, never `X-*` alone: that would pick up
+both a native file and its copy, and count each image twice.
 
 It prints the flat fraction of each sample, the difference X − Y with its 95%
 interval, and **the verdict both ways** — "if X is the corrected arm" and "if Y
@@ -247,7 +253,7 @@ gate passed. Commit again. The two commits show the analysis was done blind.
 ## What to hand over
 
 - `pre/` committed before the session
-- `during/raw/`: gel photo, native files named X-/Y-, `.gsf` exports
+- `during/raw/`: gel photo, native files named X-/Y- (and `.gsf` exports only for a format the toolchain does not read)
 - `during/instrument.json` and `during/log.md` — including who held the key and
   all three tip radii
 - `post/arms.json` and `post/report.md`, committed once blind and once after

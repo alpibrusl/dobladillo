@@ -1,14 +1,19 @@
 """E2 readout: compare two blinded arms of the twist pair.
 
     uv run python experiments/protocols/e2_compare.py \\
-        --x during/raw/X-01.gsf during/raw/X-02.gsf --tip-x 11.2 \\
-        --y during/raw/Y-01.gsf during/raw/Y-02.gsf --tip-y 11.8 \\
+        --x during/raw/X-01.spm during/raw/X-02.spm --tip-x 11.2 \\
+        --y during/raw/Y-01.spm during/raw/Y-02.spm --tip-y 11.8 \\
         --reference-height 1.3 --out post/arms.json
 
 Written for a blinded run. The person imaging and analysing knows the samples
 only as X and Y, so this script never asks which arm is the corrected one. It
 reports the difference X - Y and states the verdict both ways; the reading that
 applies is chosen after unblinding, by whoever holds the key.
+
+Scans are the instrument's own files (Bruker, JPK, Asylum, Gwyddion, WSXM
+.stp) or .gsf exports; see `dobladillo.imaging.readers`. Name one extension,
+never `X-*` alone: if a .gsf copy sits beside a native file, that would count
+the same image twice.
 
 `--reference-height` is the median height of flat rectangles measured in E1
 under the same imaging conditions. It sets what "flat" means: a rolled sheet

@@ -240,3 +240,32 @@ def test_report_counts_every_scan_and_classifies_against_the_image(tmp_path: Pat
     assert measured["population"]["well_formed"]["fraction"] > 0.9, (
         "a clean synthetic sample did not read as well formed"
     )
+
+
+def test_report_reads_native_files_and_not_the_exports_beside_them(tmp_path: Path) -> None:
+    """The protocols used to ask for a .gsf next to every native file. Native
+    files are read directly now, so a folder following the old protocol holds
+    every image twice, and reading both would double every count. Native wins,
+    the exports are named as skipped, and nothing is counted twice."""
+    import json as _json
+    import shutil
+
+    pytest.importorskip("AFMReader")
+    from dobladillo.imaging.readers import write_gsf
+    from dobladillo.imaging.synthetic import synthetic_scan
+
+    prediction = {"part": "rectangle", "predicted_nm": {"length": 90, "width": 60, "height": 2}}
+    directory = scaffold(tmp_path, slug="x", prediction=prediction, plan="# p\n", protocol="# p\n")
+    raw = directory / "during" / "raw"
+    native = Path(__file__).resolve().parent / "data" / "afm_native" / "sample_0.stp"
+    shutil.copy(native, raw / "scan-01.stp")
+    write_gsf(synthetic_scan(seed=1).image, raw / "scan-01.gsf")
+    instrument = _json.loads((directory / "during" / "instrument.json").read_text())
+    instrument["tip"]["measured_radius_before_nm"] = 10.0
+    (directory / "during" / "instrument.json").write_text(_json.dumps(instrument))
+
+    result = _cli("experiment", "report", str(directory), "--json")
+    assert result.exit_code == 0, result.output
+    measured = _json.loads((directory / "post" / "measurements.json").read_text())
+    assert [Path(s).name for s in measured["scans"]] == ["scan-01.stp"]
+    assert "not the 1 .gsf exports" in result.stderr

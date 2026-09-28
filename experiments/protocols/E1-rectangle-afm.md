@@ -187,16 +187,18 @@ Repeat step 8 and write `tip.measured_radius_after_nm`.
 
 ## Day 3 — Analysis (about 1 hour)
 
-### 12. Export and check
+### 12. Check the files
 
-For each image, export a `.gsf` copy of the **height** channel next to the
-native file (common-techniques §10), then:
+The native files are read directly; there is nothing to export
+(common-techniques §10). Check each one:
 
 ```bash
-uv run dobladillo afm read experiments/2026-09-22-rectangle-afm/during/raw/scan-01.gsf
+uv run dobladillo afm read experiments/2026-09-22-rectangle-afm/during/raw/scan-01.spm
 ```
 
-Pixel size and scan size must match what you set on the instrument.
+Pixel size and scan size must match what you set on the instrument. If your
+instrument's format is not read (the command says so), export a `.gsf` of the
+**height** channel from Gwyddion next to the native file and check that.
 
 ### 13. Fill in the record
 
@@ -208,7 +210,7 @@ Pixel size and scan size must match what you set on the instrument.
 
 ```bash
 uv run dobladillo experiment check experiments/2026-09-22-rectangle-afm
-uv run dobladillo experiment report experiments/2026-09-22-rectangle-afm --scan <your .gsf>
+uv run dobladillo experiment report experiments/2026-09-22-rectangle-afm
 ```
 
 If `report` stops and says the tip radius is missing, **measure it** — do not
@@ -244,7 +246,7 @@ passed. Then commit `during/` and `post/`.
 | particles broken or fragmented | drying damage | image in liquid |
 | crowded, overlapping particles | too concentrated | dilute 2–5× |
 | rectangles present but curved or twisted | **the twist correction may not work** | this is a real result — record it, image more, and tell the project |
-| `afm read` shows the wrong pixel size | export problem | re-export from Gwyddion; check the channel and units |
+| `afm read` shows the wrong pixel size | wrong channel, or a bad export | check `--channel`; for a `.gsf`, re-export from Gwyddion and check the units |
 
 **A failure, properly recorded, is a result.** Write what you saw, what you
 tried, and what you think it means. Do not tidy it away.
@@ -254,7 +256,7 @@ tried, and what you think it means. Do not tidy it away.
 ## What to hand over
 
 - `pre/` (committed before the session)
-- `during/raw/`: gel photo, native AFM files, `.gsf` exports
+- `during/raw/`: gel photo, native AFM files (and `.gsf` exports only for a format the toolchain does not read)
 - `during/instrument.json` complete, including both tip radii
 - `during/log.md`
 - `post/` from `dobladillo experiment report`, with your interpretation
