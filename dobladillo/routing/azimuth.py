@@ -227,8 +227,9 @@ def _segment(offset: int, runs: list[tuple[int, int]]) -> int | None:
     """Which duplex run an offset belongs to, or None if it is single-stranded.
 
     A crossover made from unpaired bases -- a scaffold turning through a few
-    free bases at the end of a helix -- has no backbone orientation to get
-    wrong, so it is not scored. It is counted, as `unconstrained`, so a design
+    free bases at the end of a helix, or running onto a helix that parks the
+    leftover scaffold -- has no backbone orientation to get wrong, so it is
+    not scored. It is counted, as `unconstrained`, so a design
     cannot hide crossovers there without the report saying so.
     """
     for i, (lo, hi) in enumerate(runs):
@@ -273,7 +274,10 @@ def _crossover_groups(design: sc.Design, *, count_skips: bool = True) -> tuple[l
         groups: dict[int, list[tuple[int, int, bool]]] = {}
         for address in all_addresses:
             segment = _segment(address[1], runs)
-            if segment is None:
+            # Unpaired on EITHER side: a crossover into single-stranded DNA --
+            # a parked scaffold loop, say -- has no partner backbone to face.
+            partner_paired = _segment(address[1], runs_by_helix.get(address[0], [])) is not None
+            if segment is None or not partner_paired:
                 unconstrained += 1
                 continue
             groups.setdefault(segment, []).append(address)

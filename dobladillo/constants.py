@@ -99,21 +99,37 @@ SCAFFOLD_LENGTHS_NT: Final = {
 }
 
 # ------------------------------------------------------------- staple rules
-# Hard constraints unless a design explicitly flags an exception. DESIGN.md s3.
+# DESIGN.md s3 set these as hard constraints. On 2026-09-28 the benchmark
+# (#14) showed three of them rejecting published designs that fold: the
+# Nature 2009 monolith and square nut (Douglas et al., Nature 459, 414) and
+# Dietz et al. 2009's 120-deg bundle (Science 325, 725), all in
+# tests/data/. Per AGENTS.md rule 8 that was flagged, and the maintainer
+# decided to relax each rule to the published evidence. So a HARD limit is
+# now one no published, folded design in tests/data crosses; the older
+# thresholds survive as preferences, which warn.
 
-#: Allowed staple length, nt.
-STAPLE_LENGTH_NT: Final = (20, 60)
+#: Allowed staple length, nt. The square nut has 31 staples of 17-19 nt, so
+#: the old floor of 20 rejected a published design; 16 keeps a margin under
+#: its shortest. The ceiling, 60, is unchanged: nothing published exceeds 49.
+STAPLE_LENGTH_NT: Final = (16, 60)
 
 #: Preferred staple length, nt. Outside this but inside STAPLE_LENGTH_NT is a
 #: warning, not a violation.
 STAPLE_LENGTH_TARGET_NT: Final = (32, 42)
 
-#: Every staple needs at least one continuous binding domain this long, which
-#: is what nucleates it onto the scaffold.
+#: A continuous binding domain this long nucleates a staple onto the
+#: scaffold, and a staple with one is preferred. A PREFERENCE, not a limit: 97
+#: of the monolith's 144 staples have no domain over 7 nt, which is the normal
+#: honeycomb pattern of 7-nt segments between crossovers, and it folds.
 STAPLE_SEED_DOMAIN_NT: Final = 14
 
-#: A binding domain shorter than this does not hold at folding temperature.
+#: A binding domain shorter than this is unlikely to hold at folding
+#: temperature, and is warned about.
 STAPLE_MIN_DOMAIN_NT: Final = 5
+
+#: A domain shorter than this is refused. The square nut carries 60 domains of
+#: 2 nt and folds, so the floor sits at 2; a 1-nt domain binds nothing.
+STAPLE_MIN_DOMAIN_HARD_NT: Final = 2
 
 #: A staple crossover this close to a scaffold crossover on the same helix
 #: pair strains the junction.

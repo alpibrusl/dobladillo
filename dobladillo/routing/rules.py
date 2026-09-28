@@ -29,6 +29,7 @@ from dobladillo.constants import (
     STAPLE_CROSSOVER_CLEARANCE_BP,
     STAPLE_LENGTH_NT,
     STAPLE_LENGTH_TARGET_NT,
+    STAPLE_MIN_DOMAIN_HARD_NT,
     STAPLE_MIN_DOMAIN_NT,
     STAPLE_SEED_DOMAIN_NT,
 )
@@ -97,7 +98,12 @@ def check_crossover_azimuth(design: sc.Design) -> Iterator[Violation]:
     - a VIOLATION for the design when its rms phasing strain is above the
       ceiling, even if no single crossover is that far out;
     - a WARNING when the helices carry uncorrected twist. Not a defect in
-      itself: E2's control arm carries 310 deg of it on purpose.
+      itself: E2's control arm carries 310 deg of it on purpose;
+    - a WARNING, not a violation, for strain made on purpose with deletions
+      and insertions. That is how curved and twisted shapes are designed
+      (Dietz et al. 2009), and the violations above are judged on crossover
+      PLACEMENT alone. Counting designed strain as misphasing rejected
+      Dietz's 120-deg bundle, placed at 21 deg rms, with 285 "violations".
 
     It replaces `crossover_phase`, which compared offsets modulo a fixed period
     and got both directions wrong: it passed the rectangle, whose tiling put
@@ -108,7 +114,10 @@ def check_crossover_azimuth(design: sc.Design) -> Iterator[Violation]:
 
     if getattr(design.grid, "value", str(design.grid)) not in ("square", "honeycomb"):
         return
-    report = azimuth.measure(design)
+    report = azimuth.measure(design, count_skips=False)
+    deletions, insertions = azimuth.skips(design)
+    skipped = any(deletions.values()) or any(insertions.values())
+    full = azimuth.measure(design) if skipped else report
     for c in report.wrong_face:
         yield Violation(
             rule="crossover_azimuth",
@@ -129,13 +138,23 @@ def check_crossover_azimuth(design: sc.Design) -> Iterator[Violation]:
                 f"crossovers, above {azimuth.MAX_RMS_DEG:.0f}; published designs score 18-22"
             ),
         )
-    if report.carries_twist:
+    if full.carries_twist:
         yield Violation(
             rule="crossover_azimuth",
             severity=Severity.WARNING,
             message=(
-                f"helices carry {report.accumulated_twist_deg:.0f} deg of uncorrected twist "
-                f"({report.twist_deg_per_bp:+.2f} deg/bp); intended only in a twist control"
+                f"helices carry {full.accumulated_twist_deg:.0f} deg of uncorrected twist "
+                f"({full.twist_deg_per_bp:+.2f} deg/bp); intended only in a twist control"
+            ),
+        )
+    if report.acceptable and not full.acceptable:
+        yield Violation(
+            rule="crossover_azimuth",
+            severity=Severity.WARNING,
+            message=(
+                f"deletions and insertions strain the crossovers to {full.rms_deg:.0f} deg rms "
+                f"(placement alone: {report.rms_deg:.0f}); expected in a design curved or "
+                "twisted on purpose, and a cause of lower yield if it is not"
             ),
         )
 
@@ -165,10 +184,11 @@ def check_staple_length(design: sc.Design) -> Iterator[Violation]:
 
 
 def check_seed_domain(design: sc.Design) -> Iterator[Violation]:
-    """Every staple needs one long domain to nucleate on.
+    """A staple is better with one long domain to nucleate on.
 
-    Without a continuous stretch this long, a staple has nothing that binds
-    stably at folding temperature and tends not to incorporate at all.
+    A warning, not a violation, since 2026-09-28. Published honeycomb designs
+    are mostly 7-nt segments between crossovers, and fold; see
+    constants.STAPLE_SEED_DOMAIN_NT.
     """
     for staple in ad.staples(design):
         helix, offset = _staple_anchor(staple)
@@ -176,7 +196,7 @@ def check_seed_domain(design: sc.Design) -> Iterator[Violation]:
         if longest < STAPLE_SEED_DOMAIN_NT:
             yield Violation(
                 "seed_domain",
-                Severity.VIOLATION,
+                Severity.WARNING,
                 f"longest domain is {longest} nt, under the {STAPLE_SEED_DOMAIN_NT} nt seed",
                 helix,
                 offset,
@@ -184,16 +204,25 @@ def check_seed_domain(design: sc.Design) -> Iterator[Violation]:
 
 
 def check_min_domain(design: sc.Design) -> Iterator[Violation]:
+    """Short domains: refused below the published floor, warned below the preference."""
     for staple in ad.staples(design):
         for domain in staple.domains:
             if not hasattr(domain, "helix"):
                 continue
             n = domain.dna_length()
-            if n < STAPLE_MIN_DOMAIN_NT:
+            if n < STAPLE_MIN_DOMAIN_HARD_NT:
                 yield Violation(
                     "min_domain",
                     Severity.VIOLATION,
-                    f"domain is {n} nt, under the {STAPLE_MIN_DOMAIN_NT} nt floor",
+                    f"domain is {n} nt, under the {STAPLE_MIN_DOMAIN_HARD_NT} nt floor",
+                    domain.helix,
+                    domain.start,
+                )
+            elif n < STAPLE_MIN_DOMAIN_NT:
+                yield Violation(
+                    "min_domain",
+                    Severity.WARNING,
+                    f"domain is {n} nt, under the {STAPLE_MIN_DOMAIN_NT} nt preference",
                     domain.helix,
                     domain.start,
                 )
@@ -274,8 +303,16 @@ def check_poly_g(design: sc.Design) -> Iterator[Violation]:
 
 RULES: Sequence[Rule] = (
     Rule("staple_length", f"staple length within {STAPLE_LENGTH_NT}", check_staple_length),
-    Rule("seed_domain", f"one domain of at least {STAPLE_SEED_DOMAIN_NT} nt", check_seed_domain),
-    Rule("min_domain", f"no domain under {STAPLE_MIN_DOMAIN_NT} nt", check_min_domain),
+    Rule(
+        "seed_domain",
+        f"prefer one domain of at least {STAPLE_SEED_DOMAIN_NT} nt (warning)",
+        check_seed_domain,
+    ),
+    Rule(
+        "min_domain",
+        f"no domain under {STAPLE_MIN_DOMAIN_HARD_NT} nt; warn under {STAPLE_MIN_DOMAIN_NT}",
+        check_min_domain,
+    ),
     Rule("sandwich", "no short-long-short staples", check_sandwich),
     Rule(
         "crossover_clearance",

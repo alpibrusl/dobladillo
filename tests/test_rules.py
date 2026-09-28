@@ -230,7 +230,10 @@ def test_crossover_azimuth_fires_on_equal_phase_honeycomb() -> None:
     the original bundle into a 269 nm arc in oxDNA.
     """
     design = ad.new_design_at(positions=[(0, 1), (1, 1), (2, 1)], max_offset=84, grid="honeycomb")
-    ad.draw(design, 1, 0).to(84).as_scaffold()
+    # A scaffold on all three helices: a crossover into a helix with no
+    # scaffold would be into single-stranded DNA, which the measure rightly
+    # leaves unscored.
+    ad.draw(design, 0, 84).to(0).cross(1, 0).to(84).cross(2, 84).to(0).as_scaffold()
     for start_bp in range(0, 84, 42):
         ad.draw(design, 1, start_bp + 21).to(start_bp).cross(0, start_bp).to(start_bp + 21)
         ad.draw(design, 1, start_bp + 42).to(start_bp + 21).cross(2, start_bp + 21).to(

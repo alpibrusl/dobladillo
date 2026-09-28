@@ -94,12 +94,14 @@ def test_the_dietz_bend_is_reported_as_a_known_failure(full: dict[str, Any]) -> 
     assert abs(observed["predicted_without_twist_stretch_coupling_deg"] - 121.0) < 2 * 8.4
 
 
-def test_rule_conflicts_with_published_designs_are_flagged(full: dict[str, Any]) -> None:
-    """AGENTS.md rule 8: flag, do not silently relax."""
+def test_published_designs_pass_the_relaxed_rules(full: dict[str, Any]) -> None:
+    """AGENTS.md rule 8: these conflicts were flagged, not silently relaxed,
+    and the maintainer then relaxed the rules to the published evidence. They
+    must stay passing, and the manifest must keep saying why."""
+    manifest = {c["id"]: c for c in json.loads((DATA / "known_answers.json").read_text())["cases"]}
     for design in ("nature09-monolith", "nature09-squarenut", "dietz09-bend-120"):
-        case = _case(full, f"lint/{design}")
-        assert case["status"] == "known_failure"
-        assert "AGENTS.md rule 8" in case["known_failure"]
+        assert _case(full, f"lint/{design}")["status"] == "pass"
+        assert "AGENTS.md rule 8" in manifest[f"lint/{design}"]["resolved"]
 
 
 def test_what_is_missing_is_reported(full: dict[str, Any]) -> None:

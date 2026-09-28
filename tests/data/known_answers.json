@@ -81,7 +81,7 @@
       "design": "reference_designs/Nature09_monolith.json",
       "expect": "pass",
       "source": "Douglas et al., Nature 459, 414 (2009): it folded, so no hard rule should reject it",
-      "known_failure": "seed_domain (14 nt) and min_domain (5 nt) reject honeycomb staples built from 7-nt domains, which this published design uses throughout. A rule in conflict with a published design, flagged per AGENTS.md rule 8 and not relaxed here"
+      "resolved": "flagged under AGENTS.md rule 8 and relaxed by the maintainer on 2026-09-28: seed_domain became a warning, min_domain and staple_length hard floors moved to the published minima (2 nt, 16 nt), and crossover_azimuth judges placement, warning on designed deletion/insertion strain; see constants.py"
     },
     {
       "id": "lint/nature09-squarenut",
@@ -90,7 +90,7 @@
       "design": "reference_designs/Nature09_squarenut.json",
       "expect": "pass",
       "source": "Douglas et al., Nature 459, 414 (2009): it folded, so no hard rule should reject it",
-      "known_failure": "seed_domain, min_domain and staple_length reject staples this published design uses. A rule in conflict with a published design, flagged per AGENTS.md rule 8 and not relaxed here"
+      "resolved": "flagged under AGENTS.md rule 8 and relaxed by the maintainer on 2026-09-28: seed_domain became a warning, min_domain and staple_length hard floors moved to the published minima (2 nt, 16 nt), and crossover_azimuth judges placement, warning on designed deletion/insertion strain; see constants.py"
     },
     {
       "id": "lint/dietz09-bend-120",
@@ -99,7 +99,7 @@
       "design": "published_shapes/Science09_prot120_98_v3.json",
       "expect": "pass",
       "source": "Dietz, Douglas & Shih, Science 325, 725 (2009): it folded and bent as designed, so no hard rule should reject it",
-      "known_failure": "crossover_azimuth counts the strain its deletions and insertions put on crossovers as misphasing (placement-only phasing is 21 deg, inside the published band), and seed_domain / min_domain / staple_length reject its 7-nt-domain staples. Rules in conflict with a published design, flagged per AGENTS.md rule 8 and not relaxed here"
+      "resolved": "flagged under AGENTS.md rule 8 and relaxed by the maintainer on 2026-09-28: seed_domain became a warning, min_domain and staple_length hard floors moved to the published minima (2 nt, 16 nt), and crossover_azimuth judges placement, warning on designed deletion/insertion strain; see constants.py"
     },
     {
       "id": "phasing/bundle-21-21",
@@ -210,7 +210,9 @@
       "stage": "shape",
       "check": "bend_angle",
       "design": "published_shapes/Science09_prot120_98_v3.json",
-      "exclude_helices": [19],
+      "exclude_helices": [
+        19
+      ],
       "expect": "pass",
       "measured_deg": 121.0,
       "measured_sd_deg": 8.4,

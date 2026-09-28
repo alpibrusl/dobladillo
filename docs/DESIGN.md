@@ -73,9 +73,15 @@ source. If the two disagree, one of them is a bug.
 
 ### Staple rules (hard constraints unless flagged)
 
-- Length 20 to 60 nt, target 32 to 42.
-- Each staple has at least one continuous binding domain >= 14 nt (seed).
-- No binding domain < 5 nt.
+- Length 16 to 60 nt, target 32 to 42. *(Floor was 20; relaxed 2026-09-28
+  because a published, folded design has 17-19 nt staples. See constants.py.)*
+- Prefer one continuous binding domain >= 14 nt (seed): a warning, not a
+  limit. *(Published honeycomb designs are mostly 7-nt segments.)*
+- No binding domain < 2 nt; warn under 5 nt. *(Published designs carry 2-nt
+  domains.)*
+- Crossovers placed where the backbone faces the partner
+  (`crossover_azimuth`). Strain added on purpose with deletions and
+  insertions is a warning.
 - Avoid "sandwich" staples (short-long-short domain pattern) where possible.
 - No staple crossover within 5 bp of a scaffold crossover on the same helix pair.
 - Flag poly-G runs >= 4 and staples with strong predicted self-structure.
