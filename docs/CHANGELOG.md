@@ -130,3 +130,17 @@
   leave out of the pool. Also `imaging.pattern`, synthetic patterned scans,
   `experiment pattern`, and a dry run. `find_particles` gains
   `peak_percentile`.
+- E9, rectangle dimer:
+  - components A and B each reuse 198 of E1's 220 staples, and pair through
+    eleven 12-nt sticky ends chosen with primer3; 12 is the shortest length
+    that passes all four checks;
+  - every helix end on every edge carries a 4-T tail;
+  - `imaging.assembly` counts monomer, dimer and larger particles, with the
+    A-alone and B-alone controls and a replicate homogeneity test;
+  - `experiment assembly`, `lab order dimer` (44 extra oligos, not 440),
+    a protocol and a dry run.
+- Two defects found while building E9. Mutually complementary sticky ends
+  (a designed self-dimeriser) were accepted; they are now refused. And
+  `find_particles` was losing tall aggregates, which became frame-sized
+  "particles" and were excluded. With that fixed, `afm measure` and
+  `experiment report` average dimensions over well-formed particles only.
