@@ -146,6 +146,22 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         "agreement on what DNA's modulus is.",
         on_critical_path=False,
     ),
+    Experiment(
+        id="E10",
+        title="Six-helix bundle, 3D fold",
+        epic=None,
+        relevance=4,
+        difficulty=3,
+        success=0.60,
+        blocked_by="oxDNA run 2026-09-28-bundle-6hb-unit showing the current routing straight "
+        "(bend order parameter well below 0.99, sagitta well below 50 nm)",
+        why="The first 3D part, and the one whose routing had the worst bug: misphased "
+        "crossovers bent earlier versions into 269-347 nm arcs in oxDNA. Validates the fold on "
+        "a gel first, then asks on mica whether the rod is straight but flexible or "
+        "systematically curved -- which only the tangent-angle fit can tell apart -- and "
+        "checks its length. Depends on E1 for technique and reference height only.",
+        on_critical_path=False,
+    ),
 )
 
 

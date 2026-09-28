@@ -22,6 +22,7 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 | [`E1-rectangle-afm.md`](E1-rectangle-afm.md) | E1 — does our first design fold? (with a positive control) | ready once the gate is written |
 | [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | ready once the gate is written |
 | [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | blocked: footprint prediction |
+| [`E10-six-helix-bundle.md`](E10-six-helix-bundle.md) | E10 — does the six-helix bundle fold, and is it straight? | blocked: oxDNA run 2026-09-28-bundle-6hb-unit |
 
 E4–E7 need software that does not exist yet; their protocols will be written
 when it does. See `../ROADMAP.md`. E4's analysis chain can already be dry-run
