@@ -80,8 +80,8 @@ the session, write them in, and commit `pre/`.
 
 ### 1. Staple pool
 
-All **144** staples, equal volumes (common-techniques §1). With 100 µM wells,
-each staple is **694 nM** in the pool.
+All **132** staples, equal volumes (common-techniques §1). With 100 µM wells,
+each staple is **758 nM** in the pool.
 
 ### 2. Nine folding reactions
 
@@ -93,22 +93,22 @@ Master mix for 10 reactions, on ice:
 |---|---|---:|---:|
 | folding buffer | 10× | 5.0 µL | 50.0 µL |
 | scaffold p7249 | 100 nM | 5.0 µL | 50.0 µL |
-| staple pool | 694 nM each | 3.6 µL | 36.0 µL |
-| **total** | | **13.6 µL** | **136.0 µL** |
+| staple pool | 758 nM each | 3.3 µL | 33.0 µL |
+| **total** | | **13.3 µL** | **133.0 µL** |
 
-Put **13.6 µL** in each of nine tubes, then add:
+Put **13.3 µL** in each of nine tubes, then add:
 
 | tube | MgCl₂ final | 100 mM MgCl₂ | water | total |
 |---:|---:|---:|---:|---:|
-| 1 | 5 mM | 2.5 µL | 33.9 µL | 50 µL |
-| 2 | 7 mM | 3.5 µL | 32.9 µL | 50 µL |
-| 3 | 9 mM | 4.5 µL | 31.9 µL | 50 µL |
-| 4 | 11 mM | 5.5 µL | 30.9 µL | 50 µL |
-| 5 | 13 mM | 6.5 µL | 29.9 µL | 50 µL |
-| 6 | 15 mM | 7.5 µL | 28.9 µL | 50 µL |
-| 7 | 17 mM | 8.5 µL | 27.9 µL | 50 µL |
-| 8 | 19 mM | 9.5 µL | 26.9 µL | 50 µL |
-| 9 | 20 mM | 10.0 µL | 26.4 µL | 50 µL |
+| 1 | 5 mM | 2.5 µL | 34.2 µL | 50 µL |
+| 2 | 7 mM | 3.5 µL | 33.2 µL | 50 µL |
+| 3 | 9 mM | 4.5 µL | 32.2 µL | 50 µL |
+| 4 | 11 mM | 5.5 µL | 31.2 µL | 50 µL |
+| 5 | 13 mM | 6.5 µL | 30.2 µL | 50 µL |
+| 6 | 15 mM | 7.5 µL | 29.2 µL | 50 µL |
+| 7 | 17 mM | 8.5 µL | 28.2 µL | 50 µL |
+| 8 | 19 mM | 9.5 µL | 27.2 µL | 50 µL |
+| 9 | 20 mM | 10.0 µL | 26.7 µL | 50 µL |
 
 Plus a scaffold-only control at 13 mM.
 

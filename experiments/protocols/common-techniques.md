@@ -71,7 +71,7 @@ C_each_in_pool = C_well / N_staples
 |---|---:|---:|
 | rectangle (E1) | 220 | 455 nM |
 | twist pair, each arm (E2) | 216 | 463 nM |
-| hinge (E3) | 144 | 694 nM |
+| hinge (E3) | 132 | 758 nM |
 
 Keep one pool per design. **For E2 the two arms must never be mixed.**
 

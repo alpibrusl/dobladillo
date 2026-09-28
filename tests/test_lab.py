@@ -194,7 +194,7 @@ def test_a_design_with_latch_extensions_can_be_ordered() -> None:
     from dobladillo.sequence.thermo import reverse_complement
 
     layout = name_and_assign_wells(bistable_hinge().design, plate_type=96)
-    assert len(layout.wells) == 144
+    assert len(layout.wells) == 132
     sequences = [w.sequence for w in layout.wells]
     assert any(s.endswith(DEFAULT_LATCH) for s in sequences)
     assert any(s.endswith(reverse_complement(DEFAULT_LATCH)) for s in sequences)

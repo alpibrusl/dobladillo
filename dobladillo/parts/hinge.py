@@ -18,9 +18,9 @@ unpaired 3' extensions on one pair staple at each end. When the hinge closes,
 the two extensions meet and hybridise; the hybridisation free energy is the
 bias between the two states, which `sequence.thermo` converts into a field.
 
-Which pair staple can carry the extension is not free. The block parity
-alternates along an arm, so a helix that is part of a pair at one end of an arm
-takes an edge staple at the other; `_lattice.pair_lower` is what answers it,
+Which pair staple can carry the extension is not free. The column parity
+alternates along an arm, so a border helix that is part of a pair at one end
+of an arm rides on an edge staple at the other; `_lattice.pair_lower` is what answers it,
 and a `latch_helix` with no pair at one of the two ends is refused rather than
 silently moved.
 
@@ -40,7 +40,6 @@ from typing import TYPE_CHECKING, Any
 from dobladillo import _scadnano as ad
 from dobladillo.interfaces import Brick, Port
 from dobladillo.parts._lattice import (
-    BLOCK_NT,
     DOMAIN_NT,
     SPAN_MULTIPLE_NT,
     add_raster_scaffold,
@@ -74,6 +73,12 @@ DEFAULT_JOINT_NT = 8
 
 #: A balanced 8 bp latch. Stage 0 sweeps around this.
 DEFAULT_LATCH = "GCATGCAT"
+
+#: Column parity each arm starts on, set by where the scaffold turns: arm A
+#: starts at the raster's near-end turns and arm B ends at its far-end ones.
+#: See `_lattice.tile_staples`. Each arm is its own duplex -- the joint is
+#: single-stranded -- so the two are phased independently.
+_FIRST_PARITY = {"a": 1, "b": 0}
 
 
 @dataclass(frozen=True)
@@ -170,23 +175,27 @@ class Hinge:
 def _latch_anchor(
     *, arm_length: int, latch_helix: int, arm_helices: int, arm: str
 ) -> tuple[int, int]:
-    """Where a latch extension hangs from, as (lower helix, staple offset).
+    """Where a latch extension hangs from, as (lower helix, column offset in its arm).
 
-    Arm A's outer edge is its first staple and arm B's is its last, so the two
-    sit at opposite block parities and have to be asked for separately.
+    Arm A's outer edge is its first column and arm B's is its last, so the two
+    sit at opposite column parities and have to be asked for separately.
     """
     if arm == "a":
-        block_index, offset = 0, 0
+        column_index, offset = 0, 0
     else:
-        blocks = arm_length // BLOCK_NT
-        block_index = blocks - 1
-        offset = 2 * arm_length - DOMAIN_NT
-    lower = pair_lower(latch_helix, block_index=block_index, helices=arm_helices)
+        column_index = arm_length // DOMAIN_NT - 1
+        offset = arm_length - DOMAIN_NT
+    lower = pair_lower(
+        latch_helix,
+        column_index=column_index,
+        helices=arm_helices,
+        first_parity=_FIRST_PARITY[arm],
+    )
     if lower is None:
         raise ValueError(
             f"helix {latch_helix} takes an edge staple rather than a pair staple at the "
             f"outer edge of arm {arm.upper()}, so it cannot carry a latch there; the "
-            "block parity alternates, so try an adjacent helix"
+            "column parity alternates, so try an adjacent helix"
         )
     return lower, offset
 
@@ -204,9 +213,9 @@ def bistable_hinge(
 ) -> Hinge:
     """Build the hinge.
 
-    `arm_length` must be a multiple of 64 for the same reason a rectangle's
-    length must be: an odd number of staple blocks puts a crossover on the
-    scaffold's turn.
+    `arm_length` must be a multiple of 64: an even number of 16-bp columns
+    keeps the last column's crossovers off the scaffold's turn, and whole
+    64-bp periods let the twist correction be exact.
     """
     if arm_length % SPAN_MULTIPLE_NT:
         raise ValueError(f"arm_length must be a multiple of {SPAN_MULTIPLE_NT}, got {arm_length}")
@@ -252,14 +261,16 @@ def bistable_hinge(
         stop=arm_length,
         extension_at=anchor_a,
         extension_nt=latch.length_bp,
+        first_parity=_FIRST_PARITY["a"],
     )
     tile_staples(
         design,
         helices=arm_helices,
         start=arm_b_start,
         stop=total,
-        extension_at=(anchor_b[0], anchor_b[1] + joint_nt),
+        extension_at=(anchor_b[0], arm_b_start + anchor_b[1]),
         extension_nt=latch.length_bp,
+        first_parity=_FIRST_PARITY["b"],
     )
 
     deletions = 0

@@ -191,6 +191,50 @@ def backbone_angle(
     return float(angle % 360.0)
 
 
+def _duplexes(design: sc.Design) -> dict[int, list[tuple[int, int]]]:
+    """Per helix, the maximal runs of offsets where it is double-stranded.
+
+    A helix is one rigid body only where it is a duplex. Unpaired scaffold --
+    a hinge's joint, a loop -- lets the stretches on either side turn
+    independently, so each stretch gets its own roll. Treating the helix as
+    one rod would charge a hinge's arm B for being out of phase with arm A,
+    which it is free to be.
+    """
+    forward: dict[int, set[int]] = {}
+    backward: dict[int, set[int]] = {}
+    for strand in design.strands:
+        for domain in strand.domains:
+            if not hasattr(domain, "helix"):
+                continue
+            side = forward if domain.forward else backward
+            side.setdefault(domain.helix, set()).update(range(domain.start, domain.end))
+    runs: dict[int, list[tuple[int, int]]] = {}
+    for helix, offsets in forward.items():
+        paired = sorted(offsets & backward.get(helix, set()))
+        out: list[tuple[int, int]] = []
+        for offset in paired:
+            if out and offset == out[-1][1]:
+                out[-1] = (out[-1][0], offset + 1)
+            else:
+                out.append((offset, offset + 1))
+        runs[helix] = out
+    return runs
+
+
+def _segment(offset: int, runs: list[tuple[int, int]]) -> int:
+    """Which duplex run an offset belongs to; the nearest one if it is in none."""
+    if not runs:
+        return 0
+    return min(
+        range(len(runs)),
+        key=lambda i: (
+            0
+            if runs[i][0] <= offset < runs[i][1]
+            else min(abs(offset - runs[i][0]), abs(offset - (runs[i][1] - 1)))
+        ),
+    )
+
+
 def _wrap(x: np.ndarray) -> np.ndarray:
     return np.abs((x + 180.0) % 360.0 - 180.0)
 
@@ -207,38 +251,47 @@ def measure(design: sc.Design) -> AzimuthReport:
     """Residual strain of every inter-helix crossover, split into twist and phasing.
 
     Twist is fitted as ONE rate for the whole design -- the lattice mismatch
-    that causes it is the same on every helix -- and each helix then gets its
-    own roll. A rate per helix was tried first and overfits: a helix with four
-    crossovers can absorb a real phasing error into a "twist" of its own.
+    that causes it is the same on every helix -- and each duplex then gets its
+    own roll: one per helix, or one per stretch where unpaired bases break the
+    helix into separate duplexes. A rate per helix was tried first and
+    overfits: a helix with four crossovers can absorb a real phasing error
+    into a "twist" of its own.
     """
     from scadnano.scadnano import angle_from_helix_to_helix
 
     geometry, grid, helices = design.geometry, design.grid, design.helices
     deletions, insertions = _skips(design)
+    duplexes = _duplexes(design)
     per_helix: list[tuple[int, list[tuple[int, int, bool]], np.ndarray, np.ndarray]] = []
     for helix in helices.values():
-        addresses = helix.crossover_addresses(
+        all_addresses = helix.crossover_addresses(
             helices, allow_intrahelix=False, allow_intergroup=False
         )
-        if not addresses:
-            continue
-        actual = np.array(
-            [
-                backbone_angle(
-                    helix,
-                    offset,
-                    forward,
-                    geometry,
-                    deletions.get(helix.idx, set()),
-                    insertions.get(helix.idx, {}),
-                )
-                for _, offset, forward in addresses
-            ]
-        )
-        target = np.array(
-            [angle_from_helix_to_helix(helix, helices[p], grid, geometry) for p, _, _ in addresses]
-        )
-        per_helix.append((helix.idx, list(addresses), actual, target))
+        runs = duplexes.get(helix.idx, [])
+        groups: dict[int, list[tuple[int, int, bool]]] = {}
+        for address in all_addresses:
+            groups.setdefault(_segment(address[1], runs), []).append(address)
+        for addresses in groups.values():
+            actual = np.array(
+                [
+                    backbone_angle(
+                        helix,
+                        offset,
+                        forward,
+                        geometry,
+                        deletions.get(helix.idx, set()),
+                        insertions.get(helix.idx, {}),
+                    )
+                    for _, offset, forward in addresses
+                ]
+            )
+            target = np.array(
+                [
+                    angle_from_helix_to_helix(helix, helices[p], grid, geometry)
+                    for p, _, _ in addresses
+                ]
+            )
+            per_helix.append((helix.idx, addresses, actual, target))
 
     def strains_at(rate: float) -> list[np.ndarray]:
         return [

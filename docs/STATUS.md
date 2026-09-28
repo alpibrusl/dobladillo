@@ -5,7 +5,7 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | Item | State | Notes |
 |---|---|---|
 | Q1 project skeleton + scadnano round trip | done | both parts build, export to cadnano v2 and round-trip; accounting exact; counts pinned |
-| Q2 design-rule validator | done | six rules, each with a seeded failing design; `dobladillo lint`. Caught a real defect in the rectangle. `self_structure` declared unimplemented, not silently passing |
+| Q2 design-rule validator | done | seven rules, each with a seeded failing design; `dobladillo lint`. `crossover_azimuth` (2026-09-28) replaced `crossover_phase` and is calibrated on five published designs in `tests/data/reference_designs`. `self_structure` declared unimplemented, not silently passing |
 | Q3 lab outputs | done | IDT bulk CSV and plate xlsx, both validated; pooling map, pipetting sheet, protocol with Mg screen; cost estimate with assumptions |
 | Q4 oxDNA job bundle | done | all four stages run to completion on CPU in test mode, zero errors. `sim.queue` now runs bundles several at a time: oxDNA's CPU backend is single-threaded, so one job used 1 of 16 cores |
 | Q5 baseline analysis | done | parser, dimensions, RMSF, planarity, bend, oxView overlay; `dobladillo analyse`. Run on a real 200-frame trajectory: 328.2 +- 3.2 x 70.1 +- 4.0 x 17.7 +- 1.8 nm against a design of 390.4 x 8.0 |
@@ -14,11 +14,37 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 | M3 assembly composition + stage planning | todo | This is **staged self-assembly** (Demaine et al. 2008): encode the shape in the staging algorithm rather than the tiles. One pot needs Θ(n) glues for an n×n square; staged needs O(log n). Its mix/split/store operations map onto combine/purify/store at a bench. Read it first |
 | M4 AFM pipeline | done | flatten, segment, measure, classify, yield with a Wilson interval; validated to <1% against synthetic ground truth. Scans come in as Gwyddion Simple Field, and `dobladillo afm` is the CLI surface |
 | M5 compare report + first closed loop | done | `dobladillo compare`: design against simulation against measurement, with the tip deconvolution that dominates any width. Validated by rendering a known rectangle through a modelled tip and recovering it. `docs/CLOSED_LOOP.md` |
-| M6 one-DOF mechanism | part built | `parts/hinge.py`: two arms, ssDNA joint, latch. Lints clean. Whether the latch geometrically reaches is for oxDNA, and is stated rather than assumed |
+| M6 one-DOF mechanism | part built | `parts/hinge.py`: two arms, ssDNA joint, latch. Re-tiled 2026-09-28 (see below); lints clean, 17 deg rms phasing strain. Simulation results from before the re-tiling describe the old design |
 | C0-C6 | not started | research-grade |
 
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
+
+## Square re-tiling, 2026-09-28
+
+Every square-lattice part put half its staple crossovers on the wrong face of
+the helix. The tiling gave each helix two crossovers to the same neighbour
+16 bp apart, and 16 bp is a turn and a half. `routing.azimuth` found it. It
+takes the geometry from scadnano, splits strain into phasing and twist, and is
+calibrated on designs we did not write:
+
+| design | phasing rms | wrong face | twist |
+|---|---:|---:|---:|
+| published (Nature 2009 ×2, scadnano ×3) | 18–22° | 0 | as designed |
+| old rectangle / twist pair / hinge | 89–91° | 46–48% | — |
+| rectangle, twist pair (scadnano `origami_rectangle`) | 21°, 21°, 18° | 0 | 0, 0, −310° |
+| hinge (`_lattice`, column parity) | 17° | 0 | 0 |
+| six-helix bundle | 44° | 1% | 0 |
+
+The uncorrected twist-pair arm's −310° matches the 309° predicted from the
+lattice alone. That is an independent check on both.
+
+- E1 and E2 order files were regenerated before any order was placed; each
+  folder has `pre/RETILED.md`. Staple counts are unchanged, so pipetting stands.
+- The hinge now has 132 staples, not 144; E3's protocol volumes are updated.
+  **The hinge joint sweep and latch-reach runs above were made on the old
+  tiling** and need re-running before they inform E3 or E4.
+- The bundle is still misphased; its lint test is a strict xfail.
 
 ## Q4: verified, and what it took
 

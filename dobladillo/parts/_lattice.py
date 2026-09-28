@@ -1,12 +1,31 @@
-"""Square-lattice staple tiling, shared by every flat part.
+"""Square-lattice staple tiling for parts scadnano's rectangle cannot build.
 
-The rectangle worked this out first and it is not obvious, so it lives here
-rather than being copied: the block-parity rule below had a real defect that
-the rule checker caught, and a second copy would not have been fixed with it.
+The rectangle and twist pair are built by scadnano's `origami_rectangle`. The
+hinge cannot be: one scaffold runs through two arms and an unpaired joint
+whose length is a free knob, not a multiple of scadnano's 16-bp column. So the
+hinge is tiled here, on the same pattern.
 
-Every function takes an explicit `[start, stop)` span so a part can tile more
-than one region of the same helices -- which is what a hinge is: two tiled
-arms with an untiled joint between them.
+**The pattern, and the defect it replaces.** A staple crossover can only be
+made where the backbone faces the partner helix. On the square lattice the
+two in-plane neighbours of a helix sit on opposite sides, and 16 bp is a turn
+and a half, so crossovers every 16 bp must ALTERNATE partner: (0,1),(2,3),...
+at one column boundary, (1,2),(3,4),... at the next. That is Rothemund's
+pattern. The first version of this file alternated every 32 bp instead, which
+gave each helix two crossovers to the same partner 16 bp apart, one of them on
+the wrong face. Half of every crossover in every square part was strained by
+~180 deg; `routing.azimuth` found it, calibrated on published designs.
+
+Here each column is tiled with 32-nt U-staples, 16 nt on each helix of a
+pair, crossing at the column's right boundary; the pairing parity is the
+column's. The two border helices are unpaired in odd columns. Their cell is
+joined to the neighbouring pair staple in the SAME column through a crossover
+at the column's left boundary. That boundary has the opposite parity, which is
+exactly the partner the border helix needs there. So edge staples are 48 nt,
+16+16+16, and no crossover breaks the alternation.
+
+Every function takes an explicit `[start, stop)` span, so a part can tile more
+than one region of the same helices. A hinge is two tiled arms with an
+untiled joint between them.
 """
 
 from __future__ import annotations
@@ -19,17 +38,15 @@ from dobladillo.constants import SQUARE_TWIST_CORRECTION_PERIOD_BP
 if TYPE_CHECKING:
     import scadnano as sc
 
-#: Bases per staple domain. Above the 14 nt seed, and two of them land the
-#: staple at 32 nt, inside the 32-42 target band.
+#: Bases per staple domain, and the width of one column: the distance between
+#: consecutive crossovers on a helix, which alternate between its neighbours.
 DOMAIN_NT = 16
 
-#: A block is one full pairing cycle: two staples deep on each pair.
-BLOCK_NT = 2 * DOMAIN_NT
-
-#: A tiled span must be a multiple of this: of BLOCK_NT so the blocks tile
-#: exactly, and of twice it so there is an even number of them, which is what
-#: keeps a staple crossover off the scaffold's turn at the far end.
-SPAN_MULTIPLE_NT = 2 * BLOCK_NT
+#: A tiled span must be a multiple of this. Of 32, so there is an even number
+#: of columns: the last column then pairs (1,2),(3,4),..., and its crossovers
+#: stay off the scaffold's turn, which pairs (0,1),(2,3),... at the far end.
+#: Of 64, so the twist correction deletes one base per whole period.
+SPAN_MULTIPLE_NT = SQUARE_TWIST_CORRECTION_PERIOD_BP
 
 
 def scaffold_runs_forward(helix: int) -> bool:
@@ -60,16 +77,16 @@ def add_raster_scaffold(design: sc.Design, *, helices: int, length: int) -> None
     builder.as_scaffold()
 
 
-def pair_lower(helix: int, *, block_index: int, helices: int) -> int | None:
-    """Which pair staple covers `helix` in this block, by its lower helix.
+def pair_lower(helix: int, *, column_index: int, helices: int, first_parity: int = 0) -> int | None:
+    """Which pair staple covers `helix` in this column, by its lower helix.
 
-    None when the helix is unpaired in that block and takes an edge staple
-    instead -- which happens to helix 0 on odd blocks, and to the top helix on
-    whichever parity leaves it over. A caller that wants to hang something off
-    a pair staple has to ask, because the parity alternates and the answer is
+    None when the helix is a border helix left unpaired in that column, whose
+    cell rides on the neighbouring pair staple instead -- helix 0 and the top
+    helix, on odd columns. A caller that wants to hang something off a pair
+    staple has to ask, because the parity alternates and the answer is
     different at the two ends of an arm.
     """
-    parity = block_index % 2
+    parity = (column_index + first_parity) % 2
     if helix < parity:
         return None
     lower = parity + 2 * ((helix - parity) // 2)
@@ -78,41 +95,55 @@ def pair_lower(helix: int, *, block_index: int, helices: int) -> int | None:
     return lower
 
 
-def add_pair_staple(
+def _cell(
+    builder: sc.StrandBuilder | None, design: sc.Design, helix: int, start: int
+) -> sc.StrandBuilder:
+    """Continue a staple across one 16-bp cell of `helix`, opposite the scaffold.
+
+    A staple enters a cell at one end and leaves at the other, so the offset
+    it starts drawing from is set by its direction on that helix.
+    """
+    stop = start + DOMAIN_NT
+    forward = not scaffold_runs_forward(helix)
+    begin, end = (start, stop) if forward else (stop, start)
+    if builder is None:
+        return ad.draw(design, helix, begin).to(end)
+    return builder.cross(helix, begin).to(end)
+
+
+def add_column_staple(
     design: sc.Design,
     *,
     lower: int,
     start: int,
+    helices: int,
     extension_nt: int = 0,
 ) -> None:
-    """One 32 nt staple: 16 nt on `lower`, 16 nt on the helix above it.
+    """The staple for pair (`lower`, `lower`+1) in the column at `start`.
 
-    Built to run opposite the scaffold on each helix, which is what makes it
-    complementary rather than merely adjacent.
+    32 nt, crossing at the column's right boundary. If the pair borders an
+    unpaired border helix, that helix's cell is joined on through the left
+    boundary, making 48 nt.
 
-    An extension, when asked for, hangs off the 3' end as unpaired bases. That
-    is how a latch is attached: it binds nothing on this object and everything
-    on the other arm. Its sequence is NOT set here -- see
-    `_scadnano.assign_extension_sequence` for why it cannot be.
+    The staple is drawn 5' to 3'. On an even-lower pair it starts on the upper
+    helix, which puts its one crossover at the right boundary. On an odd-lower
+    pair it starts on the lower helix, or on helix 0 when that is joined on,
+    and walking upward alternates left and right boundaries by construction.
     """
     upper = lower + 1
-    stop = start + DOMAIN_NT
-    if scaffold_runs_forward(lower):
-        # Scaffold forward on `lower`, so the staple must run backward there.
-        builder = ad.draw(design, upper, start).to(stop).cross(lower, stop).to(start)
+    if lower % 2 == 0:
+        chain = [upper, lower]
     else:
-        builder = ad.draw(design, lower, start).to(stop).cross(upper, stop).to(start)
-    if extension_nt:
+        chain = [lower, upper]
+        if lower == 1:
+            chain.insert(0, 0)  # helix 0 is unpaired in this column
+        if upper == helices - 2:
+            chain.append(helices - 1)  # so is the top helix
+    builder = None
+    for helix in chain:
+        builder = _cell(builder, design, helix, start)
+    if extension_nt and builder is not None:
         builder.extension_3p(extension_nt)
-
-
-def add_edge_staple(design: sc.Design, *, helix: int, start: int) -> None:
-    """A single-domain 32 nt staple where a border helix has no partner."""
-    stop = start + BLOCK_NT
-    if scaffold_runs_forward(helix):
-        ad.draw(design, helix, stop).to(start)
-    else:
-        ad.draw(design, helix, start).to(stop)
 
 
 def tile_staples(
@@ -123,38 +154,40 @@ def tile_staples(
     stop: int,
     extension_at: tuple[int, int] | None = None,
     extension_nt: int = 0,
+    first_parity: int = 0,
 ) -> None:
-    """Tile `[start, stop)` across `helices`.
+    """Tile `[start, stop)` across `helices`, one column at a time.
 
-    The pairing alternates by block. Every interior helix borders two
-    neighbours, so tiling every adjacent pair at the same offsets would cover
-    each interior helix twice. Instead block k pairs (0,1),(2,3),... when k is
-    even and (1,2),(3,4),... when k is odd. Each base is then covered exactly
-    once, and because the pairing alternates along the length the helices are
-    stitched to both neighbours rather than falling apart into independent
-    two-helix ribbons. The outermost helices are left uncovered on alternate
-    blocks and take a single 32 nt edge staple there.
+    Column c pairs (0,1),(2,3),... when c + `first_parity` is even and
+    (1,2),(3,4),... when it is odd, so the partner of every helix alternates
+    at each 16-bp boundary.
 
-    `extension_at` is a (lower helix, block start offset) naming the one pair
+    `first_parity` is set by the scaffold, not chosen. The scaffold's
+    crossovers sit a minor groove (150 deg) round from the staples', so where
+    the scaffold turns at the end of a span, the staple pattern must pair the
+    OTHER parity at that boundary. That is also how scadnano's rectangle is
+    laid out. The raster turns pair (1,2),(3,4),... at offset 0 and
+    (0,1),(2,3),... at the far end. So a span that starts at a scaffold turn
+    takes `first_parity=1`, and one that ends at a far-end turn takes 0.
+    Getting it wrong puts every scaffold turn on the wrong face, about 140 deg.
+
+    `extension_at` is a (lower helix, column start offset) naming the one pair
     staple that carries an extension.
     """
     check_span(start, stop)
-    for block_start in range(start, stop, BLOCK_NT):
-        block_index = (block_start - start) // BLOCK_NT
-        first_lower = block_index % 2
-        paired: set[int] = set()
-
-        for lower in range(first_lower, helices - 1, 2):
-            paired.update({lower, lower + 1})
-            for offset in (block_start, block_start + DOMAIN_NT):
-                carries = extension_at == (lower, offset)
-                add_pair_staple(
-                    design, lower=lower, start=offset, extension_nt=extension_nt if carries else 0
-                )
-
-        for helix in range(helices):
-            if helix not in paired:
-                add_edge_staple(design, helix=helix, start=block_start)
+    if helices < 4 or helices % 2:
+        raise ValueError(f"tiling needs an even number of helices, at least 4; got {helices}")
+    for column_start in range(start, stop, DOMAIN_NT):
+        parity = ((column_start - start) // DOMAIN_NT + first_parity) % 2
+        for lower in range(parity, helices - 1, 2):
+            carries = extension_at == (lower, column_start)
+            add_column_staple(
+                design,
+                lower=lower,
+                start=column_start,
+                helices=helices,
+                extension_nt=extension_nt if carries else 0,
+            )
 
 
 def add_twist_correction(design: sc.Design, *, helices: int, start: int, stop: int) -> int:

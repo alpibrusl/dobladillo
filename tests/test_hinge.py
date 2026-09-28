@@ -68,11 +68,6 @@ def test_the_two_latch_halves_sit_on_opposite_arms(hinge) -> None:
     assert arms == {"a", "b"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="hinge still uses the old square tiling: half its crossovers on the wrong face "
-    "(crossover_azimuth, 91 deg rms); re-tiling is the next step",
-)
 def test_the_design_has_no_rule_violations(hinge) -> None:
     """Warnings are expected and match the rectangle's profile; a violation is
     not. The rectangle's first version had twelve, found here and not by
@@ -101,10 +96,10 @@ def test_a_self_complementary_latch_is_refused() -> None:
 
 
 def test_a_latch_helix_with_no_pair_staple_is_refused_not_moved() -> None:
-    """Block parity alternates along an arm, so helix 0 is paired at one end
-    and takes an edge staple at the other. Silently sliding the latch to a
+    """Column parity alternates along an arm, so helix 0 is paired at one end
+    and rides on an edge staple at the other. Silently sliding the latch to a
     neighbouring helix would change the mechanism without saying so."""
-    assert pair_lower(0, block_index=1, helices=12) is None
+    assert pair_lower(0, column_index=1, helices=12) is None
     with pytest.raises(ValueError, match="edge staple"):
         bistable_hinge(latch_helix=0)
 
@@ -124,3 +119,29 @@ def test_the_joint_length_is_a_free_knob(joint: int) -> None:
     h = bistable_hinge(joint_nt=joint)
     assert h.joint_nt == joint
     assert h.total_length == 2 * h.arm_length + joint
+
+
+def test_the_hinge_is_phased_like_published_designs(hinge) -> None:
+    """The defect that blocked E3: the old tiling put half the hinge's
+    crossovers on the wrong face (91 deg rms). Published designs score
+    18-22 deg with none on the wrong face; see routing.azimuth."""
+    from dobladillo.routing.azimuth import measure
+
+    report = measure(hinge.design)
+    assert report.rms_deg < 22
+    assert not report.wrong_face
+    assert not report.carries_twist
+
+
+def test_arm_parity_follows_the_scaffold_turns(monkeypatch) -> None:
+    """Negative control for `first_parity`. Start arm A on the same parity as
+    arm B and its scaffold turns at offset 0 land on the wrong face -- which
+    is what the first re-tiling did before the scaffold's frame was accounted
+    for."""
+    from dobladillo.parts import hinge as module
+    from dobladillo.routing.azimuth import measure
+
+    monkeypatch.setattr(module, "_FIRST_PARITY", {"a": 0, "b": 0})
+    wrong = measure(module.bistable_hinge().design).wrong_face
+    assert wrong
+    assert {c.offset for c in wrong} == {0}

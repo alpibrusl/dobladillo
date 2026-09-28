@@ -212,14 +212,18 @@ def test_crossover_azimuth_fires_on_a_repeated_partner() -> None:
     """The defect that blocked E1-E3, seeded: crossovers to the SAME neighbour
     16 bp apart, where the backbone has turned a turn and a half.
 
-    Built with the old square tiling, which did exactly this. The hinge still
-    uses it; the rectangle no longer does.
+    Rebuilt here as the old square tiling drew it: pairs alternate every 32 bp
+    rather than every 16, so each helix meets the same partner twice in a row.
     """
-    from dobladillo.parts._lattice import add_raster_scaffold, tile_staples
+    from dobladillo.parts._lattice import add_column_staple, add_raster_scaffold
 
-    design = ad.new_design(helices=6, max_offset=128, grid="square")
-    add_raster_scaffold(design, helices=6, length=128)
-    tile_staples(design, helices=6, start=0, stop=128)
+    helices, length = 6, 128
+    design = ad.new_design(helices=helices, max_offset=length, grid="square")
+    add_raster_scaffold(design, helices=helices, length=length)
+    for column_start in range(0, length, 16):
+        parity = (column_start // 32) % 2  # the defect: per 32-bp block
+        for lower in range(parity, helices - 1, 2):
+            add_column_staple(design, lower=lower, start=column_start, helices=helices)
 
     found = lint(design, only=["crossover_azimuth"]).violations
     located = [v for v in found if v.helix is not None]

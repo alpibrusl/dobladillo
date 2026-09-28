@@ -19,8 +19,9 @@ The latch is a short duplex between the arms' outer edges, carried as unpaired
 the bias between the two states.
 
 Defaults: 12 helices, 192 bp per arm (63.7 × 36.0 nm), 8 nt joint, 8 bp latch,
-144 staples, 4632 of 7249 scaffold bases routed. No rule violations; the
-warning profile matches the rectangle's.
+132 staples, 4632 of 7249 scaffold bases routed. No rule violations, and
+17° rms crossover phasing strain against 18–22° for published designs.
+Re-tiled 2026-09-28: see `parts/_lattice.py` and docs/STATUS.md.
 
 Two things the constructor cannot establish, both stated rather than assumed:
 

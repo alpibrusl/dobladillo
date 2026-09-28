@@ -89,8 +89,7 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         relevance=5,
         difficulty=2,
         success=0.70,
-        blocked_by="the hinge's tiling puts half its crossovers on the wrong face "
-        "(crossover_azimuth); and a folded-hinge footprint prediction",
+        blocked_by="a folded-hinge footprint prediction",
         why="The cheapest thing that can invalidate the hinge line. One construct "
         "rather than eight, and the original plan went straight from 'no hinge has "
         "ever been folded' to an eight-construct ladder with a FRET readout.",

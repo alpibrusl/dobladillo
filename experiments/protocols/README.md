@@ -1,17 +1,13 @@
 # Bench protocols
 
-> ## ⚠ Do not order oligos for E3 yet — 2026-09-28
+> ## Re-tiled designs — 2026-09-28
 >
-> The hinge still places **half its staple crossovers on the wrong face of
-> the helix**: two crossovers to the same neighbour 16 bp apart, where the
-> backbone has turned about 180°. Measured against published designs, it is
-> randomly phased (≈90° rms strain; published designs score 18–22°). It is
-> being re-tiled; E3's order does not exist until then.
->
-> E1 and E2 had the same defect and were re-tiled on 2026-09-28, before any
-> order was placed. Their `pre/order/` files are current; each experiment's
-> `pre/RETILED.md` says what changed. Staple counts did not change, so the
-> pipetting volumes below still hold.
+> Every square-lattice design here (rectangle, both twist-pair arms, hinge)
+> first placed half its staple crossovers on the wrong face of the helix. All
+> were re-tiled before any order was placed, and now score like published
+> designs. E1's and E2's `pre/order/` files are current; each has a
+> `pre/RETILED.md`. The hinge now has 132 staples, and E3's volumes below are
+> updated. E3 still waits on its footprint prediction, not on the design.
 
 Step-by-step protocols for running this project's experiments, written for a
 student who has basic molecular-biology bench experience (pipetting, gels, a
@@ -22,7 +18,7 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 | [`common-techniques.md`](common-techniques.md) | shared by all | read first |
 | [`E1-rectangle-afm.md`](E1-rectangle-afm.md) | E1 — does our first design fold? | ready (re-tiled 2026-09-28) |
 | [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | ready (re-tiled 2026-09-28) |
-| [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | **blocked: re-tiling** |
+| [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | blocked: footprint prediction |
 
 E4–E7 need software that does not exist yet; their protocols will be written
 when it does. See `../ROADMAP.md`.
