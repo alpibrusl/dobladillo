@@ -43,11 +43,28 @@ DEFAULT_PURIFICATION = "STD"
 DEFAULT_PRICE_PER_BASE = 0.10
 
 
+def _bound(staple: sc.Strand) -> list[Any]:
+    """The domains that sit on a helix.
+
+    Extensions and loopouts have no helix and no offset. Naming or sorting a
+    staple by "its domains" without this filter crashes on the first design
+    that carries one -- which is every hinge, because the latch is two 3'
+    extensions. `lab order` and `experiment new` had never worked for the
+    hinge until a student protocol asked for it.
+    """
+    return [d for d in staple.domains if hasattr(d, "helix")]
+
+
+def _anchor(staple: sc.Strand) -> tuple[int, int]:
+    """Helix and 5' offset of the first helix-bound domain."""
+    first = _bound(staple)[0]
+    return first.helix, (first.start if first.forward else first.end - 1)
+
+
 def staple_name(staple: sc.Strand) -> str:
     """A name that leads back to a position in the design."""
-    first = staple.domains[0]
-    offset = first.start if first.forward else first.end - 1
-    return f"st_h{first.helix:02d}_o{offset:04d}"
+    helix, offset = _anchor(staple)
+    return f"st_h{helix:02d}_o{offset:04d}"
 
 
 @dataclass(frozen=True)
@@ -139,7 +156,7 @@ def name_and_assign_wells(
     plate = sc.PlateCoordinate(plate_type=sc.PlateType(plate_type))
     staples = sorted(
         ad.staples(design),
-        key=lambda s: (s.domains[0].helix, min(d.start for d in s.domains)),
+        key=lambda s: (_bound(s)[0].helix, min(d.start for d in _bound(s))),
     )
 
     wells: list[Well] = []
@@ -154,7 +171,7 @@ def name_and_assign_wells(
             plate=plate_name,
             well=plate.well(),
         )
-        first = staple.domains[0]
+        helix, offset = _anchor(staple)
         wells.append(
             Well(
                 name=name,
@@ -162,8 +179,8 @@ def name_and_assign_wells(
                 well=plate.well(),
                 length_nt=staple.dna_length(),
                 sequence=staple.dna_sequence or "",
-                helix=first.helix,
-                offset=first.start if first.forward else first.end - 1,
+                helix=helix,
+                offset=offset,
             )
         )
         if not plate.is_last():

@@ -30,9 +30,11 @@ most important line in the folder, and it is the one most easily written last.
 > a difference between two constructs, so anything that drifts between them
 > becomes the result.
 >
-> **At least 50 particles clear of the frame edge per arm.** The readout is a
-> proportion; 50 gives a Wilson interval around 12 points wide, which is
-> narrower than the difference worth acting on.
+> **At least 100 particles clear of the frame edge per arm; 300 if cheap.**
+> The readout is a proportion: at 100 a fraction near 70% carries about ±9%,
+> at 300 about ±5%, and below 100 the arms could differ a lot and still not be
+> distinguishable. (An earlier draft of this gate said 50; the design document
+> says 100, and the design document wins.)
 >
 > **Pass.** The corrected arm's flat fraction exceeds the uncorrected arm's by
 > more than 10 points, with a 95% Newcombe interval on the difference that
@@ -43,7 +45,7 @@ most important line in the folder, and it is the one most easily written last.
 > deleting one base in every 64 from every square-lattice design — which is
 > most of them. This is a result, not a failed experiment.
 >
-> **Fail.** Fewer than 50 countable particles in either arm, or the two arms
+> **Fail.** Fewer than 100 countable particles in either arm, or the two arms
 > differ in something other than the deletions.
 
 ## What is predicted

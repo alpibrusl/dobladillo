@@ -200,3 +200,43 @@ def test_the_agent_guide_names_the_field_most_likely_to_be_guessed() -> None:
     assert "tip radius" in text
     assert "Never write a number" in text
     assert "experiment report" in text
+
+
+def test_report_counts_every_scan_and_classifies_against_the_image(tmp_path: Path) -> None:
+    """Two bugs a student following E1 would have hit, pinned together.
+
+    `experiment report` insisted on exactly one .gsf, while E1 asks for 300
+    particles and one overview holds about 40. And it classified particles
+    against the OBJECT's dimensions while the image shows object plus tip, so a
+    good sample read as nearly all malformed -- the bug `afm measure` had and
+    lost, surviving here.
+    """
+    import json as _json
+
+    from dobladillo.imaging.readers import write_gsf
+    from dobladillo.imaging.synthetic import synthetic_scan
+    from dobladillo.parts.twist_pair import twist_pair
+
+    part = twist_pair().corrected.as_dict()
+    dims = sorted(part["approx_dimensions_nm"].values(), reverse=True)
+    prediction = {
+        "part": "twist-corrected",
+        "predicted_nm": {"length": dims[0], "width": dims[-1], "height": 2.0},
+    }
+    directory = scaffold(tmp_path, slug="x", prediction=prediction, plan="# p\n", protocol="# p\n")
+    for i in range(3):
+        scan = synthetic_scan(seed=i, length_nm=dims[0], width_nm=dims[-1], n_aggregates=0)
+        write_gsf(scan.image, directory / "during" / "raw" / f"scan-{i}.gsf")
+    instrument = _json.loads((directory / "during" / "instrument.json").read_text())
+    instrument["tip"]["measured_radius_before_nm"] = 10.0
+    instrument["tip"]["measured_radius_after_nm"] = 10.0
+    (directory / "during" / "instrument.json").write_text(_json.dumps(instrument))
+
+    result = _cli("experiment", "report", str(directory), "--json")
+    assert result.exit_code == 0, result.output
+    measured = _json.loads((directory / "post" / "measurements.json").read_text())
+    assert len(measured["scans"]) == 3, "only one scan was analysed"
+    assert measured["particles"] > 100
+    assert measured["population"]["well_formed"]["fraction"] > 0.9, (
+        "a clean synthetic sample did not read as well formed"
+    )

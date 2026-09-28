@@ -1,6 +1,8 @@
 # Experiments
 
-**Start with [`ROADMAP.md`](ROADMAP.md)** for which experiment comes next and
+**Running an experiment at the bench? Start with [`protocols/`](protocols/README.md)** —
+step-by-step, written for students. For which experiment comes next and why,
+see **[`ROADMAP.md`](ROADMAP.md)** for which experiment comes next and
 why, and `roadmaps/` for the per-epic detail: what each one tests, what it is
 scored at, and what has to be built before it can run.
 

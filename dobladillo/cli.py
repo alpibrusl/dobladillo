@@ -1369,8 +1369,10 @@ def experiment_new(
 @experiment_app.command("report")
 def experiment_report(
     directory: Path = typer.Argument(..., help="An experiment folder."),
-    scan: Path | None = typer.Option(
-        None, "--scan", help="Which raw file. Defaults to the only .gsf in during/raw."
+    scans: list[Path] | None = typer.Option(
+        None,
+        "--scan",
+        help="A raw .gsf to include. Repeatable. Defaults to every .gsf in during/raw.",
     ),
     as_json: bool = JSON_OPTION,
 ) -> None:
@@ -1388,6 +1390,7 @@ def experiment_report(
     import statistics
 
     from dobladillo.compare import Conditions, Observation, compare, deconvolve_tip, designed
+    from dobladillo.compare.corrections import half_height_broadening_nm
     from dobladillo.experiments import check as run_check
     from dobladillo.imaging.classify import population
     from dobladillo.imaging.flatten import flatten
@@ -1432,24 +1435,30 @@ def experiment_report(
     # being averaged away silently.
     blunting = (max(radii) - min(radii)) / tip_radius if len(radii) > 1 else 0.0
 
-    if scan is None:
-        candidates = sorted((directory / "during" / "raw").glob("*.gsf"))
-        if len(candidates) != 1:
+    # Every scan by default, because the experiments count particles across
+    # many images: E1 asks for 300, and one 2 x 2 um overview holds about 40.
+    # This used to insist on exactly one file, so a student following the
+    # protocol would have reported a yield from an eighth of their data.
+    if not scans:
+        scans = sorted((directory / "during" / "raw").glob("*.gsf"))
+        if not scans:
             emitter.fail(
-                f"{len(candidates)} .gsf files in during/raw; name one with --scan",
-                kind="ambiguous_scan",
+                "no .gsf files in during/raw; export the height channel of each "
+                "image as .gsf (see experiments/protocols/common-techniques.md)",
+                kind="no_scans",
             )
             return
-        scan = candidates[0]
 
-    try:
-        image = read(scan)
-    except UnreadableScan as e:
-        emitter.fail(str(e), kind="unreadable_scan")
-        return
-
-    flattened, background = flatten(image)
-    particles = [p for p in find_particles(flattened, background) if not p.touches_edge]
+    all_particles = []
+    for scan in scans:
+        try:
+            image = read(scan)
+        except UnreadableScan as e:
+            emitter.fail(f"{scan.name}: {e}", kind="unreadable_scan")
+            return
+        flattened, background = flatten(image)
+        all_particles.extend(find_particles(flattened, background))
+    particles = [p for p in all_particles if not p.touches_edge]
     if not particles:
         emitter.fail("no particles clear of the frame edge", kind="no_particles")
         return
@@ -1484,18 +1493,26 @@ def experiment_report(
             [designed(f"{quantity}_nm", float(predicted[quantity])), corrected],
         )
 
+    # Classify against what the IMAGE should show -- the object plus the tip --
+    # not against the object. Comparing them directly marks every good particle
+    # malformed: `afm measure` had this bug and was fixed, and this command kept
+    # it, so a correct E1 run would have reported a yield near zero.
+    widening = 2 * half_height_broadening_nm(
+        tip_radius_nm=tip_radius, feature_height_nm=median_height
+    )
     found = population(
-        particles,
-        length_nm=float(predicted["length"]),
-        width_nm=float(predicted["width"]),
+        all_particles,
+        length_nm=float(predicted["length"]) + widening,
+        width_nm=float(predicted["width"]) + widening,
         height_nm=float(predicted.get("height", 2.0)),
     )
 
     post = directory / "post"
     post.mkdir(exist_ok=True)
     measurements = {
-        "scan": str(scan),
+        "scans": [str(x) for x in scans],
         "particles": len(particles),
+        "tip_widening_nm": round(widening, 2),
         "tip_radius_nm": tip_radius,
         "tip_blunting_fraction": round(blunting, 3),
         "median_height_nm": round(median_height, 2),

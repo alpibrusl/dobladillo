@@ -182,3 +182,19 @@ def test_protocol_asks_for_the_salt_to_be_recorded() -> None:
     """oxDNA cannot model Mg2+, so a result without its salt is uncomparable."""
     sheet = folding_protocol(part_name="p", dimensionality="2D", scaffold_variant="p7249")
     assert any("MgCl2" in item for item in sheet["record_for_each_reaction"])
+
+
+def test_a_design_with_latch_extensions_can_be_ordered() -> None:
+    """The hinge's latch is two 3' extensions, which have no helix and no
+    offset. Naming and sorting staples by all their domains crashed on them,
+    so `lab order` and `experiment new` had never worked for the hinge --
+    found only when a student protocol asked for it."""
+    from dobladillo.lab.plates import name_and_assign_wells
+    from dobladillo.parts.hinge import DEFAULT_LATCH, bistable_hinge
+    from dobladillo.sequence.thermo import reverse_complement
+
+    layout = name_and_assign_wells(bistable_hinge().design, plate_type=96)
+    assert len(layout.wells) == 144
+    sequences = [w.sequence for w in layout.wells]
+    assert any(s.endswith(DEFAULT_LATCH) for s in sequences)
+    assert any(s.endswith(reverse_complement(DEFAULT_LATCH)) for s in sequences)
