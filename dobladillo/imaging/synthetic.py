@@ -16,6 +16,7 @@ origami look like; it makes images with a known answer.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -168,6 +169,56 @@ def _stamp_rectangle(
     heights += height_nm * profile(along, length_px / 2) * profile(across, width_px / 2)
 
 
+def _instrument(
+    heights: np.ndarray,
+    rng: np.random.Generator,
+    *,
+    drift_shear: float,
+    tilt_nm: float,
+    bow_nm: float,
+    line_noise_nm: float,
+    streak_lines: int,
+    streak_height_nm: float,
+    noise_nm: float,
+) -> np.ndarray:
+    """The defects a real scan carries, added after the structures so they sit
+    under everything. Shared by every synthetic scan, and draws from `rng` in a
+    fixed order, so a seed gives the same image whichever scan calls it."""
+    size = heights.shape[0]
+    yy, xx = np.mgrid[0:size, 0:size]
+    # Thermal drift shears the slow axis: a particle imaged over several
+    # minutes is measured while the sample moves under the tip, so it comes out
+    # skewed. Applied to the placed geometry rather than added afterwards,
+    # because a shear is a coordinate change and not a height offset.
+    if drift_shear:
+        shift = (drift_shear * yy).astype(int)
+        rows = np.arange(size)[:, None]
+        heights = heights[rows, np.clip(xx + shift, 0, size - 1)]
+
+    heights = heights + tilt_nm * (xx / size) + 0.6 * tilt_nm * (yy / size)
+
+    # Scanner bow. The reason it is worth modelling separately from tilt: a
+    # plane fit removes tilt exactly and leaves bow untouched, so a pipeline
+    # that only plane-fits looks fine on a tilted fixture and fails on a real
+    # scan. Parabolic in both axes, as a piezo actually bends.
+    if bow_nm:
+        u = 2 * xx / size - 1
+        v = 2 * yy / size - 1
+        heights = heights + bow_nm * (u**2 + 0.7 * v**2)
+
+    heights = heights + rng.normal(0, line_noise_nm, (size, 1))  # per-line offset
+
+    # The tip picks something up and drags it for a few lines. Real, common,
+    # and the thing most likely to be mistaken for a row of particles.
+    if streak_lines:
+        first = int(rng.integers(0, max(1, size - streak_lines)))
+        band = slice(first, first + streak_lines)
+        heights[band, :] = heights[band, :] + streak_height_nm * rng.uniform(0.6, 1.4)
+
+    heights = heights + rng.normal(0, noise_nm, heights.shape)
+    return heights
+
+
 def synthetic_scan(
     *,
     size_px: int = 512,
@@ -289,40 +340,287 @@ def synthetic_scan(
             )
         )
 
-    # The defects, added after the structures so they sit under everything.
-    yy, xx = np.mgrid[0:size_px, 0:size_px]
-    # Thermal drift shears the slow axis: a particle imaged over several
-    # minutes is measured while the sample moves under the tip, so it comes out
-    # skewed. Applied to the placed geometry rather than added afterwards,
-    # because a shear is a coordinate change and not a height offset.
-    if drift_shear:
-        shift = (drift_shear * yy).astype(int)
-        rows = np.arange(size_px)[:, None]
-        heights = heights[rows, np.clip(xx + shift, 0, size_px - 1)]
-
-    heights = heights + tilt_nm * (xx / size_px) + 0.6 * tilt_nm * (yy / size_px)
-
-    # Scanner bow. The reason it is worth modelling separately from tilt: a
-    # plane fit removes tilt exactly and leaves bow untouched, so a pipeline
-    # that only plane-fits looks fine on a tilted fixture and fails on a real
-    # scan. Parabolic in both axes, as a piezo actually bends.
-    if bow_nm:
-        u = 2 * xx / size_px - 1
-        v = 2 * yy / size_px - 1
-        heights = heights + bow_nm * (u**2 + 0.7 * v**2)
-
-    heights = heights + rng.normal(0, line_noise_nm, (size_px, 1))  # per-line offset
-
-    # The tip picks something up and drags it for a few lines. Real, common,
-    # and the thing most likely to be mistaken for a row of particles.
-    if streak_lines:
-        first = int(rng.integers(0, max(1, size_px - streak_lines)))
-        band = slice(first, first + streak_lines)
-        heights[band, :] = heights[band, :] + height_nm * rng.uniform(0.6, 1.4)
-
-    heights = heights + rng.normal(0, noise_nm, heights.shape)
+    heights = _instrument(
+        heights,
+        rng,
+        drift_shear=drift_shear,
+        tilt_nm=tilt_nm,
+        bow_nm=bow_nm,
+        line_noise_nm=line_noise_nm,
+        streak_lines=streak_lines,
+        streak_height_nm=height_nm,
+        noise_nm=noise_nm,
+    )
 
     return SyntheticScan(
         image=HeightMap(heights_nm=heights, pixel_nm=pixel_nm, source="synthetic"),
         truth=tuple(placed),
+    )
+
+
+# ------------------------------------------------------------------- rods
+
+
+def _stamp_rod(
+    heights: np.ndarray,
+    *,
+    points_px: np.ndarray,
+    height_nm: float,
+    pixel_nm: float,
+    tip_radius_nm: float,
+) -> None:
+    """Draw a rod of round cross-section along a centreline, as a finite tip records it.
+
+    `points_px` is the centreline in (row, col) pixels, from one flat end to
+    the other. Two profiles, both from a rigid sphere of radius R riding the
+    object:
+
+    - **across the rod**, a cylinder of radius r = h/2 lying on the surface.
+      The tip centre touches the cylinder when it is R + r from the axis, so
+      at lateral distance rho the apex sits at
+
+          z(rho) = r - R + sqrt((R + r)^2 - rho^2),
+
+      full height 2r on the axis and reaching the substrate at
+      rho = sqrt((R + r)^2 - (R - r)^2) = 2 sqrt(R r). At half height (z = r)
+      the image is sqrt(r^2 + 2 R r) from the axis against r for the object.
+    - **past each flat end**, the plateau edge `_stamp_rectangle` uses, so the
+      half-height contour of an end sits sqrt(R h - h^2/4) beyond it -- the
+      correction `compare.deconvolve_tip` removes from any half-height length.
+
+    Their product, as for the rectangle: right along the body and at the end
+    faces, approximate at the end corners. Exact for a straight rod and close
+    for a curved one whose radius is far above R.
+    """
+    rows, cols = heights.shape
+    r = height_nm / 2.0
+    reach_nm = 2.0 * math.sqrt(max(tip_radius_nm, 0.0) * r) + r + 2 * pixel_nm
+    reach = reach_nm / pixel_nm
+    # Extend the centreline straight past each end, so pixels beyond an end
+    # find their nearest point on a line through it and not on its corner.
+    head = points_px[0] - points_px[1]
+    tail = points_px[-1] - points_px[-2]
+    head /= np.linalg.norm(head)
+    tail /= np.linalg.norm(tail)
+    line = np.vstack([points_px[0] + head * reach, points_px, points_px[-1] + tail * reach])
+    lo = np.floor(line.min(axis=0) - reach).astype(int)
+    hi = np.ceil(line.max(axis=0) + reach).astype(int)
+    r0, c0 = max(lo[0], 0), max(lo[1], 0)
+    r1, c1 = min(hi[0], rows - 1), min(hi[1], cols - 1)
+    if r1 < r0 or c1 < c0:
+        return
+    yy, xx = np.mgrid[r0 : r1 + 1, c0 : c1 + 1]
+    pixels = np.column_stack([yy.ravel(), xx.ravel()]).astype(float)
+
+    a, b = line[:-1], line[1:]
+    d = b - a
+    length = np.linalg.norm(d, axis=1)
+    arc_start = np.concatenate([[-reach], -reach + np.cumsum(length)[:-1]])
+    best = np.full(len(pixels), np.inf)
+    along = np.zeros(len(pixels))
+    for i in range(len(a)):
+        t = np.clip(((pixels - a[i]) @ d[i]) / (length[i] ** 2), 0.0, 1.0)
+        nearest = a[i] + t[:, None] * d[i]
+        dist = np.linalg.norm(pixels - nearest, axis=1)
+        closer = dist < best
+        best[closer] = dist[closer]
+        along[closer] = arc_start[i] + t[closer] * length[i]
+
+    contour = float(np.linalg.norm(np.diff(points_px, axis=0), axis=1).sum())
+    rho = best * pixel_nm
+    past_end = np.maximum(np.maximum(-along, along - contour), 0.0) * pixel_nm
+    big = tip_radius_nm + r
+    across = np.clip(r - tip_radius_nm + np.sqrt(np.maximum(big**2 - rho**2, 0.0)), 0.0, 2 * r)
+    across[rho > big] = 0.0
+    if tip_radius_nm > 0:
+        x = np.clip(past_end, 0.0, tip_radius_nm)
+        end = height_nm - tip_radius_nm + np.sqrt(np.maximum(tip_radius_nm**2 - x**2, 0.0))
+        end = np.clip(np.where(past_end <= 0, height_nm, end) / height_nm, 0.0, 1.0)
+        end[past_end > tip_radius_nm] = 0.0
+    else:
+        end = (past_end <= 0).astype(float)
+    heights[r0 : r1 + 1, c0 : c1 + 1] += (across * end).reshape(yy.shape)
+
+
+@dataclass(frozen=True)
+class PlacedRod:
+    """A rod that was put into the image: its true centreline and what it is."""
+
+    points_nm: np.ndarray
+    kind: str  # "rod" | "fragment" | "crossing" | "aggregate"
+
+    @property
+    def contour_nm(self) -> float:
+        return float(np.linalg.norm(np.diff(self.points_nm, axis=0), axis=1).sum())
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind, "contour_nm": round(self.contour_nm, 1)}
+
+
+@dataclass(frozen=True)
+class SyntheticRodScan:
+    image: HeightMap
+    truth: tuple[PlacedRod, ...]
+    lp_nm: float
+    curvature_per_nm: float
+
+    @property
+    def rods(self) -> tuple[PlacedRod, ...]:
+        return tuple(p for p in self.truth if p.kind == "rod")
+
+
+def synthetic_rod_scan(
+    *,
+    size_px: int = 1024,
+    scan_nm: float = 2000.0,
+    n_rods: int = 30,
+    contour_nm: float = 390.4,
+    height_nm: float = 8.0,
+    lp_nm: float = 1500.0,
+    curvature_per_nm: float = 0.0,
+    n_fragments: int = 0,
+    n_crossings: int = 0,
+    n_aggregates: int = 0,
+    tip_radius_nm: float = 10.0,
+    noise_nm: float = 0.12,
+    tilt_nm: float = 6.0,
+    line_noise_nm: float = 0.25,
+    bow_nm: float = 0.0,
+    drift_shear: float = 0.0,
+    streak_lines: int = 0,
+    seed: int = 0,
+) -> SyntheticRodScan:
+    """A scan of rods whose shapes were drawn from a wormlike chain of known Lp.
+
+    `curvature_per_nm` gives every rod a built-in arc as well, bent one way or
+    the other at random: the systematically curved population the E10 analysis
+    must tell apart from a straight, flexible one. `height_nm` defaults to the
+    six-helix bundle's design diameter; it is a test value, not a prediction of
+    how tall a bundle images dry.
+
+    Fragments are half-length rods; a crossing is two full rods laid across
+    each other, which a tracer must flag rather than measure; aggregates are
+    blobs two to three rods tall.
+    """
+    from dobladillo.imaging.wlc import sample_shapes
+
+    rng = np.random.default_rng(seed)
+    pixel_nm = scan_nm / size_px
+    heights = np.zeros((size_px, size_px))
+    placed: list[PlacedRod] = []
+    occupied: list[np.ndarray] = []
+    margin_nm = 40.0 + 2 * tip_radius_nm
+
+    def place(shape_nm: np.ndarray) -> np.ndarray | None:
+        """A position for this shape clear of the frame and of everything placed."""
+        centred = shape_nm - shape_nm.mean(axis=0)
+        span = np.abs(centred).max(axis=0)
+        edge = margin_nm
+        if np.any(2 * (span + edge) >= scan_nm):
+            return None
+        for _ in range(300):
+            centre = rng.uniform(span + edge, scan_nm - span - edge)
+            candidate = centred + centre
+            if all(
+                np.min(np.linalg.norm(candidate[:, None, :] - other[None, ::4, :], axis=2))
+                > margin_nm
+                for other in occupied
+            ):
+                return candidate
+        return None
+
+    def draw(points_nm: np.ndarray, kind: str) -> None:
+        _stamp_rod(
+            heights,
+            points_px=points_nm[:, ::-1] / pixel_nm,  # (x, y) nm -> (row, col) px
+            height_nm=height_nm,
+            pixel_nm=pixel_nm,
+            tip_radius_nm=tip_radius_nm,
+        )
+        placed.append(PlacedRod(points_nm=points_nm, kind=kind))
+
+    shapes = sample_shapes(
+        n_rods + n_fragments + 2 * n_crossings,
+        contour_nm=contour_nm,
+        lp_nm=lp_nm,
+        curvature_per_nm=curvature_per_nm,
+        seed=int(rng.integers(0, 2**31)),
+    )
+    stream = iter(shapes)
+    for _ in range(n_rods):
+        spot = place(next(stream))
+        if spot is not None:
+            occupied.append(spot)
+            draw(spot, "rod")
+    for _ in range(n_fragments):
+        shape = next(stream)
+        spot = place(shape[: len(shape) // 2])
+        if spot is not None:
+            occupied.append(spot)
+            draw(spot, "fragment")
+    for _ in range(n_crossings):
+        first, second = next(stream), next(stream)
+        first = first - first.mean(axis=0)
+        second = second - second.mean(axis=0)
+
+        # Turn the second to cross the first near its middle, at 45-135 deg to
+        # it. Each shape was drawn along a random heading, so the turn is from
+        # the second's own chord onto the first's plus the crossing angle.
+        def heading(points: np.ndarray) -> float:
+            chord = points[-1] - points[0]
+            return float(np.arctan2(chord[1], chord[0]))
+
+        turn = heading(first) - heading(second) + rng.uniform(np.pi / 4, 3 * np.pi / 4)
+        rotation = np.array([[np.cos(turn), -np.sin(turn)], [np.sin(turn), np.cos(turn)]])
+        pair = np.vstack([first, second @ rotation.T])
+        spot = place(pair)
+        if spot is not None:
+            occupied.append(spot)
+            draw(spot[: len(first)], "crossing")
+            draw(spot[len(first) :], "crossing")
+    for _ in range(n_aggregates):
+        blob = rng.normal(0, 15.0, (8, 2))
+        spot = place(blob)
+        if spot is None:
+            continue
+        occupied.append(spot)
+        centre = spot.mean(axis=0)
+        # Blobs composed by their maximum, not their sum: a clump a few rods
+        # tall, not a tower of every blob stacked on the others. Each blob is a
+        # short thick rod rather than a `_stamp_rectangle` plateau, whose tip
+        # model does not hold for a feature taller than the tip radius.
+        clump = np.zeros_like(heights)
+        for _ in range(int(rng.integers(3, 6))):
+            offset = rng.normal(0, 12.0, 2)
+            turn = rng.uniform(0, np.pi)
+            half = 15.0 * np.array([np.cos(turn), np.sin(turn)])
+            ends = np.array([centre + offset - half, centre + offset + half])
+            blob = np.zeros_like(heights)
+            _stamp_rod(
+                blob,
+                points_px=ends[:, ::-1] / pixel_nm,
+                height_nm=height_nm * float(rng.uniform(1.8, 3.0)),
+                pixel_nm=pixel_nm,
+                tip_radius_nm=tip_radius_nm,
+            )
+            np.maximum(clump, blob, out=clump)
+        heights += clump
+        placed.append(PlacedRod(points_nm=spot, kind="aggregate"))
+
+    heights = _instrument(
+        heights,
+        rng,
+        drift_shear=drift_shear,
+        tilt_nm=tilt_nm,
+        bow_nm=bow_nm,
+        line_noise_nm=line_noise_nm,
+        streak_lines=streak_lines,
+        streak_height_nm=height_nm,
+        noise_nm=noise_nm,
+    )
+    return SyntheticRodScan(
+        image=HeightMap(heights_nm=heights, pixel_nm=pixel_nm, source="synthetic rods"),
+        truth=tuple(placed),
+        lp_nm=lp_nm,
+        curvature_per_nm=curvature_per_nm,
     )
