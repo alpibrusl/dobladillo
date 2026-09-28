@@ -23,6 +23,7 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 | [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | ready once the gate is written |
 | [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | blocked: footprint prediction |
 | [`E8-patterned-rectangle.md`](E8-patterned-rectangle.md) | E8 — can we put a detail where we want it? | ready once E1 has reported (its Mg, reference height and plates); dry-run on synthetic scans (`e8_dryrun.py`) |
+| [`E9-rectangle-dimer.md`](E9-rectangle-dimer.md) | E9 — do two origami assemble? | ready once E1 has reported (its Mg, reference height and plates); dry-run on synthetic scans (`e9_dryrun.py`) |
 | [`E10-six-helix-bundle.md`](E10-six-helix-bundle.md) | E10 — does the six-helix bundle fold, and is it straight? | blocked: oxDNA run 2026-09-28-bundle-6hb-unit |
 
 E4–E7 need software that does not exist yet; their protocols will be written

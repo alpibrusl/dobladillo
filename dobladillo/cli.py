@@ -83,7 +83,8 @@ def _post_report(
         "",
         f"**{'Agrees with prediction' if agrees else 'DISAGREES with prediction'}**",
         "",
-        f"- {measurements['particles']} particles clear of the frame edge",
+        f"- {measurements['particles']} particles clear of the frame edge; dimensions "
+        f"over {measurements['measured_particles']} {measurements['measured_over']}",
         f"- tip radius {measurements['tip_radius_nm']:.1f} nm"
         + (
             f", blunted {100 * measurements['tip_blunting_fraction']:.0f}% during the session"
@@ -759,13 +760,17 @@ def lab_order(
     """Plates, pooling map and cost for ordering a part's staples.
 
     Validates what it writes rather than trusting that no exception means a
-    file IDT would accept.
+    file IDT would accept. `dimer` (E9) orders only the extended staples of A
+    and B and says which of E1's wells to pool and which to skip.
     """
     from dobladillo.lab import plates as lab
 
     emitter = Emitter(as_json)
     if plate not in (96, 384):
         emitter.fail(f"plate must be 96 or 384, got {plate}", kind="invalid_parameters")
+        return
+    if part == "dimer":
+        _order_dimer(emitter, out_dir)
         return
     built = _make_part(part, emitter)
     order, layout, reuse = _order_of(built, plate=plate, out=emitter)
@@ -1379,7 +1384,7 @@ def afm_measure(
     import statistics
 
     from dobladillo.compare.corrections import half_height_broadening_nm
-    from dobladillo.imaging.classify import population
+    from dobladillo.imaging.classify import population, well_formed_particles
     from dobladillo.imaging.flatten import flatten
     from dobladillo.imaging.particles import find_particles
     from dobladillo.imaging.readers import UnreadableScan, read
@@ -1415,8 +1420,26 @@ def afm_measure(
         height_nm=height,
         tolerance=tolerance,
     )
-    raw_length = statistics.fmean([p.length_nm for p in inside])
-    raw_width = statistics.fmean([p.width_nm for p in inside])
+    # Averaged over the WELL-FORMED particles, not over everything inside the
+    # frame: an aggregate is not a measurement of the rectangle, and four of
+    # them among thirty-eight rectangles move the mean length by 6%. See
+    # `classify.well_formed_particles`. If nothing is well formed there is no
+    # such average to take, and the fall-back says so in the payload.
+    measured = well_formed_particles(
+        particles,
+        length_nm=length + widening,
+        width_nm=width + widening,
+        height_nm=height,
+        tolerance=tolerance,
+    )
+    measured_over = "well-formed particles"
+    if not measured:
+        measured, measured_over = (
+            inside,
+            "every particle clear of the frame edge (none was well formed)",
+        )
+    raw_length = statistics.fmean([p.length_nm for p in measured])
+    raw_width = statistics.fmean([p.width_nm for p in measured])
     payload = {
         "source": image.source,
         "expected_nm": {"length": length, "width": width, "height": height},
@@ -1428,6 +1451,8 @@ def afm_measure(
             "width": round(raw_width - widening, 1),
         },
         "particles_found": len(particles),
+        "measured_over": measured_over,
+        "measured_particles": len(measured),
         **found.as_dict(),
     }
     fraction = found.well_formed.as_dict()
@@ -1441,7 +1466,10 @@ def afm_measure(
             f"{widening:.1f} nm, for a {tip_radius:.0f} nm tip on a "
             f"{observed_height:.1f} nm feature",
         ),
-        ("measured", f"{raw_length:.1f} x {raw_width:.1f} nm"),
+        (
+            "measured",
+            f"{raw_length:.1f} x {raw_width:.1f} nm, over {len(measured)} {measured_over}",
+        ),
         (
             "deconvolved",
             f"{raw_length - widening:.1f} x {raw_width - widening:.1f} nm "
@@ -1598,6 +1626,9 @@ def experiment_new(
     from dobladillo.experiments import scaffold
 
     emitter = Emitter(as_json)
+    if part == "dimer":
+        _new_dimer_experiment(emitter, root, slug)
+        return
     built = _make_part(part, emitter)
     design = built.as_dict()
     dimensions = design.get("approx_dimensions_nm") or design["approx_arm_dimensions_nm"]
@@ -1730,7 +1761,7 @@ def experiment_report(
     from dobladillo.compare.corrections import half_height_broadening_nm
     from dobladillo.experiments import check as run_check
     from dobladillo.experiments.instrument import read_instrument
-    from dobladillo.imaging.classify import population
+    from dobladillo.imaging.classify import population, well_formed_particles
     from dobladillo.imaging.flatten import flatten
     from dobladillo.imaging.particles import find_particles
     from dobladillo.imaging.readers import UnreadableScan, is_native_image, read
@@ -1865,9 +1896,29 @@ def experiment_report(
         model="AFM, half-height footprint",
     )
     median_height = statistics.median([p.height_nm for p in particles])
+    widening = 2 * half_height_broadening_nm(
+        tip_radius_nm=tip_radius, feature_height_nm=median_height
+    )
+    # Dimensions over the WELL-FORMED particles. An aggregate is not a
+    # measurement of the rectangle, and `find_particles` used to lose
+    # aggregates outright (each became a frame-sized region and was excluded at
+    # the edge), so averaging over everything looked equivalent. With the
+    # detection fixed it is not: four aggregates among thirty-eight rectangles
+    # move the mean length by 6%, which would be read as a real disagreement.
+    # See `imaging.classify.well_formed_particles`.
+    measured = well_formed_particles(
+        particles,
+        length_nm=float(predicted["length"]) + widening,
+        width_nm=float(predicted["width"]) + widening,
+        height_nm=float(predicted.get("height", 2.0)),
+    )
+    measured_over = "well-formed particles"
+    if not measured:
+        measured = particles
+        measured_over = "every particle clear of the frame edge (none was well formed)"
     results = {}
     for quantity, attribute in (("length", "length_nm"), ("width", "width_nm")):
-        values = [getattr(p, attribute) for p in particles]
+        values = [getattr(p, attribute) for p in measured]
         raw = Observation(
             quantity=f"{quantity}_nm",
             value_nm=statistics.fmean(values),
@@ -1891,9 +1942,6 @@ def experiment_report(
     # not against the object. Comparing them directly marks every good particle
     # malformed: `afm measure` had this bug and was fixed, and this command kept
     # it, so a correct E1 run would have reported a yield near zero.
-    widening = 2 * half_height_broadening_nm(
-        tip_radius_nm=tip_radius, feature_height_nm=median_height
-    )
     found = population(
         all_particles,
         length_nm=float(predicted["length"]) + widening,
@@ -1906,6 +1954,8 @@ def experiment_report(
     measurements = {
         "scans": [str(x) for x in scans],
         "particles": len(particles),
+        "measured_over": measured_over,
+        "measured_particles": len(measured),
         "tip_widening_nm": round(widening, 2),
         "tip_radius_nm": tip_radius,
         "tip_blunting_fraction": round(blunting, 3),
@@ -2161,6 +2211,147 @@ def experiment_rods(
         emitter.note(
             f"fewer than {MIN_RODS} rods counted; below that the curvature bound is too "
             "loose to call the bundle straight. Image more before interpreting this."
+        )
+        raise typer.Exit(1)
+
+
+def _order_dimer(emitter: Emitter, out_dir: Path | None) -> None:
+    """`lab order dimer`: E9's extras, and the pooling from E1's plates."""
+    from dobladillo.lab.dimer import order
+    from dobladillo.parts.dimer import rectangle_dimer
+
+    payload = order(rectangle_dimer(), directory=out_dir)
+    rows = [
+        ("base", f"E1 rectangle plates, {payload['core_wells']} shared wells per component"),
+        ("extra oligos", f"{payload['extra_oligos']} ({payload['extra_nt']:,} nt)"),
+        ("estimated cost", f"{payload['cost']['estimated_total']:,.2f} for the extras"),
+    ]
+    for name, component in payload["components"].items():
+        roles: dict[str, int] = {}
+        for extra in component["extra"]:
+            roles[extra["role"]] = roles.get(extra["role"], 0) + 1
+        rows.append(
+            (
+                f"{name}",
+                f"{component['pool']['from_e1_plates']} E1 wells + "
+                f"{component['pool']['from_extras_plate']} extras "
+                f"({', '.join(f'{v} {k}' for k, v in roles.items())}); "
+                f"skip {len(component['skip_e1_wells'])} E1 edge wells",
+            )
+        )
+    rows.extend((f"wrote {k}", v) for k, v in payload.get("files", {}).items())
+    rows.append(("order files valid", "yes" if payload["valid"] else "NO"))
+    body = "dimer: extras order\n" + _table(rows) + f"\n\n  {payload['warning']}"
+    emitter.result(payload, body)
+    if not payload["valid"]:
+        raise typer.Exit(1)
+
+
+def _new_dimer_experiment(emitter: Emitter, root: Path, slug: str) -> None:
+    """`experiment new --part dimer`: an E9 folder, prediction and order."""
+    from dobladillo.experiments.assembly import new_experiment
+    from dobladillo.parts.dimer import rectangle_dimer
+
+    try:
+        directory, ordered = new_experiment(root, slug=slug, dimer=rectangle_dimer())
+    except FileExistsError as e:
+        emitter.fail(str(e), kind="already_exists")
+        return
+    prediction = json.loads((directory / "pre" / "prediction.json").read_text())
+    payload = {
+        "directory": str(directory),
+        "part": "dimer",
+        "design_sha256": ordered["design_sha256"],
+        "prediction": prediction["predicted_nm"],
+        "order_files": ordered.get("files", {}),
+        "order_manifest": ordered.get("manifest"),
+        "next": "Fill in pre/plan.md's gate, then COMMIT pre/ before taking data.",
+    }
+    predicted = prediction["predicted_nm"]
+    rows = [
+        ("created", str(directory)),
+        ("part", "dimer"),
+        (
+            "predicted",
+            f"monomer {predicted['length']} x {predicted['width']} nm, "
+            f"dimer {predicted['dimer_length']} nm long",
+        ),
+        ("next", "fill in the gate in pre/plan.md, then commit pre/"),
+    ]
+    emitter.result(payload, "experiment\n" + _table(rows))
+
+
+@experiment_app.command("assembly")
+def experiment_assembly(
+    directory: Path = typer.Argument(..., help="An assembly (E9) experiment folder."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Count assembly states per sample, against the controls. Writes post/assembly.json.
+
+    Samples are named by their files, `during/raw/<sample>-<NN>.<ext>`: A and B
+    alone are the controls, R1, R2, ... the replicate mixes, anything else a
+    series point. Each sample gets monomer, dimer, larger and malformed
+    fractions with 95% Wilson intervals; each mixture its dimer fraction above
+    the controls' with a Newcombe interval; the replicates a chi-square test of
+    one shared distribution.
+
+    It refuses rather than substitutes: a missing tip radius, reference height
+    or control stops it. Exits 1 when a sample has fewer than 100 counted
+    particles.
+    """
+    from dobladillo.experiments import check as run_check
+    from dobladillo.experiments.arms import RecordIncomplete
+    from dobladillo.experiments.assembly import MIN_PER_SAMPLE, analyse
+    from dobladillo.imaging.readers import UnreadableScan
+
+    emitter = Emitter(as_json)
+    state = run_check(directory)
+    try:
+        result = analyse(directory)
+    except RecordIncomplete as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+    except UnreadableScan as e:
+        emitter.fail(str(e), kind="unreadable_scan")
+        return
+    result["record"] = state.as_dict()
+    post = directory / "post"
+    post.mkdir(exist_ok=True)
+    (post / "assembly.json").write_text(json.dumps(result, indent=2) + "\n")
+
+    background = result["controls"]["dimer_fraction"]
+    lines = [
+        f"controls A+B: dimer {background['fraction']:.0%} "
+        f"({background['count']}/{background['total']}), "
+        f"95% [{background['ci95'][0]:.0%}, {background['ci95'][1]:.0%}]"
+    ]
+    for name, sample in result["samples"].items():
+        counts = sample["counts"]
+        line = f"{name:>6} ({sample['role']}): {sample['counted']} counted  " + "  ".join(
+            f"{k} {v}" for k, v in counts.items()
+        )
+        if "dimer_minus_controls" in sample:
+            d = sample["dimer_minus_controls"]
+            line += (
+                f"   dimer above controls {d['difference']:+.0%} "
+                f"[{d['ci95'][0]:+.0%}, {d['ci95'][1]:+.0%}]"
+            )
+        lines.append(line)
+    repro = result["reproducibility"]
+    if "p_value" in repro:
+        lines.append(
+            f"replicates {', '.join(repro['samples'])}: chi2 {repro['chi2']:.2f}, "
+            f"p = {repro['p_value']:.3f}"
+        )
+    else:
+        lines.append(repro["note"])
+    lines.append(f"wrote {post / 'assembly.json'}")
+    lines += [f"RECORD: {p}" for p in state.problems]
+    emitter.result({"directory": str(directory), **result}, f"{directory}\n" + "\n".join(lines))
+    if result["too_few_particles"]:
+        emitter.note(
+            f"fewer than {MIN_PER_SAMPLE} counted particles in "
+            f"{', '.join(result['too_few_particles'])}. Image more before interpreting."
         )
         raise typer.Exit(1)
 

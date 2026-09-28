@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Final
 
 import numpy as np
 
@@ -623,4 +623,224 @@ def synthetic_rod_scan(
         truth=tuple(placed),
         lp_nm=lp_nm,
         curvature_per_nm=curvature_per_nm,
+    )
+
+
+# ------------------------------------------------------------- assemblies (E9)
+
+
+def _add_defects(
+    heights: np.ndarray,
+    rng: np.random.Generator,
+    *,
+    height_nm: float,
+    tilt_nm: float,
+    bow_nm: float,
+    line_noise_nm: float,
+    noise_nm: float,
+    drift_shear: float,
+    streak_lines: int,
+) -> np.ndarray:
+    """`_instrument` under the name E9's scans were written against: the same
+    defects, drawn from `rng` in the same order."""
+    return _instrument(
+        heights,
+        rng,
+        drift_shear=drift_shear,
+        tilt_nm=tilt_nm,
+        bow_nm=bow_nm,
+        line_noise_nm=line_noise_nm,
+        streak_lines=streak_lines,
+        streak_height_nm=height_nm,
+        noise_nm=noise_nm,
+    )
+
+
+def _stamp_units(
+    heights: np.ndarray,
+    *,
+    centres: list[tuple[float, float]],
+    length_px: float,
+    width_px: float,
+    height_nm: float,
+    angle_deg: float,
+    pixel_nm: float,
+    tip_radius_nm: float,
+) -> None:
+    """Several rectangles that touch, recorded as ONE tip would record them.
+
+    Stamping each one additively would double the height wherever two tip
+    ramps overlap -- in the few nanometres between two joined rectangles --
+    and invent a ridge no instrument records. A tip rides the higher of the
+    two surfaces, so the units are combined by their maximum.
+    """
+    combined = np.zeros_like(heights)
+    for centre in centres:
+        unit = np.zeros_like(heights)
+        _stamp_rectangle(
+            unit,
+            centre=centre,
+            length_px=length_px,
+            width_px=width_px,
+            height_nm=height_nm,
+            angle_deg=angle_deg,
+            pixel_nm=pixel_nm,
+            tip_radius_nm=tip_radius_nm,
+        )
+        np.maximum(combined, unit, out=combined)
+    heights += combined
+
+
+#: The kinds `synthetic_assembly_scan` places, and how many rectangles each is.
+ASSEMBLY_KINDS: Final = {
+    "monomer": 1,
+    "dimer": 2,
+    "touching_end": 2,
+    "side_by_side": 2,
+    "aggregate": 0,
+}
+
+
+def synthetic_assembly_scan(
+    *,
+    monomers: int = 20,
+    dimers: int = 10,
+    touching_end: int = 0,
+    side_by_side: int = 0,
+    aggregates: int = 0,
+    length_nm: float = 106.2,
+    width_nm: float = 66.0,
+    gap_nm: float = 4.0,
+    height_nm: float = SHEET_HEIGHT_NM,
+    size_px: int = 512,
+    scan_nm: float = 2000.0,
+    tip_radius_nm: float = 10.0,
+    noise_nm: float = 0.12,
+    tilt_nm: float = 6.0,
+    line_noise_nm: float = 0.25,
+    bow_nm: float = 0.0,
+    drift_shear: float = 0.0,
+    streak_lines: int = 0,
+    seed: int = 0,
+) -> SyntheticScan:
+    """A scan of monomers and dimers in known numbers, for E9's analysis.
+
+    Four kinds of particle besides aggregates, and two of them are traps:
+
+    - `monomer`: one rectangle.
+    - `dimer`: two rectangles in line, `gap_nm` apart -- the sticky-end bridge.
+    - `touching_end`: two rectangles in line with no gap and no bond, as two
+      monomers that happened to land end to end. By footprint this IS a
+      dimer; it is here so a test can show that, rather than hope otherwise.
+    - `side_by_side`: two rectangles touching along their long edges.
+
+    Placement keeps every particle clear of every other, so what was placed is
+    what should be found. `truth` records each particle's kind.
+    """
+    rng = np.random.default_rng(seed)
+    pixel_nm = scan_nm / size_px
+    heights = np.zeros((size_px, size_px))
+    placed: list[PlacedParticle] = []
+    length_px, width_px, gap_px = length_nm / pixel_nm, width_nm / pixel_nm, gap_nm / pixel_nm
+    reach: list[tuple[tuple[float, float], float]] = []
+
+    def free_spot(radius_px: float) -> tuple[float, float] | None:
+        for _ in range(400):
+            centre = (
+                float(rng.uniform(radius_px, size_px - radius_px)),
+                float(rng.uniform(radius_px, size_px - radius_px)),
+            )
+            if all(
+                np.hypot(centre[0] - c[0], centre[1] - c[1]) > radius_px + r + 4 for c, r in reach
+            ):
+                return centre
+        return None
+
+    plan = (
+        ["dimer"] * dimers
+        + ["touching_end"] * touching_end
+        + ["side_by_side"] * side_by_side
+        + ["monomer"] * monomers
+    )
+    for kind in plan:
+        if kind == "monomer":
+            extent_px = np.hypot(length_px, width_px) / 2
+        elif kind == "side_by_side":
+            extent_px = np.hypot(length_px, 2 * width_px) / 2
+        else:
+            extent_px = np.hypot(2 * length_px + gap_px, width_px) / 2
+        # A tip's ramp reaches a few nm past the edge; keep it off neighbours.
+        radius = extent_px + 3 * tip_radius_nm / pixel_nm
+        centre = free_spot(radius)
+        if centre is None:
+            break
+        reach.append((centre, radius))
+        angle = float(rng.uniform(0, 180))
+        theta = np.deg2rad(angle)
+        along = np.array([np.sin(theta), np.cos(theta)])  # (row, col)
+        across = np.array([np.cos(theta), -np.sin(theta)])
+        c = np.array(centre)
+        if kind == "monomer":
+            centres = [centre]
+            shape = (length_nm, width_nm)
+        elif kind == "side_by_side":
+            half = width_px / 2
+            centres = [tuple(c + half * across), tuple(c - half * across)]
+            shape = (length_nm, 2 * width_nm)
+        else:
+            separation = length_px + (gap_px if kind == "dimer" else 0.0)
+            half = separation / 2
+            centres = [tuple(c + half * along), tuple(c - half * along)]
+            shape = (2 * length_nm + (gap_nm if kind == "dimer" else 0.0), width_nm)
+        _stamp_units(
+            heights,
+            centres=[(float(x), float(y)) for x, y in centres],
+            length_px=length_px,
+            width_px=width_px,
+            height_nm=height_nm,
+            angle_deg=angle,
+            pixel_nm=pixel_nm,
+            tip_radius_nm=tip_radius_nm,
+        )
+        placed.append(PlacedParticle(centre, shape[0], shape[1], height_nm, angle, kind))
+
+    for _ in range(aggregates):
+        radius = 2.5 * width_px + 3 * tip_radius_nm / pixel_nm
+        centre = free_spot(radius)
+        if centre is None:
+            break
+        reach.append((centre, radius))
+        # The clump `synthetic_scan` draws, so both fixtures mean one thing.
+        for _ in range(rng.integers(3, 6)):
+            offset = rng.normal(0, width_px * 0.6, 2)
+            _stamp_rectangle(
+                heights,
+                centre=(centre[0] + offset[0], centre[1] + offset[1]),
+                length_px=width_px * 1.4,
+                width_px=width_px * 1.2,
+                height_nm=height_nm * float(rng.uniform(1.8, 3.0)),
+                angle_deg=float(rng.uniform(0, 180)),
+                pixel_nm=pixel_nm,
+                tip_radius_nm=tip_radius_nm,
+            )
+        placed.append(
+            PlacedParticle(
+                centre, width_nm * 1.8, width_nm * 1.6, height_nm * 2.4, 0.0, "aggregate"
+            )
+        )
+
+    heights = _add_defects(
+        heights,
+        rng,
+        height_nm=height_nm,
+        tilt_nm=tilt_nm,
+        bow_nm=bow_nm,
+        line_noise_nm=line_noise_nm,
+        noise_nm=noise_nm,
+        drift_shear=drift_shear,
+        streak_lines=streak_lines,
+    )
+    return SyntheticScan(
+        image=HeightMap(heights_nm=heights, pixel_nm=pixel_nm, source="synthetic"),
+        truth=tuple(placed),
     )

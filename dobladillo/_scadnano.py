@@ -58,14 +58,17 @@ def scaffold_length(variant: str) -> int:
     return len(sc.m13(variant=sc.M13Variant(variant)))
 
 
-def scaffold_sequence(variant: str) -> str:
-    """The whole circular scaffold, as scadnano has it, from its own origin.
+def scaffold_sequence(variant: str, *, rotation: int = 5587) -> str:
+    """The whole circular scaffold, read from `rotation`, as scadnano lays it.
 
-    All of it, not the routed part: the bases a design leaves unrouted fold
-    as a single-stranded loop, which is exactly where a stray extension could
-    pair.
+    `assign_m13_to_scaffold` gives the scaffold strand this sequence from its
+    5' end, so what the routing does not use -- the unpaired loop -- is the
+    tail of this string past the routed length. The default is scadnano's
+    own (`sc.m13`), which is what a caller asking for "the whole scaffold"
+    for an off-target check gets; the rotation only moves where the circle
+    is cut.
     """
-    return str(sc.m13(variant=sc.M13Variant(variant)))
+    return str(sc.m13(rotation=rotation, variant=sc.M13Variant(variant)))
 
 
 def available_scaffolds() -> dict[str, int]:
@@ -202,6 +205,66 @@ def oxdna_text(design: sc.Design) -> tuple[str, str]:
     """
     dat, top = design.to_oxdna_format(warn_duplicate_strand_names=False)
     return str(dat), str(top)
+
+
+def replace_with_extensions(
+    design: sc.Design, strand: sc.Strand, *, five_prime_nt: int = 0, three_prime_nt: int = 0
+) -> sc.Strand:
+    """Swap `strand` for a copy that carries unpaired 5' and/or 3' extensions.
+
+    For parts built by a generator we do not control -- scadnano's rectangle
+    draws its edge staples without extensions and offers no hook to add them.
+    The bound domains are copied, not moved: a Domain keeps a reference to the
+    strand it was built into, so re-parenting the originals would leave the
+    old strand half alive. Sequences are NOT assigned here; call
+    `assign_scaffold_sequence` afterwards (the new strand's bound domains need
+    their complement), then `assign_end_extensions`.
+    """
+    bound = [d for d in strand.domains if isinstance(d, sc.Domain)]
+    if len(bound) != len(strand.domains):
+        raise ValueError("strand already carries an extension or loopout; refusing to stack them")
+    copies: list[sc.Domain | sc.Loopout | sc.Extension] = [
+        sc.Domain(
+            helix=d.helix,
+            forward=d.forward,
+            start=d.start,
+            end=d.end,
+            deletions=list(d.deletions),
+            insertions=list(d.insertions),
+        )
+        for d in bound
+    ]
+    if five_prime_nt:
+        copies.insert(0, sc.Extension(num_bases=five_prime_nt))
+    if three_prime_nt:
+        copies.append(sc.Extension(num_bases=three_prime_nt))
+    replacement = sc.Strand(domains=copies)
+    design.remove_strand(strand)
+    design.add_strand(replacement)
+    return replacement
+
+
+def assign_end_extensions(
+    design: sc.Design, strand: sc.Strand, *, five_prime: str = "", three_prime: str = ""
+) -> None:
+    """Give a strand's 5' and 3' extensions their own sequences.
+
+    `assign_extension_sequence` gives every extension of a strand the same
+    sequence, which is right for a latch and wrong for a staple that carries a
+    passivating poly-T on one end and a sticky end on the other.
+    """
+    domains = strand.domains
+    wanted = []
+    if five_prime:
+        wanted.append((domains[0], five_prime))
+    if three_prime:
+        wanted.append((domains[-1], three_prime))
+    for domain, sequence in wanted:
+        if not isinstance(domain, sc.Extension) or domain.num_bases != len(sequence):
+            raise ValueError(
+                f"strand has no {len(sequence)}-nt extension at that end for {sequence}"
+            )
+        design.assign_dna(strand, sequence, assign_complement=False, domain=domain)
 
 
 def staples(design: sc.Design) -> list[sc.Strand]:

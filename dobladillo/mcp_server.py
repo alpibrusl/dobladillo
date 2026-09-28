@@ -207,6 +207,12 @@ def create_server(experiments_root: Path) -> MCPServer:
         return with_folder(name, "experiment", "pattern")
 
     @server.tool()
+    def experiment_assembly(name: str) -> CallToolResult:
+        """E9: monomer, dimer and larger fractions per sample, against the A-alone and
+        B-alone controls. Refuses, with error.kind, when the record cannot support it."""
+        return with_folder(name, "experiment", "assembly")
+
+    @server.tool()
     def experiment_rods(name: str) -> CallToolResult:
         """E10: trace every rod, check its tip-corrected length, and tell a straight
         but flexible bundle from a systematically curved one. Refuses, with

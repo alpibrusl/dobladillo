@@ -130,6 +130,41 @@ def classify(
     return "twisted" if particle.height_nm > TWISTED_HEIGHT_FACTOR * height_nm else "well_formed"
 
 
+def well_formed_particles(
+    particles: Sequence[Particle],
+    *,
+    length_nm: float,
+    width_nm: float,
+    height_nm: float,
+    tolerance: float = SHAPE_TOLERANCE,
+) -> list[Particle]:
+    """The particles whose footprint is a measurement of the designed object.
+
+    A dimension averaged over EVERY particle is not a measurement of the
+    design: an aggregate is half a rectangle wide and twice as tall, and a
+    handful of them move the mean by more than the tip correction does. On one
+    synthetic scan of 38 rectangles and 4 aggregates the mean length came out
+    at 179.6 nm against a designed 191.2, which is a 6% disagreement invented
+    by the averaging.
+
+    That went unseen because `find_particles` was losing aggregates entirely --
+    each became a frame-sized region, touched the edge and was excluded. With
+    that fixed they arrive in the list, so the selection has to be explicit.
+
+    `length_nm`, `width_nm` and `height_nm` are what the IMAGE should show: the
+    object plus the tip, as `population` takes them.
+    """
+    return [
+        p
+        for p in particles
+        if not p.touches_edge
+        and classify(
+            p, length_nm=length_nm, width_nm=width_nm, height_nm=height_nm, tolerance=tolerance
+        )
+        == "well_formed"
+    ]
+
+
 def population(
     particles: Sequence[Particle],
     *,

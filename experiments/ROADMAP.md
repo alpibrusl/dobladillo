@@ -18,7 +18,7 @@ Scores are judgements and are marked as such.
 | **E6** | Stage 1, 25 constructs | 2 | 5 | 4 | 0.35 | needs smFRET + ligation analysis |
 | **E7** | Thickness ladder, 4 plates | 3 | 3 | 2 | 0.80 | needs a multi-layer plate part |
 | **E8** | Patterned rectangle (hairpin F) | — | 4 | 2 | 0.65 | after E1: its Mg, reference height, a fold |
-| **E9** | Rectangle dimer, two components | — | 4 | 3 | — | being built |
+| **E9** | Rectangle dimer, assembly states | — | 5 | 3 | 0.55 | after E1: its Mg, reference height, plates |
 | **E10** | Six-helix bundle, 3D fold | — | 4 | 3 | 0.60 | after the oxDNA run confirms it straight |
 
 **Relevance** — how much the programme moves if it succeeds, 1 to 5.

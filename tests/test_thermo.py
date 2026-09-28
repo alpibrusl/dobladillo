@@ -27,11 +27,14 @@ from dobladillo.hamiltonian.bracket import (
 )
 from dobladillo.hamiltonian.model import Ising, distribution
 from dobladillo.sequence.thermo import (
+    NO_STRUCTURE_C,
     PRIMER3_MAX_LENGTH,
     R_KCAL,
     T37_K,
     duplex,
     gc_fraction,
+    hairpin,
+    hybrid,
     is_self_complementary,
     latch_field_kt,
     reverse_complement,
@@ -273,3 +276,86 @@ def test_rejects_things_that_are_not_dna() -> None:
             duplex(bad)
     with pytest.raises(ValueError):
         gc_fraction("ACGU")
+
+
+# ---------------------------------------------- arbitrary pairs and hairpins
+
+
+def test_a_hybrid_of_a_sequence_with_its_complement_is_the_duplex() -> None:
+    """`hybrid` answers about two arbitrary strands and `duplex` about a
+    sequence and its complement, so on that input they must agree -- otherwise
+    the buffer or the units differ between the two paths."""
+    sequence = "GACTAGTCATGA"
+    pair = hybrid(
+        sequence,
+        reverse_complement(sequence),
+        magnesium_m=0.012,
+        temperature_c=25.0,
+        strand_m=1e-6,
+    )
+    ours = duplex(sequence, sodium_m=0.0, magnesium_m=0.012)
+    assert pair.found
+    assert pair.dg_kcal == pytest.approx(ours.dg_kcal(298.15), abs=0.01)
+    assert pair.melting_c == pytest.approx(ours.melting_c(strand_m=1e-6), abs=1.0)
+
+
+def test_strand_concentration_moves_a_melting_point_and_not_the_free_energy() -> None:
+    """Which is why `Hybrid` records the concentration it was computed at: two
+    melting points at different concentrations are not comparable."""
+    sequence = "GACTAGTCATGA"
+    kwargs = {"magnesium_m": 0.011, "temperature_c": 25.0}
+    dilute = hybrid(sequence, reverse_complement(sequence), strand_m=2e-9, **kwargs)
+    concentrated = hybrid(sequence, reverse_complement(sequence), strand_m=5e-8, **kwargs)
+    assert concentrated.melting_c > dilute.melting_c + 5.0
+    assert concentrated.dg_kcal == pytest.approx(dilute.dg_kcal, abs=1e-9)
+    assert dilute.strand_m == 2e-9
+
+
+def test_two_unrelated_strands_report_a_structure_that_melts_in_the_cold() -> None:
+    """primer3 finds SOME alignment between almost any two strands; what
+    matters is that it is cold. A caller comparing `found` alone would reject
+    every sequence it was given."""
+    pair = hybrid(
+        "AACACATGACGA", "AACACATGACGA", magnesium_m=0.011, temperature_c=25.0, strand_m=2e-9
+    )
+    assert pair.melting_c < 0.0
+
+
+def test_no_structure_reads_as_colder_than_any_threshold() -> None:
+    """So that a "no hairpin" answer compares the same way as a weak one and
+    no caller has to special-case it."""
+    flat = hairpin("AAAAAAAAAAAA", magnesium_m=0.011, temperature_c=25.0)
+    assert not flat.found
+    assert flat.melting_c == NO_STRUCTURE_C
+    assert flat.dg_kcal == 0.0
+
+
+def test_a_hairpin_is_found_where_one_exists() -> None:
+    """Negative control for the test above: the check has to be able to fire."""
+    stem = "GCGCGCGCTTTTGCGCGCGC"
+    folded = hairpin(stem, magnesium_m=0.011, temperature_c=25.0)
+    assert folded.found
+    assert folded.melting_c > 25.0
+
+
+def test_a_hybrid_past_primer3s_alignment_limit_is_refused() -> None:
+    """The same trap `duplex` guards: past 60 nt thal returns zeros with
+    `structure_found` still true, so a long scaffold stretch must be split."""
+    long = "ACGGTCATTGCA" * 6
+    with pytest.raises(ValueError, match="alignment limit"):
+        hybrid(long, "ACGT", magnesium_m=0.011, temperature_c=25.0, strand_m=1e-9)
+    with pytest.raises(ValueError, match="alignment limit"):
+        hairpin(long, magnesium_m=0.011, temperature_c=25.0)
+
+
+def test_a_hybrid_needs_a_counterion_and_a_concentration() -> None:
+    with pytest.raises(ValueError, match="counterion"):
+        hybrid("ACGTACGT", "ACGTACGT", magnesium_m=0.0, temperature_c=25.0, strand_m=1e-9)
+    with pytest.raises(ValueError, match="strand concentration"):
+        hybrid("ACGTACGT", "ACGTACGT", magnesium_m=0.011, temperature_c=25.0, strand_m=0.0)
+
+
+def test_a_hybrid_rejects_things_that_are_not_dna() -> None:
+    for bad in ("", "ACGU", "acg t"):
+        with pytest.raises(ValueError, match="not a DNA sequence"):
+            hybrid(bad, "ACGTACGT", magnesium_m=0.011, temperature_c=25.0, strand_m=1e-9)

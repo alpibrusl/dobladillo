@@ -161,6 +161,21 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         on_critical_path=False,
     ),
     Experiment(
+        id="E9",
+        title="Rectangle dimer, assembly states",
+        epic=None,
+        relevance=5,
+        difficulty=3,
+        success=0.55,
+        blocked_by="E1's magnesium, reference height and staple plates",
+        why="The first experiment where two separately folded origami have to find "
+        "each other. Every larger structure is made of that step, and it is where "
+        "published yields stop being near 100%: 7-23% for short sticky ends, 75-86% "
+        "typical, 98.6-99.6% only with gel-purified monomers. It is also the first "
+        "readout that is a distribution rather than a dimension.",
+        on_critical_path=False,
+    ),
+    Experiment(
         id="E10",
         title="Six-helix bundle, 3D fold",
         epic=None,
