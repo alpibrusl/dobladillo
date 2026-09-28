@@ -20,6 +20,32 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Benchmark, twins, thermodynamics, analysis (#14, #15, #10, #9)
+
+- **Benchmark.** `dobladillo benchmark` scores the designs against sourced
+  known answers:
+  - published designs pass phasing;
+  - the two bundle routings oxDNA showed bent fail it, and `predict`
+    refuses them;
+  - the current bundle passes;
+  - composite-beam theory is reproduced.
+- **First measured reference for the beam predictor:** Dietz 2009's 120°
+  bundle, measured at 121 ± 8.4° (N = 212). The predictor gives **101°**
+  with twist-stretch coupling, and 118° without it. This is recorded as a
+  known failure, and the coupling term is the suspect.
+- **Flagged under AGENTS.md rule 8:** `seed_domain`, `min_domain` and
+  `staple_length` reject the Nature 2009 designs, which use 7-nt domains.
+- **FRET twin and E4 dry run.** Bulk FRET needs locked-open and
+  locked-latched reference constructs, and E4's order does not include
+  them yet. `hamiltonian/fret.py` is still owed.
+- **primer3 is the thermodynamics source.** `self_structure` remains
+  unimplemented; if it is built, it will be McCaskill's algorithm,
+  validated against primer3.
+- **oat supplies alignment, mean structure and RMSF.** Our own code still
+  computes extents, planarity, bend, reach and the sampling guard.
+- **Quirk, not changed:** `bracket.ladder` computes at 1 M Na+ plus 12 mM
+  Mg, not at 12 mM Mg alone.
+
 ## Agent access, provenance, AFM ingest (#11, #13, #19, #7, #8)
 
 - **MCP server:** `dobladillo mcp`. E1's analysis runs end to end through its

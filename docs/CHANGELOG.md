@@ -84,3 +84,22 @@
 - TopoStats rejected for now: it hard-requires topoly (binary-only, with a
   contradictory licence), TensorFlow and Python < 3.12. The built-in flatten
   and segmentation stay. (#8)
+- Thermodynamics through primer3 (#10). primer3-py is now a core
+  dependency. The SantaLucia 1998 table is kept as test reference data.
+  Non-ACGT input and duplexes over 60 bp are refused. The ladder shifts by
+  a uniform −0.025 kT, because primer3 uses the 2004 initiation entropy.
+- Analysis through oxDNA_analysis_tools (#9): alignment, mean structure and
+  RMSF. It is pinned to oxDNA v3.7.0 and installed from git (GPL-3.0), via
+  the `analysis/_oat.py` adapter. The adapter never writes next to a
+  trajectory, never prints to stdout and picks a fixed reference frame.
+  Every reported number matches the old implementation on the 200-frame
+  bundle run.
+- `dobladillo benchmark` (#14): known answers for routing and shape
+  prediction, each sourced (`tests/data/known_answers.json`), including
+  negative controls, strict known failures and wanted-but-missing entries.
+  Adds Dietz 2009's 120° design.
+- Synthetic twins (#15). A FRET twin generates bursts and bulk plates with
+  known p(latched) and known calibration, alongside an estimator with a
+  γ self-check. `experiments/protocols/e4_dryrun.py` runs E4 end to end
+  on synthetic data. A beam-predictor twin (`mechanics/twin.py`) provides
+  designs with textbook answers.
