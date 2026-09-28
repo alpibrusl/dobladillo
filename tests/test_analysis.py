@@ -417,3 +417,16 @@ def test_extents_come_back_longest_first_even_when_bent() -> None:
 
     extents, _ = principal_extents_nm(bent)
     assert list(extents) == sorted(extents, reverse=True)
+
+
+def test_a_missed_latch_is_no_verdict_unless_closing_was_sampled() -> None:
+    """The first hinge sweep stayed near flat for ~9 ns: its latches never met,
+    and that says nothing about whether they could. Only a run that sampled
+    closed shapes can say `cannot_reach`."""
+    from dobladillo.analysis.observables import Reach, _spread
+
+    far = Reach(separation=_spread([120.0, 121.0]), closest_nm=118.0, span_nm=10.0)
+    assert far.verdict(sampled_closed=False) == "not_sampled"
+    assert far.verdict(sampled_closed=True) == "cannot_reach"
+    near = Reach(separation=_spread([8.0, 9.0]), closest_nm=7.0, span_nm=10.0)
+    assert near.verdict(sampled_closed=False) == "within_reach"

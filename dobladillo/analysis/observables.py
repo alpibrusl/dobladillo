@@ -223,15 +223,30 @@ class Reach:
 
     @property
     def within_reach(self) -> bool:
-        """Necessary, not sufficient.
+        """Whether the extensions came within their combined contour length.
 
         `span_nm` is the two extensions' combined CONTOUR length, so this asks
         whether they could touch if both were pulled straight. A real coil is
         much shorter, and straightening it costs entropy the latch's binding
-        energy must pay for. A False here is decisive -- the mechanism cannot
-        close. A True is permission to look further, not a prediction.
+        energy must pay for, so a True is permission to look further, not a
+        prediction.
+
+        A False says only that THIS trajectory never brought them close. It is
+        decisive about the mechanism only if the run sampled the closed region.
+        This docstring used to call a False decisive outright. The first hinge
+        sweep (2026-09-29) showed why that is wrong: four 1e6-step runs, about
+        9 ns each, stayed within ~25 deg of flat and never came near closing,
+        because closing is a rare event on that timescale, not an impossible
+        one. Use `verdict`, which says which of the two a False is.
         """
         return self.closest_nm <= self.span_nm
+
+    def verdict(self, *, sampled_closed: bool) -> str:
+        """`within_reach`, `cannot_reach` (closed shapes sampled, still too far),
+        or `not_sampled` (the run never came near closed: no verdict)."""
+        if self.within_reach:
+            return "within_reach"
+        return "cannot_reach" if sampled_closed else "not_sampled"
 
     def as_dict(self) -> dict[str, Any]:
         return {

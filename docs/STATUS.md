@@ -20,6 +20,33 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Hinge joint sweep (#17), 2026-09-29: no verdict yet
+
+The re-tiled hinge ran at joints of 4, 8, 16 and 32 nt on CPU: 1e6
+relaxation steps per stage, then 1e6 production steps (about 9 ns). Every run
+passes `sim check`.
+
+| joint | opening angle | latch separation | closest | reach span |
+|---|---|---|---|---|
+| 4 nt | 172 +- 5 deg | 121 nm | 118 nm | 10 nm |
+| 8 nt | 168 +- 5 deg | 121 nm | 118 nm | 10 nm |
+| 16 nt | 171 +- 5 deg | 123 nm | 118 nm | 10 nm |
+| 32 nt | 165 +- 7 deg | 124 nm | 119 nm | 10 nm |
+
+- All four stayed within ~25 deg of flat, and the latches never came near
+  each other. That does NOT mean the hinge cannot close: closing is a rare
+  event on a 9 ns timescale, and the runs never sampled it. A longer joint
+  flops a little more (+-7 deg at 32 nt against +-5 at 4 nt), and that is all
+  these runs can say.
+- `observables.Reach` called a missed latch "decisive"; it now has a
+  `verdict(sampled_closed=...)` that returns `not_sampled` in this case.
+- Next: start from a FOLDED configuration, with arm B rotated onto arm A, and
+  see whether the latch forms and the closed state holds, then enhanced
+  sampling along the opening angle. Both are affordable only once the Metal
+  backend is validated.
+- The earlier sweep (bend 72-156 nm) ran on the old, misphased tiling and is
+  superseded.
+
 ## Decisions of 2026-09-28, applied
 
 - **E1 and E2 were re-scaffolded** into `experiments/2026-09-28-rectangle-afm`
