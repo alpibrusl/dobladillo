@@ -612,6 +612,51 @@ def predict(
     out.result(payload, f"{target}: predicted shape\n" + _table(rows))
 
 
+@app.command()
+def benchmark(
+    case: list[str] | None = typer.Option(
+        None, "--case", help="Run only cases whose id starts with this. Repeatable."
+    ),
+    manifest: Path | None = typer.Option(
+        None, "--manifest", help="A known-answers file; default tests/data/known_answers.json."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Score routing and shape prediction against known answers. Exits non-zero on a miss.
+
+    Published designs must pass phasing; the old bundles, which oxDNA showed
+    bent, must fail it; the beam model must reproduce composite-beam theory
+    and is scored against Dietz 2009's measured bend. Known failures are
+    reported and do not fail the run; one that starts passing does.
+    """
+    from dobladillo.benchmark import DEFAULT_MANIFEST
+    from dobladillo.benchmark import run as run_benchmark
+
+    out = Emitter(as_json)
+    path = manifest or DEFAULT_MANIFEST
+    if not path.is_file():
+        out.fail(f"no known-answers file at {path}", kind="missing_file", code=2)
+        return
+    try:
+        report = run_benchmark(path, only=case or None)
+    except ValueError as e:
+        out.fail(str(e), kind="bad_manifest", code=2)
+        return
+    payload = report.as_dict()
+    lines = [
+        f"{c.status.upper():16s} {c.id:40s} {c.expect:4s} "
+        + ", ".join(f"{k}={v}" for k, v in c.observed.items() if not isinstance(v, dict))
+        for c in report.cases
+    ]
+    lines.append("")
+    lines.append(", ".join(f"{n} {s}" for s, n in report.counts().items()))
+    lines += [f"  known failure {c.id}: {c.known_failure}" for c in report.cases if c.known_failure]
+    lines += [f"  wanted {w['id']}: {w['why_not']}" for w in report.wanted]
+    out.result(payload, "\n".join(lines))
+    if not report.ok:
+        raise typer.Exit(1)
+
+
 def _make_part(which: str, out: Emitter) -> Any:
     if which == "rectangle":
         from dobladillo.parts.rectangle import rothemund_rectangle

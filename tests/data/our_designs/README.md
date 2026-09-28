@@ -15,3 +15,7 @@ published designs). See `docs/BUNDLE_BEND.md`.
 They serve two tests. `crossover_azimuth` must reject them. The beam model
 must predict them straight: it cannot see misphasing, and
 `tests/test_beam.py` pins that blind spot so it stays documented.
+
+They are also the negative controls of `dobladillo benchmark`
+(`tests/data/known_answers.json`): phasing and lint must reject them, and
+`predict` must mark its answer for them not valid.
