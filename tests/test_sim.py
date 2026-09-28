@@ -259,9 +259,9 @@ def test_run_script_refuses_without_oxdna(tmp_path) -> None:
 
 
 def test_bundle_rejects_an_unknown_backend(tmp_path) -> None:
-    with pytest.raises(ValueError, match="CPU or CUDA"):
+    with pytest.raises(ValueError, match="CPU, CUDA or Metal"):
         write_job_bundle(
-            six_helix_bundle().design, directory=tmp_path, name="b", part="bundle", backend="Metal"
+            six_helix_bundle().design, directory=tmp_path, name="b", part="bundle", backend="OpenCL"
         )
 
 

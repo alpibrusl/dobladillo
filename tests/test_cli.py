@@ -207,7 +207,7 @@ def test_sim_bundle_says_it_has_not_run(tmp_path: Path) -> None:
 
 def test_sim_bundle_rejects_a_backend_oxdna_does_not_have(tmp_path: Path) -> None:
     result = runner.invoke(
-        app, ["sim", "bundle", "bundle", "--out", str(tmp_path), "--backend", "Metal", "--json"]
+        app, ["sim", "bundle", "bundle", "--out", str(tmp_path), "--backend", "OpenCL", "--json"]
     )
     assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters"
 
