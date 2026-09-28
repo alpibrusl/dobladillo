@@ -46,6 +46,10 @@ imaging = [
     # GPL-3.0-only: fine to combine with EUPL-1.2, and it matters the day
     # anything is distributed. See dobladillo.imaging.readers.
     "afmreader==0.0.7",
+    # Skeletonisation for tracing rods (dobladillo.imaging.rods). BSD-3-Clause;
+    # already installed through afmreader's pySPM, declared because it is now
+    # imported directly. See tests/test_licences.py.
+    "scikit-image>=0.22",
 ]
 # Indentation mechanics. alpibrupa/nanoindent is private and not on an index,
 # so this extra cannot install it; it is declared to record the dependency and

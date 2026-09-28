@@ -144,19 +144,29 @@ def _measure(
     )
 
 
-def find_particles(
+@dataclass(frozen=True)
+class Segment:
+    """One particle's pixels, and the half-height level they were cut at."""
+
+    label: int
+    mask: np.ndarray
+    threshold_nm: float
+
+
+def segment(
     image: HeightMap,
     background: np.ndarray,
     *,
     detect_sigma: float = DETECT_SIGMA,
     min_pixels: int = MIN_PIXELS,
-) -> list[Particle]:
-    """Everything standing proud of the surface, measured at half its height."""
+) -> list[Segment]:
+    """Every particle's half-height mask. `find_particles` measures these;
+    `imaging.rods` traces them, so both see exactly the same pixels."""
     heights = image.heights_nm
     noise = float(heights[background].std())
     seeds, _ = _label(heights > detect_sigma * noise)
 
-    particles: list[Particle] = []
+    segments: list[Segment] = []
     for label in range(1, int(seeds.max()) + 1):
         seed = seeds == label
         if seed.sum() < min_pixels:
@@ -169,6 +179,19 @@ def find_particles(
         this = grown == np.bincount(grown[seed]).argmax() if grown[seed].size else seed
         if this.sum() < min_pixels:
             continue
-        particles.append(_measure(heights, this, image.pixel_nm, label, image.shape))
+        segments.append(Segment(label=label, mask=this, threshold_nm=peak / 2.0))
+    return segments
 
-    return particles
+
+def find_particles(
+    image: HeightMap,
+    background: np.ndarray,
+    *,
+    detect_sigma: float = DETECT_SIGMA,
+    min_pixels: int = MIN_PIXELS,
+) -> list[Particle]:
+    """Everything standing proud of the surface, measured at half its height."""
+    return [
+        _measure(image.heights_nm, s.mask, image.pixel_nm, s.label, image.shape)
+        for s in segment(image, background, detect_sigma=detect_sigma, min_pixels=min_pixels)
+    ]

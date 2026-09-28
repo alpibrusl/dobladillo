@@ -1416,9 +1416,20 @@ def afm_synthetic(
         help="Add the artefacts a real scan carries: scanner bow, thermal drift shear "
         "and a tip-change streak. Use this to test an analysis, not to demonstrate one.",
     ),
+    lp: float = typer.Option(
+        1500.0, "--lp", help="bundle only: persistence length the rods are drawn from, nm."
+    ),
+    arc_radius: float | None = typer.Option(
+        None, "--arc-radius", help="bundle only: give every rod a built-in arc of this radius, nm."
+    ),
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Write a synthetic scan of known contents, as a .gsf.
+
+    For the bundle it places rods of the design's length, their shapes drawn
+    from a wormlike chain of persistence length `--lp` -- and, with
+    `--arc-radius`, curved as the old misphased routings were -- at 1024 px
+    over 2 um, the resolution the E10 protocol asks for.
 
     Two uses. It is how this project's own measurement is validated, against
     ground truth we chose rather than against another measurement. And it is
@@ -1437,6 +1448,41 @@ def afm_synthetic(
     # defaults used to be 191 x 36 nm, which is the twist-pair arm, matching
     # one part by coincidence and the rectangle not at all.
     built = _make_part(part, emitter)
+    if part == "bundle":
+        from dobladillo.imaging.synthetic import synthetic_rod_scan
+
+        size = built.as_dict()["approx_dimensions_nm"]
+        rods = synthetic_rod_scan(
+            seed=seed,
+            n_rods=rectangles,
+            contour_nm=size["length"],
+            height_nm=size["diameter"],
+            lp_nm=lp,
+            curvature_per_nm=1.0 / arc_radius if arc_radius else 0.0,
+            n_fragments=2,
+            n_aggregates=2,
+            bow_nm=4.0 if realistic else 0.0,
+            drift_shear=0.05 if realistic else 0.0,
+            streak_lines=12 if realistic else 0,
+        )
+        write_gsf(rods.image, out, title=f"synthetic rods seed {seed}")
+        kinds = [p.kind for p in rods.truth]
+        rod_truth = {
+            "part": part,
+            "contour_nm": size["length"],
+            "height_nm": size["diameter"],
+            "persistence_length_nm": lp,
+            "arc_radius_nm": arc_radius,
+            "tip_radius_nm": 10.0,
+            **{k: kinds.count(k) for k in ("rod", "fragment", "aggregate")},
+            "artefacts": "bow+drift+streak" if realistic else "none",
+        }
+        emitter.result(
+            {"file": str(out), "seed": seed, "part": part, "ground_truth": rod_truth},
+            "synthetic scan\n"
+            + _table([("wrote", str(out))] + [(k, str(v)) for k, v in rod_truth.items()]),
+        )
+        return
     dimensions = sorted(
         (float(v) for v in built.as_dict()["approx_dimensions_nm"].values()), reverse=True
     )
@@ -1516,7 +1562,8 @@ def experiment_new(
         "predicted_nm": {
             "length": round(ordered[0], 1),
             "width": round(ordered[-1], 1),
-            "height": 2.0 * design.get("layers", 1),
+            # A rod stands at its diameter, not at one sheet's 2 nm.
+            "height": dimensions.get("diameter", 2.0 * design.get("layers", 1)),
         },
         "design": design,
         "gate": {
@@ -1525,6 +1572,15 @@ def experiment_new(
             "first. A gate decided afterwards is a description of the data.",
         },
     }
+    if "diameter" in dimensions:
+        # A rod's readout (`experiment rods`) is its shape: what a straight,
+        # flexible rod and what a systematically curved one would look like,
+        # recorded now so that post/ compares against it.
+        from dobladillo.experiments.rods import predict_rods
+
+        prediction["rods"] = predict_rods(
+            contour_nm=float(dimensions["length"]), diameter_nm=float(dimensions["diameter"])
+        )
 
     plan = _experiment_plan(slug=slug, part=part, prediction=prediction)
     from dobladillo.lab.protocol import folding_protocol
@@ -1534,7 +1590,12 @@ def experiment_new(
         dimensionality="2D" if design["lattice"] == "square" else "3D",
         scaffold_variant=design["scaffold"]["variant"],
     )
-    protocol_text = _protocol_markdown(part, sheet)
+    # A part with a published protocol gets that protocol whole, never the
+    # generic sheet stitched from constants (dobladillo.lab.published).
+    from dobladillo.lab.published import published_protocol
+
+    published = published_protocol(part)
+    protocol_text = published.markdown() if published else _protocol_markdown(part, sheet)
 
     try:
         directory = scaffold(
@@ -1930,6 +1991,122 @@ def experiment_compare_arms(
             f"fewer than {MIN_PER_ARM} counted particles in "
             f"{', '.join(arms['too_few_particles'])}; the gate requires at least that "
             "many per arm. Image more before interpreting this."
+        )
+        raise typer.Exit(1)
+
+
+@experiment_app.command("rods")
+def experiment_rods(
+    directory: Path = typer.Argument(..., help="A rod-shaped part's (E10) experiment folder."),
+    scans: list[Path] | None = typer.Option(
+        None,
+        "--scan",
+        help="A scan to include: native or .gsf. Repeatable. Defaults to every native "
+        "image file in during/raw, or every .gsf if there are none.",
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Trace every rod, check its length, and ask whether the population is straight.
+
+    Writes `post/rods.json`. The design's length and diameter and the shape
+    prediction come from `pre/prediction.json`, the tip radius from
+    `during/instrument.json`, and it refuses rather than substitutes when one
+    is missing. Straightness is the fit of tangent-angle variance against
+    separation: linear is thermal bending, quadratic is a built-in arc
+    (`dobladillo.imaging.wlc`). Exits 1 when fewer than 100 rods were counted.
+    """
+    from dobladillo.experiments import check as run_check
+    from dobladillo.experiments.arms import RecordIncomplete
+    from dobladillo.experiments.rods import MIN_RODS, measure_rods, read_record, result
+    from dobladillo.imaging.readers import UnreadableScan, is_native_image
+    from dobladillo.provenance import folder_chain, short
+
+    emitter = Emitter(as_json)
+    state = run_check(directory)
+    chain = state.chain
+    # Provenance before anything is measured, as in `experiment report`.
+    if chain is not None and not chain.legacy:
+        if chain.scan_design is None:
+            emitter.fail(
+                f"pre/prediction.json is of design {short(chain.predicted_design)}, but which "
+                "design the scans are of cannot be established: "
+                + "; ".join(chain.problems or ("pre/order has no manifest",)),
+                kind="provenance_incomplete",
+            )
+            return
+        if chain.scan_design != chain.predicted_design:
+            emitter.fail(
+                f"the scans are of design {short(chain.scan_design)} but pre/prediction.json "
+                f"predicts design {short(chain.predicted_design)}. Scaffold a new experiment "
+                "for the new design",
+                kind="design_mismatch",
+            )
+            return
+    try:
+        record = read_record(directory)
+    except RecordIncomplete as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+
+    if not scans:
+        raw_dir = directory / "during" / "raw"
+        files = sorted(raw_dir.iterdir()) if raw_dir.is_dir() else []
+        native = [p for p in files if p.is_file() and is_native_image(p)]
+        scans = native or [p for p in files if p.suffix.lower() == ".gsf"]
+        if not scans:
+            emitter.fail(
+                "no scans in during/raw: put the instrument's own files there "
+                "(see experiments/protocols/common-techniques.md)",
+                kind="no_scans",
+            )
+            return
+    try:
+        measured = measure_rods(scans, tip_radius=record.tip_radius, contour_nm=record.contour_nm)
+    except UnreadableScan as e:
+        emitter.fail(str(e), kind="unreadable_scan")
+        return
+    except RecordIncomplete as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+
+    rods = result(record, measured)
+    rods["record"] = state.as_dict()
+    rods["provenance"] = folder_chain(directory, scans=list(scans)).as_dict()
+    post = directory / "post"
+    post.mkdir(exist_ok=True)
+    (post / "rods.json").write_text(json.dumps(rods, indent=2) + "\n")
+
+    lines = [
+        f"counted {rods['counted']}: " + ", ".join(f"{k} {v}" for k, v in rods["classes"].items()),
+        f"rod fraction {rods['rod_fraction']['fraction']:.0%} "
+        f"95% {rods['rod_fraction']['ci95']}   tip {rods['tip_radius_nm']:.1f} nm",
+    ]
+    if "contour" in rods:
+        observed = rods["contour"]["tip_correction"]["observation"]
+        lines.append(
+            f"contour {observed['value_nm']:.1f} nm tip-corrected against "
+            f"{record.contour_nm} designed: "
+            + ("agrees" if rods["contour"]["agrees"] else "DISAGREES")
+        )
+    if "tangent_fit" in rods:
+        fit = rods["tangent_fit"]
+        lines.append(
+            f"persistence length {fit['persistence_length_nm']} nm, "
+            f"95% {fit['persistence_length_ci95_nm']} ({fit['persistence_length_from']})"
+        )
+    lines.append(f"verdict: {rods['verdict']}")
+    if not record.prediction_preregistered:
+        lines.append(
+            "RECORD: pre/prediction.json has no rods block; the shape prediction was "
+            "computed now and is not a pre-registered prediction"
+        )
+    lines += [f"RECORD: {p}" for p in state.problems]
+    lines.append(f"wrote {post / 'rods.json'}")
+    emitter.result({"directory": str(directory), **rods}, f"{directory}\n" + "\n".join(lines))
+    if rods["too_few_rods"]:
+        emitter.note(
+            f"fewer than {MIN_RODS} rods counted; below that the curvature bound is too "
+            "loose to call the bundle straight. Image more before interpreting this."
         )
         raise typer.Exit(1)
 

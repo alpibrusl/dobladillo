@@ -78,6 +78,13 @@ REVIEWED = {
     # 3.0-only. Its wheel ships no licence file. What it pulls in transitively was read too:
     # scikit-learn, joblib, threadpoolctl, cloudpickle BSD-3-Clause; narwhals MIT.
     "oxdna-analysis-tools": "GPL-3.0-only",
+    # scikit-image 0.26.0: its LICENSE.txt (installed dist-info) is a Debian-style file whose
+    # default stanza (Files: *) is BSD-3-Clause; the exceptions it lists are BSD-3-Clause,
+    # BSD-2-Clause and MIT, all permissive. Used for skeletonize (Zhang-Suen thinning), whose
+    # file is listed under BSD-3-Clause. What it pulls in: imageio BSD-2-Clause, lazy-loader
+    # BSD-3-Clause, networkx BSD-3-Clause, pillow MIT-CMU, tifffile BSD-3-Clause, all
+    # permissive (read from their metadata, not their LICENSE files). Reviewed 2026-09-28.
+    "scikit-image": "BSD-3-Clause",
     "pytest": "MIT",
     "ruff": "MIT",
     "mypy": "MIT",
