@@ -296,18 +296,28 @@ positions in the log.
 
 1. **Raw files** go in `during/raw/` exactly as the instrument wrote them. Do
    not rename, crop, convert or "clean up" them.
-2. Until the toolchain reads native formats directly (planned), also export
-   each image as **Gwyddion Simple Field**: open in Gwyddion, choose the
-   **height** channel, *File → Save As* with the `.gsf` extension. Put the
-   `.gsf` **next to** the native file, never instead of it.
-3. Check each export before believing anything from it:
+2. **There is no export step.** The toolchain reads the instrument's own files
+   directly: Bruker `.spm` (and numbered `.001`, `.002`), JPK `.jpk`, Asylum
+   `.ibw`, Gwyddion `.gwy` and WSXM `.stp`. It reads the height channel by
+   default; `--channel` picks another, and a missing one is an error that
+   lists the channels the file has.
+   *Alternative*, for an instrument not on that list (Park, Nanosurf) or a
+   WSXM `.top`: open the image in Gwyddion, choose the **height** channel,
+   *File → Save As* with the `.gsf` extension. Put the `.gsf` **next to** the
+   native file, never instead of it. Do not export files the toolchain already
+   reads: `experiment report` reads native files in preference to exports, so
+   an export of a file it can read is ignored, never counted twice.
+3. Check each file before believing anything from it:
 
    ```bash
-   uv run dobladillo afm read during/raw/scan-01.gsf
+   uv run dobladillo afm read during/raw/scan-01.spm
    ```
 
    The pixel size and scan size must match what you set on the instrument. If
-   they do not, every dimension downstream is wrong by the same factor.
+   they do not, every dimension downstream is wrong by the same factor. For
+   Bruker, Asylum and Gwyddion files it also says that square pixels were
+   *assumed*: those formats give one pitch. Scan square, and if you did not,
+   export a `.gsf` from Gwyddion instead, which records both.
 4. Fill in `during/instrument.json` completely: instrument, mode, tip, buffer
    **including the magnesium you actually used**, temperature, scan settings.
 5. Keep `during/log.md` as you go (§11).

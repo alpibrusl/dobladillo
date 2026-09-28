@@ -153,8 +153,9 @@ their agreement tells you whether the categories are clear enough to trust.
 
 ### 6. Prepare the images
 
-Export `.gsf` copies and check them with `dobladillo afm read`
-(common-techniques §10). Open the overviews in Gwyddion with the same colour
+Check each native file with `dobladillo afm read` (common-techniques §10);
+there is nothing to export unless your instrument's format is not read, in
+which case export `.gsf` copies of the height channel. Open the overviews in Gwyddion with the same colour
 scale for all.
 
 ### 7. The scoring rules — agree on them before scoring
@@ -221,6 +222,6 @@ gate, and commit.
 ## What to hand over
 
 - `pre/` committed before the session, with the gate
-- `during/raw/`: gel photo, native files, `.gsf` exports, **both score sheets**
+- `during/raw/`: gel photo, native files (`.gsf` exports only if needed), **both score sheets**
 - `during/instrument.json` and `during/log.md`, with the scorer agreement
 - `post/report.md` with counts, agreement, the two-armed fraction and interval

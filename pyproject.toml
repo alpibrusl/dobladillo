@@ -32,7 +32,13 @@ thermo = ["primer3-py>=2.0"]
 # interest in scadnano or oxDNA. So its dependencies live here rather than in
 # the core, and the measurement code takes a plain height map rather than
 # anything this project defines.
-imaging = ["scipy>=1.11"]
+imaging = [
+    "scipy>=1.11",
+    # Native instrument formats (Bruker .spm, JPK, .ibw, .gwy, .asd, WSXM).
+    # GPL-3.0-only: fine to combine with EUPL-1.2, and it matters the day
+    # anything is distributed. See dobladillo.imaging.readers.
+    "afmreader==0.0.7",
+]
 # Indentation mechanics. alpibrupa/nanoindent is private and not on an index,
 # so this extra cannot install it; it is declared to record the dependency and
 # to keep `dobladillo.mechanics` honest about needing something it cannot pull.

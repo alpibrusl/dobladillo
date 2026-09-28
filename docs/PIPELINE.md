@@ -196,23 +196,55 @@ million the relaxation alone would be thirteen hours a job.
 whole measurement, `dobladillo afm synthetic` to generate one of known
 contents.
 
-Scans arrive as **Gwyddion Simple Field** (`.gsf`). The instruction to a
-partner is one line: open the file in Gwyddion, pick the height channel, save
-as `.gsf`.
+**Native instrument files are read directly.** Bruker `.spm` (and Nanoscope's
+numbered `.001`, `.002`), JPK `.jpk`, Asylum `.ibw`, Gwyddion `.gwy` and WSXM
+`.stp` go straight into `afm read`, `afm measure`, `compare --scan` and
+`experiment report`, through AFMReader -- the file layer under TopoStats,
+maintained by the AFM-SPM group and tested against real instrument files. There
+is no export step, and the instruction to a partner is: send the files the
+instrument wrote.
 
-That choice replaced the earlier plan of reusing `alpibrupa/nanoindent`'s
-instrument readers. Those read the topography recorded alongside a *force
-volume* — `jpk-force-map`, `jpk-qi-data`, Nanoscope FV offsets — not a plain
-tapping-mode scan, which is what imaging origami on mica produces. There are
-also no sample files in that repository, so a parser written against those
-formats could not have been tested against anything.
+*This section used to say the opposite* -- that native formats could not be
+read and every partner should export Gwyddion Simple Field. That was wrong.
+The earlier plan had been to reuse `alpibrupa/nanoindent`'s readers, which
+turned out to read only the topography recorded alongside a *force volume*
+(`jpk-force-map`, `jpk-qi-data`, Nanoscope FV offsets), not a plain
+tapping-mode scan, and from there the conclusion was generalised to "no native
+reader exists" without checking. AFMReader existed.
 
-Gwyddion reads every native format a partner is likely to own and exports GSF,
-which is fully specified. One reader, testable exactly by writing files and
-reading them back, instead of several written hopefully. Native force maps are
-still read through pyfmreader when it is installed, because that path works.
+What the adapter adds on top of AFMReader, each found by reading its source or
+running its fixtures rather than assumed:
 
-Anything else fails with the export instruction rather than with a guess.
+- **The height channel by default, and no fallback.** A channel that is not in
+  the file is an error listing the ones that are (`--channel` picks another).
+- **Square pixels.** AFMReader returns one pitch, from one axis. For JPK the
+  second is read from the same TIFF tags and a mismatch is refused, as it is
+  for GSF. Bruker, Asylum and Gwyddion files give one pitch only; `afm read`
+  says square pixels were assumed rather than checked.
+- **WSXM `.top` is refused.** AFMReader 0.0.7 rescales its heights to the
+  integer part of the header's Z amplitude (4.53 nm becomes 4, 12% low), found
+  by reading the `.stp` of the same acquisition beside it. WSXM saves both; the
+  `.stp` is read.
+- **A truncated Bruker file fails instead of hanging.** pySPM, which AFMReader
+  reads Bruker through, loops forever on a header with no end marker.
+- **High-speed stacks** (`.asd`, `.h5-jpk`) are refused: this measures single
+  images.
+
+GSF stays: `afm synthetic` writes it, it is fully specified and tested exactly,
+and it is the way in for an instrument AFMReader does not cover (Park,
+Nanosurf) -- export the height channel from Gwyddion. Native force maps are
+still read through pyfmreader when it is installed.
+
+`experiment report` reads the native files in `during/raw` and, when there are
+any, ignores `.gsf` files beside them: an export is a copy of an image already
+there, and reading both would count every particle twice.
+
+**Still open:** no partner file has been committed as a fixture. The native
+tests run on AFMReader's own sample files (`tests/data/afm_native/`), with
+pixel sizes checked against the values AFMReader's tests state. A real file
+from a partner instrument, with its pixel size known independently, needs no
+code when it arrives: a line in `tests/data/afm_native/README.md` and a row in
+the parametrised test.
 
 **Send the partner a synthetic scan first.** `afm synthetic` writes a `.gsf`
 whose contents are known. Asking what they measure from it locates a
@@ -243,12 +275,8 @@ the next change to the pipeline is untested against it.
 ### On native instrument formats
 
 `afm synthetic` writes `.gsf`, not a vendor format, and the reason is that
-nothing here can make one honestly. `alpibrupa/nanoindent`'s `pyfmreader`
-*reads* JPK force maps and Nanoscope force volumes; its only writer is for
-UFF, its own interchange format. Producing a mock `.jpk-force-map` would mean
-writing an encoder for a format we have no independent reader for, so the test
-would exercise the encoder rather than the pipeline — the opposite of what a
-fixture is for.
-
-If a native-format test becomes worth having, the honest route is a real file
-from a partner instrument, kept as a fixture. That is one email and no code.
+nothing here can make one honestly: producing a mock `.spm` or `.jpk` would
+mean writing an encoder for the format, and the test would then exercise the
+encoder rather than the reader. Native reading is tested on real vendor files
+instead -- AFMReader's own fixtures, for now, and a partner's file when there
+is one.

@@ -202,3 +202,16 @@ def test_the_command_cannot_be_told_which_arm_is_corrected() -> None:
     flags = " ".join(flag for option in options for flag in option["flags"])
     assert "corrected" not in flags
     assert "tip" not in flags and "reference" not in flags, "measured values come from the record"
+
+
+def test_an_arm_reads_native_files_and_never_their_gsf_copies(tmp_path: Path) -> None:
+    """Merged from #7: a .gsf exported beside its native original must not
+    make every image count twice."""
+    from dobladillo.experiments.arms import scans_for
+
+    raw = tmp_path / "during" / "raw"
+    raw.mkdir(parents=True)
+    for name in ("X-01.jpk", "X-01.gsf", "Y-01.gsf"):
+        (raw / name).write_bytes(b"")
+    assert [p.name for p in scans_for(tmp_path, "X")] == ["X-01.jpk"]
+    assert [p.name for p in scans_for(tmp_path, "Y")] == ["Y-01.gsf"]

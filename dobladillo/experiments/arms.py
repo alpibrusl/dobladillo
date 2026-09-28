@@ -30,7 +30,8 @@ Everything this needs is read from the record, and a missing value stops it.
   means: dry imaging compresses everything, so the model's 2.0 nm is the wrong
   yardstick, and a rolled sheet is recognised only by standing taller than a
   flat one measured the same way.
-- `during/raw/X-*.gsf` and `during/raw/Y-*.gsf` -- the scans, named by arm.
+- `during/raw/X-*` and `during/raw/Y-*` -- the scans, named by arm: native files, or
+  `.gsf` exports when the format is not read directly.
 
 **What it gates.** At least `MIN_PER_ARM` counted particles per arm, from the
 gate in `pre/plan.md` and `docs/TWIST_PAIR_EXPERIMENT.md`. Fewer is reported,
@@ -196,8 +197,17 @@ def read_record(directory: Path) -> ArmRecord:
 
 
 def scans_for(directory: Path, arm: Arm) -> list[Path]:
-    """An arm's exported scans, by the protocol's naming: `X-01.gsf`, `Y-01.gsf`."""
-    return sorted((directory / "during" / "raw").glob(f"{arm}-*.gsf"))
+    """An arm's scans, by the protocol's naming: `X-01.spm`, `Y-01.jpk`, ...
+
+    Native files first, and never native and `.gsf` together -- the same rule
+    as `experiment report`: an export sits beside its native original, and
+    reading both would count every image twice.
+    """
+    from dobladillo.imaging.readers import is_native_image
+
+    files = sorted(p for p in (directory / "during" / "raw").glob(f"{arm}-*") if p.is_file())
+    native = [p for p in files if is_native_image(p)]
+    return native or [p for p in files if p.suffix.lower() == ".gsf"]
 
 
 @dataclass(frozen=True)

@@ -1181,24 +1181,36 @@ app.add_typer(afm_app, name="afm")
 EXPECTED_OPTION_HELP = (
     "Expected {} of a well-formed particle, nm. Defaults to the rectangle this project builds."
 )
+SCAN_ARGUMENT_HELP = (
+    "A native scan (Bruker .spm/.001, JPK .jpk, Asylum .ibw, Gwyddion .gwy, WSXM .stp), "
+    "a .gsf export, or a JPK force map."
+)
+CHANNEL_OPTION = typer.Option(
+    None,
+    "--channel",
+    help="Channel of a multi-channel native file. Defaults to the format's height channel; "
+    "a missing one is an error listing the channels there are.",
+)
 
 
 @afm_app.command("read")
 def afm_read(
-    scan: Path = typer.Argument(..., help="A .gsf scan, or a JPK force map."),
+    scan: Path = typer.Argument(..., help=SCAN_ARGUMENT_HELP),
+    channel: str | None = CHANNEL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Read a scan and report what it is. Measures nothing.
 
     Worth running first on a partner's file: if the pixel pitch or the height
     units are wrong, every dimension downstream is wrong by the same factor and
-    nothing else in the pipeline can tell.
+    nothing else in the pipeline can tell. Native files are read directly,
+    through AFMReader; there is no export step.
     """
-    from dobladillo.imaging.readers import UnreadableScan, read
+    from dobladillo.imaging.readers import SINGLE_PITCH, UnreadableScan, read, suffix_of
 
     emitter = Emitter(as_json)
     try:
-        image = read(scan)
+        image = read(scan, channel=channel)
     except UnreadableScan as e:
         emitter.fail(str(e), kind="unreadable_scan")
         return
@@ -1214,6 +1226,9 @@ def afm_read(
             "max": round(float(image.heights_nm.max()), 3),
             "median": round(float(_median(image.heights_nm)), 3),
         },
+        # AFMReader reports one pitch for these formats, from one axis, and
+        # nothing here can check the other. Said, so it is not assumed.
+        "square_pixels_checked": suffix_of(scan) not in SINGLE_PITCH,
     }
     heights = payload["heights_nm"]
     rows_out = [
@@ -1226,12 +1241,15 @@ def afm_read(
             f"{heights['min']} to {heights['max']} nm, median {heights['median']}",
         ),
     ]
+    if not payload["square_pixels_checked"]:
+        rows_out.append(("square pixels", "assumed, not checked: the format gives one pitch"))
     emitter.result(payload, "scan\n" + _table(rows_out))
 
 
 @afm_app.command("measure")
 def afm_measure(
-    scan: Path = typer.Argument(..., help="A .gsf scan, or a JPK force map."),
+    scan: Path = typer.Argument(..., help=SCAN_ARGUMENT_HELP),
+    channel: str | None = CHANNEL_OPTION,
     length: float = typer.Option(191.0, help=EXPECTED_OPTION_HELP.format("length")),
     width: float = typer.Option(36.0, help=EXPECTED_OPTION_HELP.format("width")),
     height: float = typer.Option(2.0, help=EXPECTED_OPTION_HELP.format("height")),
@@ -1272,7 +1290,7 @@ def afm_measure(
 
     emitter = Emitter(as_json)
     try:
-        image = read(scan)
+        image = read(scan, channel=channel)
     except UnreadableScan as e:
         emitter.fail(str(e), kind="unreadable_scan")
         return
@@ -1530,7 +1548,8 @@ def experiment_report(
     scans: list[Path] | None = typer.Option(
         None,
         "--scan",
-        help="A raw .gsf to include. Repeatable. Defaults to every .gsf in during/raw.",
+        help="A scan to include: native or .gsf. Repeatable. Defaults to every native "
+        "image file in during/raw, or every .gsf if there are none.",
     ),
     as_json: bool = JSON_OPTION,
 ) -> None:
@@ -1554,7 +1573,7 @@ def experiment_report(
     from dobladillo.imaging.classify import population
     from dobladillo.imaging.flatten import flatten
     from dobladillo.imaging.particles import find_particles
-    from dobladillo.imaging.readers import UnreadableScan, read
+    from dobladillo.imaging.readers import UnreadableScan, is_native_image, read
     from dobladillo.readings import combine
 
     emitter = Emitter(as_json)
@@ -1636,11 +1655,25 @@ def experiment_report(
     # This used to insist on exactly one file, so a student following the
     # protocol would have reported a yield from an eighth of their data.
     if not scans:
-        scans = sorted((directory / "during" / "raw").glob("*.gsf"))
+        # Native files first, and never native and .gsf together: an export
+        # is a copy of an image already in the folder, and reading both would
+        # count every particle twice. Force maps are not overview images and
+        # are left out of the default.
+        raw_dir = directory / "during" / "raw"
+        files = sorted(raw_dir.iterdir()) if raw_dir.is_dir() else []
+        native = [p for p in files if p.is_file() and is_native_image(p)]
+        exports = [p for p in files if p.suffix.lower() == ".gsf"]
+        scans = native or exports
+        if native and exports:
+            emitter.note(
+                f"reading the {len(native)} native files in during/raw and not the "
+                f"{len(exports)} .gsf exports beside them, which are copies of the same "
+                "images. Pass --scan to choose."
+            )
         if not scans:
             emitter.fail(
-                "no .gsf files in during/raw; export the height channel of each "
-                "image as .gsf (see experiments/protocols/common-techniques.md)",
+                "no scans in during/raw: put the instrument's own files there "
+                "(see experiments/protocols/common-techniques.md)",
                 kind="no_scans",
             )
             return
@@ -1902,7 +1935,9 @@ def experiment_check(
 def compare_command(
     part: str = PART_ARGUMENT,
     run_dir: Path | None = typer.Option(None, "--run", help="A finished oxDNA run directory."),
-    scan: Path | None = typer.Option(None, "--scan", help="A .gsf AFM scan of the same part."),
+    scan: Path | None = typer.Option(
+        None, "--scan", help="An AFM scan of the same part: native or .gsf."
+    ),
     tip_radius: float = typer.Option(
         ...,
         help="Tip apex radius, nm, MEASURED not nominal. No default on purpose: it "

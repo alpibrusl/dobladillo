@@ -65,6 +65,12 @@ REVIEWED = {
     # primer3-py: its pyproject says GPL-2.0-or-later, and its C headers "or any later version".
     "primer3-py": "GPL-2.0-or-later",
     "scipy": "BSD-3-Clause",
+    # AFMReader: its COPYING is the GPL v3 text, its CITATION.cff says
+    # GPL-3.0-or-later, and its PyPI classifier says LGPLv3. The most
+    # restrictive reading is recorded. What it pulls in was read too: pySPM
+    # Apache-2.0, igor2 LGPL-3.0-or-later, tifffile and h5py BSD-3-Clause,
+    # loguru and ruamel.yaml MIT. Matters the day anything is distributed.
+    "afmreader": "GPL-3.0-only",
     "pytest": "MIT",
     "ruff": "MIT",
     "mypy": "MIT",
@@ -79,6 +85,17 @@ REJECTED = {
     "snupi": "distributed as a binary in a paper supplement, non-commercial",
     "cando": "a web service, running on commercial Abaqus",
     "nadoc": "public code with no licence file: all rights reserved",
+    # Checked 2026-09-28 for #8, at TopoStats 2.4.2 and main (41cfcc5). Every
+    # release since 2.3.0 requires topoly, and `topostats.grains` imports keras
+    # and TensorFlow at module level, so grain finding cannot be had without
+    # them. Also requires-python < 3.12. Re-check if topoly becomes optional.
+    "topostats": "hard-requires topoly (no source) and TensorFlow; Python < 3.12",
+    # topoly 1.1.0: binary wheels only, no sdist in any release and no public
+    # source repository (github.com/ilbsm has a tutorial, not the code). Its
+    # PyPI classifier says "Free for non-commercial use"; its documentation's
+    # licence page is BSD-3-Clause text. Without source it is not open source
+    # under the OSD whichever text is meant, and the two texts disagree.
+    "topoly": "binary-only; PyPI says non-commercial, its docs say BSD-3-Clause",
 }
 
 #: Imports that mean the code talks to a network. The toolchain runs on

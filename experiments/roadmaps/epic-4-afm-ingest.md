@@ -5,11 +5,16 @@ experiment of its own; it is what makes E1, E2, E3 and E7 measurable.
 
 ## What it is
 
-`dobladillo afm read | measure | synthetic`. Scans arrive as **Gwyddion Simple
-Field**, and the instruction to a partner is one line: open the file in
-Gwyddion, pick the height channel, save as `.gsf`.
+`dobladillo afm read | measure | synthetic`. Native instrument files --
+Bruker `.spm`/`.001`, JPK `.jpk`, Asylum `.ibw`, Gwyddion `.gwy`, WSXM `.stp` --
+are read directly through AFMReader (issue #7). **Gwyddion Simple Field**
+(`.gsf`) is still read, and is the way in for any other instrument.
 
-## Why not native readers
+## Why not native readers (superseded)
+
+*Superseded by #7: AFMReader reads the plain topography scans this section
+says nothing could. What follows is kept as the record of why the export step
+existed; the reasoning about pyfmreader still holds.*
 
 This epic was scoped on a claim that turned out to be wrong.
 `alpibrupa/nanoindent`'s `pyfmreader` was supposed to solve the file formats.

@@ -205,10 +205,12 @@ means.
 
 ## Day 3 — Analysis (about 1 hour), still blind
 
-### 11. Export and check every image
+### 11. Check every image
 
-Export a `.gsf` of the height channel next to each native file, and run
-`uv run dobladillo afm read <file>` on each (common-techniques §10).
+The native files are read directly; there is nothing to export. Run
+`uv run dobladillo afm read <file>` on each (common-techniques §10). Only if
+your instrument's format is not read, export a `.gsf` of the height channel
+next to each native file and use those instead.
 
 ### 12. Run the comparison
 
@@ -228,8 +230,9 @@ and say where it came from:
 uv run dobladillo experiment compare-arms experiments/2026-09-23-twist-pair
 ```
 
-It reads everything from the folder — the scans `during/raw/X-*.gsf` and
-`during/raw/Y-*.gsf`, the tip readings, the imaging order, the reference
+It reads everything from the folder — the scans `during/raw/X-*` and
+`during/raw/Y-*` (native files; `.gsf` copies beside them are ignored, so no
+image is counted twice), the tip readings, the imaging order, the reference
 height and the designed arm size from `pre/prediction.json` — and writes
 `post/arms.json`. It prints the flat fraction of each sample, the difference
 X − Y with its 95% interval, and **the verdict both ways** — "if X is the
@@ -277,7 +280,7 @@ gate passed. Commit again. The two commits show the analysis was done blind.
 ## What to hand over
 
 - `pre/` committed before the session
-- `during/raw/`: gel photo, native files named X-/Y-, `.gsf` exports
+- `during/raw/`: gel photo, native files named X-/Y- (and `.gsf` exports only for a format the toolchain does not read)
 - `during/instrument.json` — all three tip radii, the imaging order and E1's
   reference height — and `during/log.md`, including who held the key
 - `post/arms.json` and `post/report.md`, committed once blind and once after

@@ -44,22 +44,24 @@ recorded is indistinguishable from one that did not happen, and deviations are
 usually where the interesting results come from.
 
 Put raw files in `during/raw/` exactly as the instrument wrote them — no
-cropping, renaming or converting. Export a `.gsf` copy for the toolchain and
-put it there **alongside** the native file, not instead of it.
+cropping, renaming or converting. The toolchain reads Bruker, JPK, Asylum,
+Gwyddion and WSXM `.stp` files directly, so there is nothing to export. For
+any other instrument, export a `.gsf` copy from Gwyddion and put it
+**alongside** the native file, not instead of it.
 
 ```bash
-dobladillo afm read during/raw/scan.gsf
+dobladillo afm read during/raw/scan.spm
 ```
 
 Run that before believing anything: if the pixel size or height units did not
-survive the export, every dimension downstream is wrong by the same factor and
+come through, every dimension downstream is wrong by the same factor and
 nothing else in the chain can tell.
 
 ## After
 
 ```bash
-dobladillo afm measure during/raw/scan.gsf
-dobladillo compare rectangle --scan during/raw/scan.gsf --tip-radius <measured>
+dobladillo afm measure during/raw/scan.spm --tip-radius <measured>
+dobladillo compare rectangle --scan during/raw/scan.spm --tip-radius <measured>
 ```
 
 `post/` compares against `pre/prediction.json` — what was predicted at the
