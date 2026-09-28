@@ -131,11 +131,13 @@ phase 0 mod 21, so each helix bonds both neighbours at one backbone azimuth
 while they sit 120° apart — a constant azimuthal strain around a ring, which
 is a constant bend. Radius 269 ± 11 nm. See `docs/BUNDLE_BEND.md`.
 
-A new rule `crossover_phase` catches it, and **the routing is fixed**: spans of
-28 and 14 instead of a uniform 21 put the two pair families at phases 7 apart.
-`lint` reports zero hard violations and the xfail is gone. Whether that removes
-the arc is queued as a production run with the original recipe, so the routing
-is the only difference between them.
+A rule `crossover_phase` catches identical phase sets, and the routing was
+changed to 28/14 spans to satisfy it. **That did not straighten the bundle**:
+a 200-frame production run of the rebuilt design gives sagitta 49.9 nm, 4.94
+body widths, order parameter 0.995 — the same arc. The phasing diagnosis is
+refuted, the rule was necessary and not sufficient, and the next step is a fast
+finite-element predictor rather than another hand-written fix. See
+`docs/BUNDLE_BEND.md` and `docs/VISION.md`.
 
 This also settled the sampling fix. The same run read at four frames gave a
 middle extent of 48.3 ± 22.6 nm; at 180 frames it is 70.1 ± 4.0. The four-frame
@@ -247,6 +249,13 @@ sixty-four from every design.
 `experiments/2026-09-23-twist-pair` is scaffolded with **both** arms ordered —
 the scaffold command builds one part, and a matched pair is one experiment with
 two constructs.
+
+## Direction
+
+`docs/VISION.md` (2026-09-28) sets out what to replace with existing software
+and what to keep. The short form: the four worst silent bugs here were all in
+reimplementations of mature tools — routing, index mapping, AFM processing,
+alignment — and the parts that worked are the ones nobody else has.
 
 ## Known gaps
 

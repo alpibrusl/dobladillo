@@ -1,5 +1,13 @@
 # Why the six-helix bundle bends
 
+> **Update, 2026-09-28: the diagnosis below is refuted.** The rebuilt bundle —
+> unequal 28/14 spans, `crossover_phase` clean — was run to 200 production
+> frames and came back **exactly as curved**: sagitta 49.9 nm against 50.2,
+> 4.94 body widths against 4.7, bend direction fixed in the body frame at
+> order parameter 0.995 against 0.993. Fixing the phase *sets* did not move the
+> arc. The analysis of why is at the end of this document; the original
+> reasoning is kept because the refutation is only readable against it.
+
 An oxDNA production run gave the bundle as **328.2 ± 3.2 × 70.1 ± 4.0 ×
 17.7 ± 1.8 nm** against a design of 390.4 × 8.0, with 51.5 nm of axis bend. A
 six-helix bundle has a persistence length in the microns; a 390 nm one should
@@ -131,3 +139,52 @@ those look at helical phase.
 It took a production simulation, and then the question *why*, to find it. That
 is the closed loop doing the job it exists for — and the reason the fix is a
 **rule** rather than an edit to one part.
+
+---
+
+## Refuted: the phase fix did not straighten it
+
+| | original routing | 28/14 spans |
+|---|---:|---:|
+| sagitta | 50.2 nm | **49.9 nm** |
+| body widths | 4.7 | **4.94** |
+| order parameter | 0.993 | **0.995** |
+| radius of curvature | 269 ± 11 nm | 347 ± 51 nm |
+
+The relaxation differed — 1e6 trapped steps per stage against 1e5, because the
+rebuilt design failed production at 1e5 — so the runs are not identical in
+every respect. That weakens nothing: a design whose curvature was caused by
+bonding both neighbours at one azimuth should have straightened, and it did
+not move.
+
+### What this says about the method, which matters more than the bundle
+
+`crossover_phase` checks that two neighbours do not share an **identical set**
+of phases. The fix satisfied it. What the fix did not establish is that each
+family sits at the *right* phase for its own neighbour direction — the
+`crossover_azimuth` check, declared unimplemented from the start. A 14 bp
+separation is allowed by the lattice in one handedness and wrong in the
+other; the rule cannot tell which.
+
+So the rule was satisfied and the physics was not, which is exactly the gap
+the `UNIMPLEMENTED` entry warned about. The mistake was treating a passing
+narrow rule as a fix.
+
+### The routing is non-standard in a second way
+
+In every published honeycomb design the **scaffold** crosses between helices
+along the length, in a reference frame offset about 5 bp from the staple
+crossovers. This bundle's scaffold rasters helix by helix and crosses only at
+the ends; the six helices are held together by staples alone. That is a larger
+departure from the lattice's intended geometry than the phase sets, and it is
+the next hypothesis — untested.
+
+### What should happen instead of another hand-written fix
+
+Stop deriving crossover positions by hand. Export the design to caDNAno JSON
+and let a finite-element shape predictor answer the question in minutes
+rather than a 7-hour oxDNA run: CanDo and SNUPI both minimise the stress a
+crossover pattern exerts and predict bend and twist directly, and mrDNA gives
+an atomistic structure of a 7–8 kbp origami in under fifteen minutes. Then
+route with the lattice's canonical crossover positions rather than ours. See
+`docs/VISION.md`.
