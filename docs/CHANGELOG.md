@@ -144,3 +144,14 @@
   `find_particles` was losing tall aggregates, which became frame-sized
   "particles" and were excluded. With that fixed, `afm measure` and
   `experiment report` average dimensions over well-formed particles only.
+- Folding window (`sequence.folding`, `dobladillo folding-window`): each
+  staple's melting temperature against the scaffold in the folding buffer
+  (primer3, staple in excess), the 10-90% window, the weak staples, and a
+  suggested isothermal screen. It is recorded in every new experiment's
+  prediction.json.
+- E11, isothermal folding screen: a protocol (gradient block, 12
+  temperatures × 3 times, normalised to E1's ramp fold on each gel) and
+  `experiment folding-screen`, which reads the Fiji quantification and reports
+  the fastest good fold beside the predicted window.
+- Roadmap: high-speed AFM recorded as a direction: hinge switching first,
+  folding second.

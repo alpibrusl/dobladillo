@@ -687,6 +687,61 @@ def benchmark(
         raise typer.Exit(1)
 
 
+def _folding_window_or_none(design: Any) -> dict[str, Any] | None:
+    """The folding window for a design with sequences, or None if it has none."""
+    from dobladillo.sequence.folding import folding_window
+
+    try:
+        return folding_window(design).as_dict()
+    except ValueError:
+        return None
+
+
+@app.command("folding-window")
+def folding_window_command(
+    part: str = typer.Argument(..., help="A part name, as for `lab order`."),
+    mg_mm: float = typer.Option(12.0, "--mg-mm", help="MgCl2 in the folding buffer, mM."),
+    staple_nm: float = typer.Option(50.0, "--staple-nm", help="Each staple, nM (E1: 50)."),
+    scaffold_nm: float = typer.Option(10.0, "--scaffold-nm", help="Scaffold, nM."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Where this design should fold: staple melting temperatures, weak staples, a screen.
+
+    Isolated staple-against-scaffold melting temperatures in the folding
+    buffer. Folding is cooperative and happens above them, so this points an
+    isothermal screen (E11) and names the staples that bind last; it does not
+    predict the best folding temperature.
+    """
+    from dobladillo.sequence.folding import folding_window
+
+    out = Emitter(as_json)
+    built = _make_part(part, out)
+    try:
+        window = folding_window(
+            built.design, magnesium_mm=mg_mm, staple_nm=staple_nm, scaffold_nm=scaffold_nm
+        )
+    except ValueError as e:
+        out.fail(str(e), kind="no_sequences")
+        return
+    payload = {"part": part, **window.as_dict()}
+    tm = payload["staple_tm_c"]
+    rows = [
+        ("staple Tm", f"median {tm['median']} C, 10-90% {tm['p10']}-{tm['p90']} C"),
+        (
+            "screen",
+            f"isothermal {payload['isothermal_screen_c'][0]}-"
+            f"{payload['isothermal_screen_c'][1]} C (gradient block)",
+        ),
+        ("weak staples", str(len(payload["weak_staples"]))),
+    ]
+    rows += [
+        (f"  helix {w['helix']} @ {w['offset']}", f"{w['tm_c']} C, {w['length_nt']} nt")
+        for w in payload["weak_staples"][:10]
+    ]
+    rows.append(("caveat", "isolated melting; the fold is cooperative and sits above these"))
+    out.result(payload, f"{part}: folding window at {mg_mm} mM Mg\n" + _table(rows))
+
+
 def _make_part(which: str, out: Emitter) -> Any:
     if which == "rectangle":
         from dobladillo.parts.rectangle import rothemund_rectangle
@@ -1651,6 +1706,10 @@ def experiment_new(
             "height": dimensions.get("diameter", 2.0 * design.get("layers", 1)),
         },
         "design": design,
+        # Where the design should fold, at E1's buffer: isolated staple melting
+        # temperatures. Recorded here so E11's measured window is compared with
+        # a prediction made before the gel, not after (`sequence.folding`).
+        "folding_window": _folding_window_or_none(built.design),
         "gate": {
             "criterion": "FILL THIS IN BEFORE TAKING DATA",
             "note": "What result would make this experiment a failure? Write it here "
@@ -2476,6 +2535,67 @@ def experiment_pattern(
     lines.append(f"wrote {post / 'pattern.json'} and {report}")
     lines += [f"RECORD: {p}" for p in state.problems]
     emitter.result({"directory": str(directory), **out}, f"{directory}\n" + "\n".join(lines))
+
+
+@experiment_app.command("folding-screen")
+def experiment_folding_screen(
+    directory: Path = typer.Argument(..., help="An isothermal folding screen (E11) folder."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """E11: yield against temperature and time, from gel band intensities.
+
+    Reads `during/gel_quant.csv` (one row per lane: time_min, temperature_c,
+    folded_band, reference_band -- the reference being E1's standard ramp
+    fold on the same gel). Writes `post/folding_screen.json`: the best
+    temperature per time, the earliest time any temperature matches the ramp,
+    and the measured window beside the predicted one. It judges nothing.
+    """
+    from dobladillo.experiments import check as run_check
+    from dobladillo.experiments.arms import RecordIncomplete
+    from dobladillo.experiments.folding_screen import read_quantification, summarise
+
+    emitter = Emitter(as_json)
+    state = run_check(directory)
+    prediction_path = directory / "pre" / "prediction.json"
+    predicted = None
+    if prediction_path.is_file():
+        predicted = json.loads(prediction_path.read_text()).get("folding_window")
+    try:
+        lanes = read_quantification(directory)
+    except RecordIncomplete as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+    result = summarise(lanes, predicted)
+    result["prediction_preregistered"] = predicted is not None
+    result["record"] = state.as_dict()
+    post = directory / "post"
+    post.mkdir(exist_ok=True)
+    (post / "folding_screen.json").write_text(json.dumps(result, indent=2) + "\n")
+
+    lines = []
+    for row in result["by_time"]:
+        good = row["as_good_as_ramp_c"]
+        lines.append(
+            f"{row['time_min']:>5g} min: best {row['best_temperature_c']:g} C "
+            f"({row['best_relative_yield']:.0%} of the ramp)"
+            + (f", as good as the ramp at {good[0]:g}-{good[1]:g} C" if good else "")
+        )
+    fastest = result["fastest_good_fold"]
+    lines.append(
+        f"fastest good fold: {fastest['time_min']:g} min at {fastest['best_temperature_c']:g} C"
+        if fastest
+        else "no lane reached the ramp's yield"
+    )
+    if predicted:
+        tm = predicted["staple_tm_c"]
+        lines.append(
+            f"predicted staple Tm: median {tm['median']} C, 10-90% {tm['p10']}-{tm['p90']} C"
+        )
+    else:
+        lines.append("RECORD: pre/prediction.json has no folding_window; nothing was predicted")
+    lines += [f"RECORD: {p}" for p in state.problems]
+    lines.append(f"wrote {post / 'folding_screen.json'}")
+    emitter.result({"directory": str(directory), **result}, f"{directory}\n" + "\n".join(lines))
 
 
 @experiment_app.command("check")

@@ -20,6 +20,7 @@ Scores are judgements and are marked as such.
 | **E8** | Patterned rectangle (hairpin F) | — | 4 | 2 | 0.65 | after E1: its Mg, reference height, a fold |
 | **E9** | Rectangle dimer, assembly states | — | 5 | 3 | 0.55 | after E1: its Mg, reference height, plates |
 | **E10** | Six-helix bundle, 3D fold | — | 4 | 3 | 0.60 | after the oxDNA run confirms it straight |
+| **E11** | Isothermal folding screen (gradient block) | — | 4 | 1 | 0.80 | after E1: its magnesium, a fold, its pool |
 
 **Relevance** — how much the programme moves if it succeeds, 1 to 5.
 **Difficulty** — experimental, not computational, 1 to 5.
@@ -34,6 +35,7 @@ E1 ──┬── E3 ── E4 ── E5 ── E6        the Hamiltonian line
 E7                                   independent, different instrument
 E1 ── E8 ── E9                       detail, then assembly (the user's roadmap, levels 3-4)
 E1 ── E10                            first 3D part (level 6)
+E1 ── E11                            folding window: fast, fixed-temperature folds
 ```
 
 **E8–E10 came from the maintainer's own roadmap** (2026-09-28), which walks
@@ -121,3 +123,26 @@ Neither blocks E1–E7.
 €6007, not the €6947 of adding the stages up: bracketing and Stage 0 fold the
 same core. E1, E2, E3 and E7 are single constructs or small sets on cores
 already counted.
+
+
+## Direction: high-speed AFM
+
+Recorded 2026-09-28, with no experiment yet, because no instrument is lined
+up. Two uses, in order of promise:
+
+1. **Watching the hinge switch.** A latched hinge opening and closing is
+   isothermal by design, and it happens on timescales a high-speed AFM can
+   follow. Its open/closed balance is the Ising field the whole hinge line is
+   built to measure (E4-E6), so a direct trajectory would be a second,
+   independent readout of the same number.
+2. **Watching folding.** Needs a protocol that folds at a temperature the
+   cell can hold, which is what E11 and `folding-window` are for; a
+   magnesium jump or a denaturant washout at constant temperature are the
+   alternatives. Caution: folding observed on mica is not folding in
+   solution. The scaffold is adsorbed in 2D, which changes both the pathway
+   and the speed, so it answers a different question.
+
+A domain-level model of the folding process, which predicts which
+temperature protocol folds fastest and where the traps are, is tracked
+separately. It is to be implemented from the published method and validated
+against E11.

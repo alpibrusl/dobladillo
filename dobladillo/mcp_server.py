@@ -213,6 +213,12 @@ def create_server(experiments_root: Path) -> MCPServer:
         return with_folder(name, "experiment", "assembly")
 
     @server.tool()
+    def experiment_folding_screen(name: str) -> CallToolResult:
+        """E11: folded yield against constant temperature and time, from the gel
+        quantification, beside the predicted folding window."""
+        return with_folder(name, "experiment", "folding-screen")
+
+    @server.tool()
     def experiment_rods(name: str) -> CallToolResult:
         """E10: trace every rod, check its tip-corrected length, and tell a straight
         but flexible bundle from a systematically curved one. Refuses, with

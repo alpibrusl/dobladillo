@@ -25,6 +25,7 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 | [`E8-patterned-rectangle.md`](E8-patterned-rectangle.md) | E8 — can we put a detail where we want it? | ready once E1 has reported (its Mg, reference height and plates); dry-run on synthetic scans (`e8_dryrun.py`) |
 | [`E9-rectangle-dimer.md`](E9-rectangle-dimer.md) | E9 — do two origami assemble? | ready once E1 has reported (its Mg, reference height and plates); dry-run on synthetic scans (`e9_dryrun.py`) |
 | [`E10-six-helix-bundle.md`](E10-six-helix-bundle.md) | E10 — does the six-helix bundle fold, and is it straight? | blocked: oxDNA run 2026-09-28-bundle-6hb-unit |
+| [`E11-isothermal-folding.md`](E11-isothermal-folding.md) | E11 — how fast, and at what constant temperature, does it fold? | ready once E1 has reported (its magnesium, a fold, and its pool) |
 
 E4–E7 need software that does not exist yet; their protocols will be written
 when it does. See `../ROADMAP.md`. E4's analysis chain can already be dry-run

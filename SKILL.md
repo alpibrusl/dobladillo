@@ -31,12 +31,14 @@ experimental counterparts.
 - `dobladillo experiment assembly` — Count assembly states per sample, against the controls. Writes post/assembly.json.
 - `dobladillo experiment check` — What is missing, and whether the results can be believed.
 - `dobladillo experiment compare-arms` — Compare two blinded arms by flat fraction, and state the verdict both ways.
+- `dobladillo experiment folding-screen` — E11: yield against temperature and time, from gel band intensities.
 - `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.
 - `dobladillo experiment pattern` — Read the designed pattern off every well-formed particle, and say which way round.
 - `dobladillo experiment report` — Measure the scans and compare them against what was predicted.
 - `dobladillo experiment rods` — Trace every rod, check its length, and ask whether the population is straight.
 - `dobladillo export` — Write a local archive of a part in Nanobase's layout. Never uploads.
 - `dobladillo export-check` — Validate an export archive against its layout. Exits non-zero if it departs.
+- `dobladillo folding-window` — Where this design should fold: staple melting temperatures, weak staples, a screen.
 - `dobladillo geometry` — Show the geometry constants, and where this project disagrees.
 - `dobladillo lab order` — Plates, pooling map and cost for ordering a part's staples.
 - `dobladillo lab protocol` — The folding protocol sheet, with the magnesium screen laid out.

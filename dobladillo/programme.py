@@ -191,6 +191,21 @@ EXPERIMENTS: Final[tuple[Experiment, ...]] = (
         "checks its length. Depends on E1 for technique and reference height only.",
         on_critical_path=False,
     ),
+    Experiment(
+        id="E11",
+        title="Isothermal folding screen (gradient block)",
+        epic=None,
+        relevance=4,
+        difficulty=1,
+        success=0.80,
+        blocked_by="E1: its magnesium, a fold, and its staple pool",
+        why="Much of the folding happens in a narrow temperature window; held inside it, "
+        "origami can fold in minutes (Sobczak 2012). Measures that window for our rectangle "
+        "with one gradient-block run per time point, against E1's ramp fold, and tests the "
+        "predicted window (`folding-window`). It is the prerequisite for folding where "
+        "temperature cannot be steered, such as a high-speed AFM cell.",
+        on_critical_path=False,
+    ),
 )
 
 
