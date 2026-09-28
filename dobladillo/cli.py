@@ -1647,6 +1647,107 @@ def experiment_report(
     emitter.result(payload, f"{directory}\n" + body)
 
 
+@experiment_app.command("compare-arms")
+def experiment_compare_arms(
+    directory: Path = typer.Argument(..., help="A paired (E2) experiment folder."),
+    x_scans: list[Path] | None = typer.Option(
+        None, "--x", help="A scan of sample X. Repeatable. Defaults to during/raw/X-*.gsf."
+    ),
+    y_scans: list[Path] | None = typer.Option(
+        None, "--y", help="A scan of sample Y. Repeatable. Defaults to during/raw/Y-*.gsf."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Compare two blinded arms by flat fraction, and state the verdict both ways.
+
+    Writes `post/arms.json`. The samples are known only as X and Y, so this
+    never asks which arm is corrected: it reports X - Y with a 95% Newcombe
+    interval and what that would mean under either unblinding.
+
+    Everything it needs comes from the folder -- per-arm tip radii from the
+    before, between and after readings in `during/instrument.json`, the
+    reference flat-sheet height from the same file -- and it refuses rather
+    than substitutes when one is missing. Exits 1 when either arm has fewer
+    than 100 counted particles, which the gate requires.
+    """
+    from dobladillo.experiments import check as run_check
+    from dobladillo.experiments.arms import (
+        ARMS,
+        MIN_PER_ARM,
+        RecordIncomplete,
+        compare_blinded,
+        measure_arm,
+        read_record,
+        result,
+        scans_for,
+    )
+    from dobladillo.imaging.readers import UnreadableScan
+
+    emitter = Emitter(as_json)
+    state = run_check(directory)
+    try:
+        record = read_record(directory)
+    except RecordIncomplete as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+
+    given = {"X": x_scans, "Y": y_scans}
+    measured = {}
+    for arm in ARMS:
+        scans = given[arm] or scans_for(directory, arm)
+        if not scans:
+            emitter.fail(
+                f"no scans of {arm}: expected during/raw/{arm}-*.gsf, exported next to "
+                "the native files (see experiments/protocols/E2-twist-pair.md)",
+                kind="no_scans",
+            )
+            return
+        try:
+            measured[arm] = measure_arm(
+                scans,
+                tip_radius_nm=record.tip_radius_nm[arm],
+                reference_height_nm=record.reference_height_nm,
+                length_nm=record.length_nm,
+                width_nm=record.width_nm,
+            )
+        except UnreadableScan as e:
+            emitter.fail(str(e), kind="unreadable_scan")
+            return
+        except RecordIncomplete as e:
+            emitter.fail(str(e), kind=e.kind)
+            return
+
+    comparison = compare_blinded(measured["X"], measured["Y"])
+    arms = result(record, measured, comparison)
+    arms["record"] = state.as_dict()
+    post = directory / "post"
+    post.mkdir(exist_ok=True)
+    (post / "arms.json").write_text(json.dumps(arms, indent=2) + "\n")
+
+    low, high = comparison.ci95
+    lines = [
+        f"{arm}: {arms[arm]['counts'].get('well_formed', 0)}/{arms[arm]['total']} flat "
+        f"({arms[arm]['flat_fraction']:.0%})   tip {arms[arm]['tip_radius_nm']:.1f} nm"
+        f"   counts {arms[arm]['counts']}"
+        for arm in ARMS
+    ]
+    lines += [
+        f"difference X - Y: {comparison.difference:+.0%}   95% [{low:+.0%}, {high:+.0%}]",
+        f"if X is the corrected arm:  {arms['verdict_if_x_is_corrected']}",
+        f"if Y is the corrected arm:  {arms['verdict_if_y_is_corrected']}",
+        f"wrote {post / 'arms.json'}",
+    ]
+    lines += [f"RECORD: {p}" for p in state.problems]
+    emitter.result({"directory": str(directory), **arms}, f"{directory}\n" + "\n".join(lines))
+    if arms["too_few_particles"]:
+        emitter.note(
+            f"fewer than {MIN_PER_ARM} counted particles in "
+            f"{', '.join(arms['too_few_particles'])}; the gate requires at least that "
+            "many per arm. Image more before interpreting this."
+        )
+        raise typer.Exit(1)
+
+
 @experiment_app.command("check")
 def experiment_check(
     directory: Path = typer.Argument(..., help="An experiment folder."),

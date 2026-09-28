@@ -184,8 +184,22 @@ and each needs its own value.
 
 ### 10. Tip radius — after
 
-Record it. You now have three values: before, between, after. The radius for X
-is the mean of the two values on either side of it; likewise for Y.
+Record it. You now have three values: before, between, after. Write all three,
+and the order you imaged the samples in, into `during/instrument.json`:
+
+```json
+"tip": {
+  "measured_radius_before_nm": 11.0,
+  "measured_radius_between_nm": 12.4,
+  "measured_radius_after_nm": 13.1
+},
+"imaging_order": ["Y", "X"]
+```
+
+(the numbers are an example of the shape, not values to copy). The radius for
+each sample is the mean of the two readings on either side of it; the command
+in step 12 works that out from the order, so write the readings, never the
+means.
 
 ---
 
@@ -198,17 +212,33 @@ Export a `.gsf` of the height channel next to each native file, and run
 
 ### 12. Run the comparison
 
-```bash
-uv run python experiments/protocols/e2_compare.py \
-    --x experiments/2026-09-23-twist-pair/during/raw/X-*.gsf --tip-x <radius for X> \
-    --y experiments/2026-09-23-twist-pair/during/raw/Y-*.gsf --tip-y <radius for Y> \
-    --reference-height <E1's flat-sheet height> \
-    --out experiments/2026-09-23-twist-pair/post/arms.json
+First write E1's reference flat-sheet height into `during/instrument.json`,
+and say where it came from:
+
+```json
+"reference": {
+  "flat_height_nm": 1.3,
+  "from": "experiments/2026-09-22-rectangle-afm/post/report.md"
+}
 ```
 
-It prints the flat fraction of each sample, the difference X − Y with its 95%
-interval, and **the verdict both ways** — "if X is the corrected arm" and "if Y
-is". You do not need to know which is which to run it.
+(again an example of the shape). Then:
+
+```bash
+uv run dobladillo experiment compare-arms experiments/2026-09-23-twist-pair
+```
+
+It reads everything from the folder — the scans `during/raw/X-*.gsf` and
+`during/raw/Y-*.gsf`, the tip readings, the imaging order, the reference
+height and the designed arm size from `pre/prediction.json` — and writes
+`post/arms.json`. It prints the flat fraction of each sample, the difference
+X − Y with its 95% interval, and **the verdict both ways** — "if X is the
+corrected arm" and "if Y is". You do not need to know which is which to run
+it, and there is no way to tell it.
+
+If any of those values is missing it stops and says which. **Do not fill a
+gap with the nominal tip radius, a neighbouring reading or the model's
+2.0 nm** — measure it, or record that it was not measured.
 
 **Why the reference height.** The analysis decides "twisted" by a particle
 standing taller than a flat one. Dry imaging compresses everything, so the
@@ -216,7 +246,7 @@ model's 2.0 nm is the wrong yardstick; E1's measured flat height in the same
 conditions is the right one.
 
 If it warns **fewer than 100 particles**, image more before going further. The
-script exits with an error in that case, on purpose.
+command exits with an error in that case, on purpose.
 
 ### 13. Write the interpretation, then unblind
 
@@ -239,8 +269,8 @@ gate passed. Commit again. The two commits show the analysis was done blind.
 | one arm folds, the other does not | a real difference, or a bad staple pool | re-pool that arm from the plates and refold once; if it still fails, that is a result — record it |
 | fewer than 100 particles per arm | sparse deposition | more deposition time or concentration — **the same change for both samples** |
 | X and Y look very different on the mica itself | deposition differed | redo both depositions identically; never "fix" only one |
-| can't tell flat from twisted by eye | expected; that is the analysis's job | count with the script, not by eye |
-| the script calls almost everything twisted in *both* arms | reference height too low | check E1's reference height came from the same imaging mode (dry vs liquid) |
+| can't tell flat from twisted by eye | expected; that is the analysis's job | count with `experiment compare-arms`, not by eye |
+| `compare-arms` calls almost everything twisted in *both* arms | reference height too low | check E1's reference height came from the same imaging mode (dry vs liquid) |
 
 ---
 
@@ -248,7 +278,7 @@ gate passed. Commit again. The two commits show the analysis was done blind.
 
 - `pre/` committed before the session
 - `during/raw/`: gel photo, native files named X-/Y-, `.gsf` exports
-- `during/instrument.json` and `during/log.md` — including who held the key and
-  all three tip radii
+- `during/instrument.json` — all three tip radii, the imaging order and E1's
+  reference height — and `during/log.md`, including who held the key
 - `post/arms.json` and `post/report.md`, committed once blind and once after
   unblinding

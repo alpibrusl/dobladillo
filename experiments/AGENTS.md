@@ -44,6 +44,7 @@ counts, and anything in `during/log.md`.
 dobladillo experiment check <folder>     # what is missing, and whether the record holds
 dobladillo afm read <scan.gsf>           # did pixel size and height units survive the export?
 dobladillo experiment report <folder>    # measure, compare, write post/
+dobladillo experiment compare-arms <folder>  # E2: two blinded arms, verdict both ways
 ```
 
 `experiment report` is the one to use. Do **not** hand-assemble the equivalent
