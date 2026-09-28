@@ -116,3 +116,17 @@
 - E1 and E2 were re-scaffolded into `experiments/2026-09-28-*` with the
   provenance chain; the old folders are marked SUPERSEDED. E1 gains a
   positive-control arm. `experiment check` flags an unwritten gate.
+- E10, the six-helix bundle's 3D fold:
+  - `experiment rods` traces rods;
+  - `imaging.wlc` gives the wormlike-chain prediction and separates thermal
+    bending from a built-in arc;
+  - synthetic rod scans;
+  - `lab.published` holds the folding protocol, taken whole from Enlund
+    et al. 2024, with unstated parameters left to the lab;
+  - `experiment new --part bundle` predicts an 8 nm height, not 2.
+- E8, the patterned rectangle: 28 of E1's staples carry a hairpin that
+  draws a chiral F on one face (the face was measured from scadnano's 3D
+  export). Only those 28 are ordered, and `lab order` says which E1 wells to
+  leave out of the pool. Also `imaging.pattern`, synthetic patterned scans,
+  `experiment pattern`, and a dry run. `find_particles` gains
+  `peak_percentile`.
