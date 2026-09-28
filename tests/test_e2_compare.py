@@ -167,7 +167,11 @@ def test_each_arm_gets_the_tip_readings_that_bracket_it(tmp_path: Path) -> None:
         },
     )
     record = read_record(directory)
-    assert record.tip_radius_nm == {"Y": pytest.approx(11.0), "X": pytest.approx(14.0)}
+    assert record.tip_radius["Y"].value == pytest.approx(11.0)
+    assert record.tip_radius["X"].value == pytest.approx(14.0)
+    # The spread across the bracketing readings is carried, not averaged away.
+    assert record.tip_radius["X"].uncertainty == pytest.approx(4.0)
+    assert "between_nm and _after_nm" in record.tip_radius["X"].source
     # Negative control: the other order gives the other assignment, so the
     # test above is sensitive to the order rather than passing by symmetry.
     other = _folder(
@@ -179,14 +183,14 @@ def test_each_arm_gets_the_tip_readings_that_bracket_it(tmp_path: Path) -> None:
             "tip.measured_radius_after_nm": 16.0,
         },
     )
-    assert read_record(other).tip_radius_nm["X"] == pytest.approx(11.0)
+    assert read_record(other).tip_radius["X"].value == pytest.approx(11.0)
 
 
 def test_a_non_positive_tip_reading_is_refused(tmp_path: Path) -> None:
     directory = _folder(tmp_path, **{"tip.measured_radius_between_nm": 0})
     with pytest.raises(RecordIncomplete) as caught:
         read_record(directory)
-    assert caught.value.kind == "no_tip_radius"
+    assert caught.value.kind == "invalid_reading"
 
 
 def test_the_command_cannot_be_told_which_arm_is_corrected() -> None:

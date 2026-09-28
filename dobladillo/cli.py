@@ -1493,10 +1493,12 @@ def experiment_report(
     from dobladillo.compare import Conditions, Observation, compare, deconvolve_tip, designed
     from dobladillo.compare.corrections import half_height_broadening_nm
     from dobladillo.experiments import check as run_check
+    from dobladillo.experiments.instrument import read_instrument
     from dobladillo.imaging.classify import population
     from dobladillo.imaging.flatten import flatten
     from dobladillo.imaging.particles import find_particles
     from dobladillo.imaging.readers import UnreadableScan, read
+    from dobladillo.readings import combine
 
     emitter = Emitter(as_json)
     state = run_check(directory)
@@ -1511,13 +1513,17 @@ def experiment_report(
         return
     prediction = json.loads(prediction_path.read_text())
 
-    instrument_path = directory / "during" / "instrument.json"
-    if not instrument_path.is_file():
+    # The one place this command touches instrument.json: readings come back
+    # typed, so the nominal radius on the box cannot reach the correction.
+    try:
+        instrument = read_instrument(directory)
+    except ValueError as e:
+        emitter.fail(f"during/instrument.json: {e}", kind="invalid_reading")
+        return
+    if instrument is None:
         emitter.fail("no during/instrument.json", kind="no_instrument")
         return
-    instrument = json.loads(instrument_path.read_text())
-    tip = instrument.get("tip", {})
-    before, after = tip.get("measured_radius_before_nm"), tip.get("measured_radius_after_nm")
+    before, after = instrument.tip["before"], instrument.tip["after"]
     if before is None:
         emitter.fail(
             "during/instrument.json has no measured tip radius. This is not a field to "
@@ -1528,13 +1534,18 @@ def experiment_report(
             kind="no_tip_radius",
         )
         return
-    radii = [r for r in (before, after) if r is not None]
-    tip_radius = statistics.fmean(radii)
     # A tip that blunted mid-session makes early and late scans differently
     # wrong. The spread between before and after is real information about how
-    # well the correction is known, so it widens the uncertainty rather than
-    # being averaged away silently.
-    blunting = (max(radii) - min(radii)) / tip_radius if len(radii) > 1 else 0.0
+    # well the correction is known, so `combine` carries it as the reading's
+    # uncertainty and `deconvolve_tip` widens the result by it, rather than
+    # averaging it away silently.
+    tip = combine(
+        [r for r in (before, after) if r is not None],
+        "tip_radius",
+        source="mean of during/instrument.json: tip.measured_radius_before_nm, _after_nm",
+    )
+    tip_radius = tip.value
+    blunting = (tip.uncertainty or 0.0) / tip_radius
 
     # Every scan by default, because the experiments count particles across
     # many images: E1 asks for 300, and one 2 x 2 um overview holds about 40.
@@ -1565,9 +1576,10 @@ def experiment_report(
         return
 
     predicted = prediction["predicted_nm"]
+    magnesium, temperature = instrument.magnesium, instrument.temperature
     conditions = Conditions(
-        temperature_c=instrument.get("temperature_c"),
-        magnesium_m=(instrument.get("buffer", {}).get("mgcl2_mm") or 0) / 1000.0 or None,
+        temperature_c=temperature.value if temperature else None,
+        magnesium_m=magnesium.value / 1000.0 if magnesium and magnesium.value else None,
         model="AFM, half-height footprint",
     )
     median_height = statistics.median([p.height_nm for p in particles])
@@ -1586,8 +1598,7 @@ def experiment_report(
         corrected = deconvolve_tip(
             raw,
             feature_height_nm=median_height,
-            tip_radius_nm=tip_radius,
-            radius_uncertainty=max(0.4, blunting),
+            tip_radius_nm=tip,
         ).observation
         results[quantity] = compare(
             f"{quantity}_nm",
@@ -1616,6 +1627,7 @@ def experiment_report(
         "tip_widening_nm": round(widening, 2),
         "tip_radius_nm": tip_radius,
         "tip_blunting_fraction": round(blunting, 3),
+        "tip_radius": tip.as_dict(),
         "median_height_nm": round(median_height, 2),
         "population": found.as_dict(),
     }
@@ -1705,7 +1717,7 @@ def experiment_compare_arms(
         try:
             measured[arm] = measure_arm(
                 scans,
-                tip_radius_nm=record.tip_radius_nm[arm],
+                tip_radius=record.tip_radius[arm],
                 reference_height_nm=record.reference_height_nm,
                 length_nm=record.length_nm,
                 width_nm=record.width_nm,
@@ -1804,6 +1816,7 @@ def compare_command(
     structure. Reconciling them is the work; the leftover is the result.
     """
     from dobladillo.compare import Conditions, Observation, compare, deconvolve_tip, designed
+    from dobladillo.readings import Measured
 
     emitter = Emitter(as_json)
     built = _make_part(part, emitter)
@@ -1883,7 +1896,14 @@ def compare_command(
             )
             observations[quantity].append(
                 deconvolve_tip(
-                    raw, feature_height_nm=median_height, tip_radius_nm=tip_radius
+                    raw,
+                    feature_height_nm=median_height,
+                    # The flag demands a measured value, so the operator is
+                    # asserting one. Recorded as exactly that: stated, with
+                    # no instrument, rather than read from a session record.
+                    tip_radius_nm=Measured.stated(
+                        tip_radius, "tip_radius", source="--tip-radius on the command line"
+                    ),
                 ).observation
             )
         population(particles, length_nm=quantities[0][1], width_nm=quantities[1][1], height_nm=2.0)

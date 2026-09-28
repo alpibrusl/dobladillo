@@ -47,7 +47,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal
 
 from dobladillo.compare.corrections import half_height_broadening_nm
+from dobladillo.experiments.instrument import read_instrument
 from dobladillo.imaging.arms import MATERIAL_DIFFERENCE, ArmComparison, flat_fraction
+from dobladillo.readings import Measured, combine, require_measured
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -82,10 +84,9 @@ class RecordIncomplete(Exception):
 class ArmRecord:
     """What the folder says about the session, per arm."""
 
-    tip_radius_nm: dict[Arm, float]
-    #: Fractional change in the tip across each arm's imaging, from the two
-    #: readings either side of it. Reported, not used to correct anything.
-    tip_blunting: dict[Arm, float]
+    #: Each arm's tip: the mean of the two readings either side of it, with
+    #: their spread as its uncertainty.
+    tip_radius: dict[Arm, Measured[float]]
     reference_height_nm: float
     reference_from: str
     imaging_order: tuple[Arm, Arm]
@@ -124,16 +125,15 @@ def read_record(directory: Path) -> ArmRecord:
             kind="no_prediction",
         )
 
-    instrument_path = directory / "during" / "instrument.json"
-    if not instrument_path.is_file():
+    try:
+        record = read_instrument(directory)
+    except ValueError as e:
+        raise RecordIncomplete(f"during/instrument.json: {e}", kind="invalid_reading") from e
+    if record is None:
         raise RecordIncomplete("no during/instrument.json", kind="no_instrument")
-    instrument = json.loads(instrument_path.read_text())
+    instrument = record.data
 
-    tip = instrument.get("tip") or {}
-    readings = {
-        name: _number(tip.get(f"measured_radius_{name}_nm"))
-        for name in ("before", "between", "after")
-    }
+    readings = record.tip
     absent = [name for name, value in readings.items() if value is None]
     if absent:
         fields = ", ".join(f"tip.measured_radius_{name}_nm" for name in absent)
@@ -143,11 +143,6 @@ def read_record(directory: Path) -> ArmRecord:
             "mid-session images X and Y with different tips. This is not a field to "
             "fill in with the nominal value or with a neighbouring reading: the "
             "correction goes as sqrt(R), and a guess turns one outcome into another.",
-            kind="no_tip_radius",
-        )
-    if any(value is not None and value <= 0 for value in readings.values()):
-        raise RecordIncomplete(
-            "during/instrument.json has a tip radius that is not positive",
             kind="no_tip_radius",
         )
 
@@ -176,13 +171,21 @@ def read_record(directory: Path) -> ArmRecord:
 
     before, between, after = (readings["before"], readings["between"], readings["after"])
     assert before is not None and between is not None and after is not None
-    brackets: dict[Arm, tuple[float, float]] = {first: (before, between), second: (between, after)}
-    radius = {arm: statistics.fmean(pair) for arm, pair in brackets.items()}
-    blunting = {arm: abs(pair[1] - pair[0]) / radius[arm] for arm, pair in brackets.items()}
+    brackets = {
+        first: ([before, between], "before_nm and _between_nm"),
+        second: ([between, after], "between_nm and _after_nm"),
+    }
+    radius = {
+        arm: combine(
+            pair,
+            "tip_radius",
+            source=f"mean of during/instrument.json: tip.measured_radius_{fields}",
+        )
+        for arm, (pair, fields) in brackets.items()
+    }
 
     return ArmRecord(
-        tip_radius_nm=radius,
-        tip_blunting=blunting,
+        tip_radius=radius,
         reference_height_nm=height,
         reference_from=str(reference.get("from") or ""),
         imaging_order=(first, second),
@@ -210,7 +213,7 @@ class ArmMeasurement:
 def measure_arm(
     scans: Sequence[Path],
     *,
-    tip_radius_nm: float,
+    tip_radius: Measured[float],
     reference_height_nm: float,
     length_nm: float,
     width_nm: float,
@@ -223,7 +226,11 @@ def measure_arm(
     malformed. The broadening is set by the measured height of this arm's
     particles, while the height class is set by the reference: the first is a
     fact about the tip, the second about what a flat sheet looks like here.
+
+    `tip_radius` must be `Measured`, checked at run time too: this is a public
+    function, and the likeliest wrong call passes the nominal radius.
     """
+    tip = require_measured(tip_radius, "tip_radius", parameter="measure_arm's tip_radius")
     from dobladillo.imaging.classify import population
     from dobladillo.imaging.flatten import flatten
     from dobladillo.imaging.particles import find_particles
@@ -240,9 +247,7 @@ def measure_arm(
             kind="no_particles",
         )
     observed = statistics.median(p.height_nm for p in inside)
-    widening = 2 * half_height_broadening_nm(
-        tip_radius_nm=tip_radius_nm, feature_height_nm=observed
-    )
+    widening = 2 * half_height_broadening_nm(tip_radius_nm=tip.value, feature_height_nm=observed)
     found = population(
         particles,
         length_nm=length_nm + widening,
@@ -280,6 +285,7 @@ def result(
     """What `post/arms.json` holds. Both verdicts, never one."""
     low, high = comparison.ci95
     fractions = {"X": comparison.corrected, "Y": comparison.uncorrected}
+    tip = record.tip_radius
     arms: dict[str, Any] = {}
     for arm in ARMS:
         m = measured[arm]
@@ -289,8 +295,9 @@ def result(
             "flat_fraction": fractions[arm].value,
             "widening_nm": round(m.widening_nm, 2),
             "median_height_nm": round(m.median_height_nm, 2),
-            "tip_radius_nm": round(record.tip_radius_nm[arm], 3),
-            "tip_blunting_fraction": round(record.tip_blunting[arm], 3),
+            "tip_radius_nm": round(tip[arm].value, 3),
+            "tip_blunting_fraction": round((tip[arm].uncertainty or 0.0) / tip[arm].value, 3),
+            "tip_radius": tip[arm].as_dict(),
             "scans": [str(s) for s in m.scans],
         }
     too_few = [arm for arm in ARMS if measured[arm].population.total < MIN_PER_ARM]

@@ -33,14 +33,20 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 from dobladillo.compare.observation import Conditions, Observation
+from dobladillo.readings import Measured, Nominal, require_measured
 
-#: Nominal apex radius of a sharp imaging tip, nm. A starting value only: it
+#: Nominal apex radius of a sharp imaging tip. A planning value only: it
 #: blunts with use, enters the correction as a square root, and is the reason
-#: a tip should be characterised at the start and end of a session.
-DEFAULT_TIP_RADIUS_NM = 10.0
+#: a tip should be characterised at the start and end of a session. It used to
+#: be `deconvolve_tip`'s default, which meant every caller that forgot the
+#: radius got a plausible answer. It is a `Nominal` now, and `deconvolve_tip`
+#: refuses it.
+NOMINAL_TIP_RADIUS: Final = Nominal(
+    value=10.0, quantity="tip_radius", source="typical sharp imaging tip, as sold"
+)
 
 #: Fractional uncertainty to assume on an uncharacterised tip radius. A nominal
 #: 10 nm tip is routinely anywhere from 8 to 20 nm in use, and pretending
@@ -69,13 +75,18 @@ class Deconvolved:
 
     observation: Observation
     broadening_nm: float
-    tip_radius_nm: float
+    tip_radius: Measured[float]
+
+    @property
+    def tip_radius_nm(self) -> float:
+        return self.tip_radius.value
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "broadening_per_side_nm": round(self.broadening_nm, 2),
             "removed_nm": round(2 * self.broadening_nm, 2),
             "tip_radius_nm": self.tip_radius_nm,
+            "tip_radius": self.tip_radius.as_dict(),
             "observation": self.observation.as_dict(),
         }
 
@@ -84,29 +95,38 @@ def deconvolve_tip(
     observation: Observation,
     *,
     feature_height_nm: float,
-    tip_radius_nm: float = DEFAULT_TIP_RADIUS_NM,
+    tip_radius_nm: Measured[float],
     radius_uncertainty: float = TIP_RADIUS_UNCERTAINTY,
 ) -> Deconvolved:
     """Remove tip broadening from an AFM lateral dimension.
 
-    The uncertainty grows: an uncharacterised tip radius is the largest thing
-    not known about the result, and propagating it is what stops a corrected
-    width from looking more certain than the measurement it came from.
+    `tip_radius_nm` must be a `Measured` tip radius -- not a float, and not the
+    `Nominal` on the box. This is the one function every tip correction in the
+    toolchain goes through, so it is where the rule is enforced: at run time
+    as well as by mypy, because an agent calling it from a REPL never sees the
+    type checker.
+
+    The uncertainty grows: the tip radius is the largest thing not known about
+    the result, and propagating it is what stops a corrected width from
+    looking more certain than the measurement it came from. The fractional
+    radius uncertainty is `radius_uncertainty` or the reading's own, whichever
+    is larger -- a tip that blunted 50% during a session is not known to 40%.
     """
+    tip = require_measured(tip_radius_nm, "tip_radius", parameter="deconvolve_tip's tip_radius_nm")
     if observation.definition != "afm_half_height":
         raise ValueError(
             f"tip deconvolution applies to an afm_half_height observation, "
             f"not to {observation.definition!r}"
         )
 
+    radius = tip.value
+    fraction = max(radius_uncertainty, (tip.uncertainty or 0.0) / radius)
     broadening = half_height_broadening_nm(
-        tip_radius_nm=tip_radius_nm, feature_height_nm=feature_height_nm
+        tip_radius_nm=radius, feature_height_nm=feature_height_nm
     )
     # d(2*sqrt(Rh - h^2/4))/dR = h / sqrt(Rh - h^2/4), times the radius spread.
-    if broadening > 0:
-        from_radius = feature_height_nm / broadening * (radius_uncertainty * tip_radius_nm)
-    else:  # pragma: no cover - degenerate geometry
-        from_radius = 0.0
+    # Zero broadening is degenerate geometry, where the derivative has no value.
+    from_radius = feature_height_nm / broadening * (fraction * radius) if broadening > 0 else 0.0
     existing = observation.uncertainty_nm or 0.0
     corrected = Observation(
         quantity=observation.quantity,
@@ -118,10 +138,10 @@ def deconvolve_tip(
         n=observation.n,
         note=(
             f"tip-deconvolved: {2 * broadening:.1f} nm removed for a "
-            f"{tip_radius_nm:.0f} nm tip on a {feature_height_nm:.1f} nm feature"
+            f"{radius:.0f} nm tip on a {feature_height_nm:.1f} nm feature"
         ),
     )
-    return Deconvolved(observation=corrected, broadening_nm=broadening, tip_radius_nm=tip_radius_nm)
+    return Deconvolved(observation=corrected, broadening_nm=broadening, tip_radius=tip)
 
 
 def designed(quantity: str, value_nm: float, *, model: str = "scadnano geometry") -> Observation:

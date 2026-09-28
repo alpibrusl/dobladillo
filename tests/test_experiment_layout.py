@@ -237,6 +237,10 @@ def test_report_counts_every_scan_and_classifies_against_the_image(tmp_path: Pat
     measured = _json.loads((directory / "post" / "measurements.json").read_text())
     assert len(measured["scans"]) == 3, "only one scan was analysed"
     assert measured["particles"] > 100
+    # The radius used is written down with where it came from, so a result
+    # can always be traced back to the reading it rests on.
+    assert measured["tip_radius"]["kind"] == "measured"
+    assert "measured_radius_before_nm" in measured["tip_radius"]["source"]
     assert measured["population"]["well_formed"]["fraction"] > 0.9, (
         "a clean synthetic sample did not read as well formed"
     )

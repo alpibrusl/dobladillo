@@ -1,7 +1,7 @@
 """The closed loop: design against simulation against measurement."""
 
 from dobladillo.compare.corrections import (
-    DEFAULT_TIP_RADIUS_NM,
+    NOMINAL_TIP_RADIUS,
     Deconvolved,
     deconvolve_tip,
     designed,
@@ -12,11 +12,11 @@ from dobladillo.compare.report import AGREEMENT_SIGMA, Comparison, Pair, compare
 
 __all__ = [
     "AGREEMENT_SIGMA",
-    "DEFAULT_TIP_RADIUS_NM",
     "Comparison",
     "Conditions",
     "Deconvolved",
     "Definition",
+    "NOMINAL_TIP_RADIUS",
     "Observation",
     "Pair",
     "Reconciliation",
