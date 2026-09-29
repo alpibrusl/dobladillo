@@ -197,3 +197,9 @@
 - Pixel noise from second differences (#31): cancels line offsets and feature
   slopes, so a crowded scan no longer reads 8x noisier than it is (0.42 ->
   0.06 nm for a true 0.05) and `calibrate tip` stays informative on it.
+- Lateral fit uncertainty measured (#30): over 200 synthetic sessions the
+  bootstrap u is honest (errors 0.98-1.07 u) with particles spread over 4
+  images; with 2 images scale_x reads ~18% low, because errors shared within
+  an image are invisible to a bootstrap over particles. The earlier "~15% low"
+  came from 30 sessions, too few to tell. Results now carry `n_images` and a
+  warning below `MIN_IMAGES_FOR_HONEST_U` = 4.

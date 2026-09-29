@@ -1801,6 +1801,7 @@ def calibrate_lateral_command(
         ("rejected", ", ".join(f"{k} {v}" for k, v in sorted(result.rejected.items())) or "none"),
         ("traceable", str(result.traceable).lower()),
     ]
+    rows.extend(("WARNING", w) for w in result.warnings)
     emitter.result(payload, f"lateral calibration against {reference.name}\n" + _table(rows))
 
 

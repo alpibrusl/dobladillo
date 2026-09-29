@@ -127,6 +127,15 @@ FEATURE_DRAWS: Final = 50
 #: solver's tolerance. Chosen.
 STRETCH: Final = 1e-3
 
+#: Images below which the statistical u is warned about. Measured on 200
+#: synthetic sessions (2026-09-29, #30): with 4 images of 10 tiles the errors
+#: scattered 0.98-1.07 times the reported u for every parameter; with 2 images
+#: of 20, scale_x scattered 1.18 times it (about 3.6 standard errors from 1)
+#: while the rest stayed near 1. Errors shared by the particles of one image
+#: average out only across images, and a bootstrap over particles cannot see
+#: them. So: spread the particles over at least this many images.
+MIN_IMAGES_FOR_HONEST_U: Final = 4
+
 INCLUDED: Final = (
     "statistical: bootstrap over particles (centroid noise, pixelisation, missing marks, "
     "pose, particle-to-particle variation within these images)",
@@ -147,10 +156,12 @@ NOT_INCLUDED: Final = (
     "the z calibration: no height enters this fit",
     "deformation common to every particle, which is indistinguishable from the reference "
     "being wrong; particle-to-particle deformation is in the statistical term",
-    "the approximation behind k = 2: normal errors with many effective degrees of freedom. "
-    "On synthetic scans of 48 tiles the bootstrap read about 15% low (errors spread "
-    "1.1-1.2 times its u; the statistical k = 2 interval covered 27-28 of 30 sessions), "
-    "and with fewer particles it underestimates more",
+    "errors shared by all particles of one image (e.g. an image's own line offsets or "
+    "tilt): a bootstrap over particles cannot see them. Over 200 synthetic sessions the "
+    "errors scattered 0.98-1.07 times u with 4 images, but scale_x 1.18 times u with 2 "
+    "(MIN_IMAGES_FOR_HONEST_U)",
+    "the approximation behind k = 2: normal errors with many effective degrees of freedom; "
+    "with few particles it underestimates",
 )
 
 
@@ -216,6 +227,8 @@ class LateralCalibration:
     reference: ReferenceGeometry
     bootstrap: int
     rejected: dict[str, int] = field(default_factory=dict)
+    n_images: int = 0
+    warnings: tuple[str, ...] = ()
 
     @property
     def traceable(self) -> bool:
@@ -248,6 +261,8 @@ class LateralCalibration:
             },
             "n_particles": self.n_particles,
             "n_features": self.n_features,
+            "n_images": self.n_images,
+            "warnings": list(self.warnings),
             "residual_rms_nm": self.residual_rms_nm.as_dict(),
             "angle_spread": round(self.angle_spread, 4),
             "correlation": {k: round(v, 4) for k, v in self.correlation.items()},
@@ -498,6 +513,15 @@ def fit_scanner(
     scale_x = quantity(0, "reported nm per true nm")
     scale_y = quantity(1, "reported nm per true nm")
     s = np.array([[solution[0], solution[2]], [0.0, solution[1]]])
+    n_images = len({m.image for m in matches})
+    warnings: tuple[str, ...] = ()
+    if n_images < MIN_IMAGES_FOR_HONEST_U:
+        warnings = (
+            f"particles from {n_images} image(s): errors shared within an image are not in "
+            f"the statistical u, which read up to ~18% low for scale_x with 2 images in "
+            f"synthetic tests. Spread the particles over at least {MIN_IMAGES_FOR_HONEST_U} "
+            "images.",
+        )
     return LateralCalibration(
         scale_x=scale_x,
         scale_y=scale_y,
@@ -519,6 +543,8 @@ def fit_scanner(
         reference=reference,
         bootstrap=bootstrap,
         rejected=dict(rejected or {}),
+        n_images=n_images,
+        warnings=warnings,
     )
 
 

@@ -408,3 +408,29 @@ def test_a_symmetric_reference_is_ambiguous_and_rejected(
 def test_fit_scanner_refuses_an_empty_list(reference: ReferenceGeometry) -> None:
     with pytest.raises(CalibrationRefused, match="no particle matched"):
         fit_scanner([], reference, rejected={"no_marks": 3})
+
+
+def test_fewer_than_four_images_carry_a_warning_about_the_statistical_u() -> None:
+    """#30: over 200 synthetic sessions scale_x's u read ~18% low with 2 images and
+    was honest with 4; errors shared within an image average out only across images."""
+    from dobladillo.calibration.lateral import MIN_IMAGES_FOR_HONEST_U, calibrate_lateral
+    from dobladillo.calibration.reference import from_tile
+    from dobladillo.imaging.synthetic_calibration import calibration_scan
+    from dobladillo.parts.calibration_tile import calibration_tile
+
+    tile = calibration_tile()
+    reference = from_tile(tile)
+
+    def images(count: int, per_image: int) -> list:
+        return [
+            calibration_scan(
+                tile.marks_nm, sheet_nm=tile.sheet_nm, n_tiles=per_image, seed=500 + k
+            ).image
+            for k in range(count)
+        ]
+
+    two, _ = calibrate_lateral(images(2, 20), reference, bootstrap=40)
+    four, _ = calibrate_lateral(images(MIN_IMAGES_FOR_HONEST_U, 10), reference, bootstrap=40)
+    assert two.n_images == 2 and two.warnings
+    assert four.n_images == MIN_IMAGES_FOR_HONEST_U and not four.warnings
+    assert two.as_dict()["warnings"] == list(two.warnings)
