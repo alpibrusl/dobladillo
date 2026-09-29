@@ -434,10 +434,11 @@ alignment — and the parts that worked are the ones nobody else has.
 
 ## Known gaps
 
-- Q2's acceptance criterion says the rules must pass on **published reference
-  designs**. They pass on the two this project generates, which is the
-  strongest check available offline; obtaining published designs to lint is
-  outstanding.
+- ~~Q2: the rules must pass on published reference designs.~~ Closed: `dobladillo
+  benchmark` lints six published designs and all pass (Douglas et al. 2009
+  monolith and square nut, the Dietz et al. 2009 bent bundle, scadnano's 6HB
+  and both 16-helix rectangles; `tests/data/reference_designs/README.md` for
+  sources and licences). Checked 2026-09-29.
 - `self_structure` is declared and reported as not checked. It needs a
   thermodynamics backend (the `thermo` extra).
 
