@@ -120,7 +120,9 @@ For the maintainer to decide on, as a package:
 
 ## 6. What would be asked for in return
 
-- native instrument files, untouched, into `during/raw/partner/`;
+- native instrument files, untouched, into `during/raw/partner/`, named as
+  K3's are (`pattern-01`, `overlap-01`, …) so `calibrate report` finds them;
+  a file is never renamed after it is written;
 - the instrument's description and its **uncertainty budget** for lateral
   position, with its traceability statement;
 - their own reading of the images with their software, as an independent
@@ -156,13 +158,14 @@ partner measurement or the homogeneity days:
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
-uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
+uv run dobladillo calibrate report experiments/<folder>
 ```
 
-`calibrate report` is expected to take the partner's budget, K5's and K7's
-results and K1's bounds, and to write the value, the budget table and the
-measurand into `post/`. Nothing in `post/` is edited by hand, and nothing in
+`calibrate report` fits each aliquot's `homogeneity/<aliquot>/pattern-*`, and
+the partner's files if they are named as K3's, apart, into
+`post/calibration.json`. **Not built:** taking the partner's budget, K5's and
+K7's results and K1's bounds, and writing the value, the budget table and the
+measurand into `post/`. Until it is, no value is issued from this folder. Nothing in `post/` is edited by hand, and nothing in
 the partner's raw files is touched.
 
 ## When it fails

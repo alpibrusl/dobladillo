@@ -177,8 +177,29 @@
   cross-correlation. Validated on synthetic scans with known truth, including
   interval coverage (bootstrap reads ~15% low, stated). MCP tools
   `calibrate_reference|lateral|tip|drift`, bounded to the experiments root.
-  Not built: a folder-level `calibrate report`; HS-AFM movie formats; grating
-  pitch analysis (use Gwyddion).
+  Not built: HS-AFM movie formats; grating pitch analysis (use Gwyddion).
+- `dobladillo calibrate report <folder>` (#27) and the calibration fields of
+  `during/instrument.json` (#28). The report finds a K folder's scans in
+  `during/raw/` by the names the protocols give them -- `pattern-NN` and
+  `overlap-NN` for the lateral fit (one per subfolder, prefix and scan angle,
+  never pooled), K4's `<block>-NN` (`staircase/S1-01`) for the tip, `frame-NN`
+  series for drift -- takes the conditions from the record, runs each
+  analysis it has data for, and writes `post/calibration.json`: per analysis
+  the file-level command's own payload (`calibration.payloads`, shared with
+  `calibrate lateral|tip|drift`), the conditions with the record's hash, and
+  the provenance chain with every scan's hash. Each analysis refuses with its
+  own `kind` when a condition it needs is unrecorded (`no_scan_angle`,
+  `no_scan_direction`, `no_closed_loop`, `no_deposition_cations`,
+  `no_tip_part_number`, `no_frame_times`, `no_calibration_reference`,
+  `design_mismatch` for a tile rebuilt today that is not the predicted
+  design); HS-AFM movies are listed as `movie_not_read`, the seam for #26.
+  New `instrument.json` fields: `deposition.mgcl2_mm`/`nicl2_mm` (or
+  `"blinded"`, K5), `scan.angle_deg` (a number, or per file), `scan.direction`,
+  `scan.channel`, `scan.closed_loop`, `frames`, `calibration_reference`;
+  `experiment check` lists the first five as missing only in calibration-tile
+  folders. MCP tool `calibrate_report`. K1-K8 now name the real command; K3's
+  and K5's provisional CSV columns for these fields are gone. Not built:
+  summaries across K5's codes, K7's time points or K8's budget.
 - Part `calibration-tile`: E1's rectangle with 12 isolated, chiral hairpin
   cells (48 marker staples), the ruler for `calibrate lateral`.
 - README facts generated from the code (`dobladillo readme`, module

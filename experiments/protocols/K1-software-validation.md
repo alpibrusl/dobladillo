@@ -75,8 +75,7 @@ scanner bow, drift shear and a streak. K1 also needs:
 - the **calibration tile**'s pattern, at random orientations and landing
   face-up or face-down.
 
-Not all of these exist yet (the calibrate commands take scan files; there
-is no folder-level `calibrate report`). If any is missing
+Not all of these exist yet. If any is missing
 when K1 runs, the dependent row of the grid below cannot run. Say so in
 `post/`. Do not substitute a different test.
 
@@ -147,8 +146,12 @@ protocol assumes. The commands' own `--help` wins.
 uv run dobladillo calibrate lateral <scans...> --json
 uv run dobladillo calibrate tip <scan> --json
 uv run dobladillo calibrate drift <frames...> --interval-s <s> --json
-uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
+
+`calibrate report` reads only `during/raw/`, and synthetic scans never go
+there, so K1's grid runs through these file-level commands; their `--json`
+output, written to `post/lateral.json`, `post/tip.json` and `post/drift.json`,
+is the record. Each is the same payload `calibrate report` gives per analysis.
 
 **Synthetic scans are regenerated from their seeds. They are not committed,
 and never go in `during/raw/`**, which holds only files an instrument wrote.
@@ -201,7 +204,7 @@ checked and recorded first.
   generator version; every seed; the public dataset's DOI, licence, date
   checked, file names and hashes; anything that crashed.
 - `during/gwyddion_tip.csv`: the independent check.
-- `post/`: the `--json` output of each `calibrate` command (`lateral.json`, `tip.json`, `drift.json`); a folder-level `calibrate report` is not built yet. Accuracy and
+- `post/`: the `--json` output of each `calibrate` command (`lateral.json`, `tip.json`, `drift.json`). Accuracy and
   coverage per quantity and condition, every refusal with its kind, and the
   Gwyddion comparison. Nothing in `post/` is edited by hand.
 
@@ -247,6 +250,6 @@ experimentalist, before step 2:
 
 - `pre/` committed before any validation seed was run
 - `during/log.md`, `during/gwyddion_tip.csv`, and the public data record
-- `post/` from `calibrate report`, with the interpretation below its line
+- `post/` from the `calibrate` commands, with the interpretation
 - the list of conditions under which `calibrate` may be used on real images,
   which K2–K7 cite

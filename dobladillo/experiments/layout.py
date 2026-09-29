@@ -199,6 +199,33 @@ def _gate_in_prediction(path: Path) -> bool:
     return bool(criterion) and not criterion.startswith("FILL THIS IN")
 
 
+#: Parts whose experiments are calibrations (the K series), and so record the
+#: conditions in `instrument.CALIBRATION_CONDITIONS`.
+CALIBRATION_PARTS: Final = frozenset({"calibration-tile"})
+
+
+def _calibration_conditions_missing(root: Path) -> list[str]:
+    """`instrument.json` fields a calibration folder has not recorded, or not usably.
+
+    Only for folders made for a calibration part: E1-E11 never needed them,
+    and asking for them there would be noise. The file itself missing is
+    already reported as missing, so nothing more is said then.
+    """
+    try:
+        part = json.loads((root / "pre" / "prediction.json").read_text()).get("part")
+        data = json.loads((root / "during" / "instrument.json").read_text())
+    except (OSError, ValueError, AttributeError):
+        return []
+    if part not in CALIBRATION_PARTS or not isinstance(data, dict):
+        return []
+    from dobladillo.experiments.instrument import read_conditions
+
+    conditions = read_conditions(data)
+    return [f"instrument.json: {name}" for name in conditions.missing] + [
+        f"instrument.json: {why}" for why in conditions.invalid
+    ]
+
+
 def check(root: Path) -> Check:
     """Inspect an experiment folder.
 
@@ -221,6 +248,8 @@ def check(root: Path) -> Check:
             else:
                 ok = (directory / item).is_file()
             (present if ok else missing).append(item)
+        if phase == "during":
+            missing.extend(_calibration_conditions_missing(root))
         states.append(PhaseState(phase=phase, present=tuple(present), missing=tuple(missing)))
 
     prediction = recorded_at(root / "pre" / "prediction.json")
@@ -357,6 +386,11 @@ scan can be traced to the conditions it was taken under.
 #: Fields the analysis actually consumes, plus the ones that explain a result
 #: when it goes wrong. `tip_radius_nm` is not optional: it enters every width
 #: as a square root and is the dominant systematic in anything this measures.
+#: `scan`'s angle, direction and loop, `deposition` and `frames` are the
+#: conditions `calibrate report` reads (`instrument.CALIBRATION_CONDITIONS`);
+#: `calibration_reference` names what was scanned when the folder's part does
+#: not -- "calibration-tile", or a reference JSON's path relative to the
+#: folder -- and is left empty in a calibration-tile folder.
 INSTRUMENT_TEMPLATE: Final[dict[str, Any]] = {
     "instrument": "",
     "mode": "",
@@ -375,5 +409,40 @@ INSTRUMENT_TEMPLATE: Final[dict[str, Any]] = {
     "reference": {"flat_height_nm": None, "from": ""},
     "buffer": {"tris_mm": None, "edta_mm": None, "mgcl2_mm": None, "ph": None},
     "temperature_c": None,
-    "scan": {"size_nm": None, "pixels": None, "rate_hz": None},
+    "scan": {
+        "size_nm": None,
+        "pixels": None,
+        "rate_hz": None,
+        # angle_deg, direction and closed_loop are what a calibration depends
+        # on (issue #28), and `experiment check` asks for them in
+        # calibration-tile (K) folders; channel only when it is not the default.
+        "angle_deg": None,
+        "direction": "",
+        "channel": None,
+        "closed_loop": None,
+        "note": "angle_deg: the scan rotation, degrees -- one number, or an object from file "
+        '(path under during/raw, * wildcards, first match wins) to degrees, e.g. {"liquid/'
+        'overlap-0[12]*": 0, "liquid/overlap-0[34]*": 90}. direction: "trace" or "retrace", '
+        "the line direction of the images analysed. channel: the file channel to read, null "
+        "for the format's height channel (the trace, in JPK and Asylum files). closed_loop: "
+        "true or false.",
+    },
+    "deposition": {
+        "mgcl2_mm": None,
+        "nicl2_mm": None,
+        "note": "The deposition buffer's divalent cations, mM: Mg2+ as MgCl2, Ni2+ as NiCl2 "
+        "(common-techniques section 7). Write 0 for NiCl2 when none was added: empty means "
+        'not recorded. "blinded" while the analysis is blind to it (K5). Not the folding '
+        "buffer's magnesium, which is buffer.mgcl2_mm.",
+    },
+    "frames": {
+        "interval_s": None,
+        "times_s": {},
+        "note": "For drift: a series is during/raw/<folder>/frame-01, frame-02, ... The time "
+        "between frames in s (interval_s), or each frame's time per series, keyed by its "
+        'folder under during/raw ("." for during/raw itself), e.g. {"liquid": [0, 64, '
+        "128]}; a series listed there uses its own times. From the instrument, not from "
+        "file dates.",
+    },
+    "calibration_reference": "",
 }

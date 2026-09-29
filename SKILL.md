@@ -28,6 +28,7 @@ experimental counterparts.
 - `dobladillo calibrate drift` — Drift between frames: displacement per frame and a velocity with its standard error.
 - `dobladillo calibrate lateral` — The scanner's X and Y scale and skew, from reference particles at random angles.
 - `dobladillo calibrate reference` — Write the calibration tile's reference geometry: its marks, in nm, with uncertainty.
+- `dobladillo calibrate report` — Every calibration the folder's scans support; writes `post/calibration.json`.
 - `dobladillo calibrate tip` — The tip, reconstructed blind from the scan, its apex radius, and the resolution it allows.
 - `dobladillo compare` — Design against simulation against measurement: the closed loop.
 - `dobladillo dashboard` — Generate the shareable board. Reads every figure from the toolchain.

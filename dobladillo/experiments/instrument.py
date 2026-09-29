@@ -116,3 +116,155 @@ def read_instrument(directory: Path) -> InstrumentRecord | None:
         magnesium=measured("magnesium", MAGNESIUM_FIELD),
         temperature=measured("temperature", TEMPERATURE_FIELD),
     )
+
+
+# ------------------------------------------------ calibration conditions (#28)
+#
+# A calibration is of the instrument in one configuration, of a reference in
+# one preparation. The K protocols (experiments/protocols/K*.md) first wrote
+# these into CSVs of their own because the record had no place for them. They
+# are not readings with a quantity and a time, so they are parsed here into
+# plain values, each either recorded, missing or invalid -- never defaulted.
+
+#: Written where a value is deliberately withheld from the analyst: K5 codes
+#: its depositions and gives the key only after `post/` is committed blind.
+BLINDED: Final = "blinded"
+
+#: The scan directions a line is recorded in.
+DIRECTIONS: Final = ("trace", "retrace")
+
+
+@dataclass(frozen=True)
+class ConditionField:
+    """One condition: where it lives, what it means, what may be written."""
+
+    path: tuple[str, ...]
+    meaning: str
+    allowed: str
+    #: The refusal kind when a command needs it and it is not recorded.
+    kind: str
+
+    @property
+    def name(self) -> str:
+        return ".".join(self.path)
+
+
+#: The conditions every calibration-tile (K) experiment records, in the order
+#: `experiment check` lists them. Which analyses need which is
+#: `experiments.calibration.REQUIRES`.
+CALIBRATION_CONDITIONS: Final = (
+    ConditionField(
+        ("deposition", "mgcl2_mm"),
+        "MgCl2 in the deposition buffer, mM (Mg2+ bridges DNA to mica). Not the folding "
+        "buffer's, which is buffer.mgcl2_mm",
+        f'a number >= 0, or "{BLINDED}" while the analysis is blind to it (K5)',
+        "no_deposition_cations",
+    ),
+    ConditionField(
+        ("deposition", "nicl2_mm"),
+        "NiCl2 added to the deposition buffer, mM (Ni2+ holds particles harder and can "
+        "distort them, K5). 0 when none was added: empty means not recorded",
+        f'a number >= 0, or "{BLINDED}"',
+        "no_deposition_cations",
+    ),
+    ConditionField(
+        ("scan", "angle_deg"),
+        "the scan rotation, degrees. The image's x is the fast axis whatever the stage "
+        "does, so a scale x at 90 degrees is the scanner's other piezo",
+        "a number for every scan, or an object from file (its path under during/raw, "
+        "* and ? allowed, first match wins) to a number",
+        "no_scan_angle",
+    ),
+    ConditionField(
+        ("scan", "direction"),
+        "the line direction the analysed images were recorded in. Hysteresis makes trace "
+        "and retrace differently wrong",
+        '"trace" or "retrace". A retrace analysis of a multi-channel native file also '
+        "names its channel in scan.channel",
+        "no_scan_direction",
+    ),
+    ConditionField(
+        ("scan", "closed_loop"),
+        "whether the scanner's position sensors were in the feedback loop. Its scale, "
+        "creep and drift differ between the two, so a calibration holds only for the one "
+        "it was measured in",
+        "true or false",
+        "no_closed_loop",
+    ),
+)
+
+
+@dataclass(frozen=True)
+class Conditions:
+    """The calibration conditions of a record: values, and what is missing or wrong.
+
+    A missing value is None in `values` and its dotted path is in `missing`;
+    an unusable one is None too, and in `invalid` with the reason. Nothing is
+    filled in.
+    """
+
+    values: dict[str, Any]
+    missing: tuple[str, ...]
+    invalid: tuple[str, ...]
+
+    def get(self, name: str) -> Any:
+        return self.values.get(name)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"values": dict(self.values), "missing": list(self.missing)}
+
+
+def _empty(value: Any) -> bool:
+    return value is None or value == "" or value == {} or value == []
+
+
+def _check_condition(name: str, value: Any) -> str | None:
+    """Why `value` cannot be the condition `name`, or None when it can."""
+    if name in ("deposition.mgcl2_mm", "deposition.nicl2_mm"):
+        if value == BLINDED:
+            return None
+        number = _number(value)
+        return None if number is not None and number >= 0 else f"not a concentration: {value!r}"
+    if name == "scan.angle_deg":
+        if isinstance(value, dict):
+            bad = [k for k, v in value.items() if not isinstance(k, str) or _number(v) is None]
+            return f"not an angle for {bad}" if bad else None
+        return None if _number(value) is not None else f"not an angle: {value!r}"
+    if name == "scan.direction":
+        return None if value in DIRECTIONS else f"not one of {', '.join(DIRECTIONS)}: {value!r}"
+    if name == "scan.closed_loop":
+        return None if isinstance(value, bool) else f"not true or false: {value!r}"
+    return None
+
+
+def read_conditions(data: dict[str, Any]) -> Conditions:
+    """The calibration conditions in an instrument record's data."""
+    values: dict[str, Any] = {}
+    missing: list[str] = []
+    invalid: list[str] = []
+    for field in CALIBRATION_CONDITIONS:
+        value = _lookup(data, field.path)
+        if _empty(value):
+            values[field.name] = None
+            missing.append(field.name)
+            continue
+        why = _check_condition(field.name, value)
+        if why is not None:
+            values[field.name] = None
+            invalid.append(f"{field.name}: {why}")
+            continue
+        number = _number(value)
+        values[field.name] = value if number is None else number
+    return Conditions(values=values, missing=tuple(missing), invalid=tuple(invalid))
+
+
+def angle_for(angle: Any, relative: str) -> float | None:
+    """The scan angle recorded for a file (its path under during/raw), or None."""
+    from fnmatch import fnmatchcase
+
+    if isinstance(angle, dict):
+        for pattern, value in angle.items():
+            if fnmatchcase(relative, pattern):
+                return _number(value)
+        return None
+    return _number(angle)

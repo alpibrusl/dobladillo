@@ -182,7 +182,10 @@ with common-techniques §8's characteriser in most setups. **Do not type in a
 nominal radius.** Leave the field empty, and say in the log how, or whether,
 the operator characterises the tip. Centre-to-centre distances are
 first-order insensitive to the tip (PROJECT.md), so the scale and drift
-readouts do not depend on it. Heights do, and they are not K6's result.
+readouts do not depend on it. Heights do, and they are not K6's result. Do
+fill in the deposition cations (`deposition.mgcl2_mm`, `deposition.nicl2_mm`,
+0 if none), `scan.angle_deg`, `scan.direction` and `scan.closed_loop`:
+`calibrate report` refuses the scale and the drift without them.
 
 **Raw files** go to `during/raw/hsafm/A/` and `during/raw/hsafm/B/`, native,
 untouched. `afm read` refuses them today. Do not convert them in place of the
@@ -192,10 +195,13 @@ native file. A per-frame export loses the timestamps the drift analysis needs.
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate drift experiments/<folder>/during/raw/frame-*.gsf --interval-s <s> --json > experiments/<folder>/post/drift.json   # frames exported as .gsf: HS-AFM movies (.asd) are not read yet
-uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
-uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
+uv run dobladillo calibrate report experiments/<folder>
 ```
+
+`calibrate report` lists every movie in `during/raw/hsafm/` and refuses it
+by name (`movie_not_read`): **movies are not read yet**, and that is K6's one
+software blocker. The report leaves a place for them: when a reader lands,
+each movie is to become one drift series carrying its own frame times.
 
 From these: scale X, scale Y and skew with intervals; drift velocity against
 time, with instrument drift separated from particle motion where two or more

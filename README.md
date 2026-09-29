@@ -89,6 +89,7 @@ fails if this list drifts from what the tool accepts). Each takes `--help` and
 | `dobladillo calibrate drift FRAMES...` | Drift between frames: displacement per frame and a velocity with its standard error. |
 | `dobladillo calibrate lateral SCANS...` | The scanner's X and Y scale and skew, from reference particles at random angles. |
 | `dobladillo calibrate reference` | Write the calibration tile's reference geometry: its marks, in nm, with uncertainty. |
+| `dobladillo calibrate report DIRECTORY` | Every calibration the folder's scans support; writes `post/calibration.json`. |
 | `dobladillo calibrate tip SCAN` | The tip, reconstructed blind from the scan, its apex radius, and the resolution it allows. |
 
 **experiment**
@@ -183,6 +184,7 @@ it is refused.
 | `calibrate_drift` | Drift between frames of the same field: per-frame displacement and a velocity with its standard error. |
 | `calibrate_lateral` | Scanner x/y scale and skew, with k=2 intervals, from scans of reference particles at random angles. |
 | `calibrate_reference` | The calibration tile's reference geometry: mark positions in nm with their relative uncertainty. |
+| `calibrate_report` | Every calibration a K folder's scans support: scale, tip and drift. |
 | `calibrate_tip` | Blind tip reconstruction (an outer bound), its apex radius and the lateral resolution it allows. |
 | `describe` | Every CLI command, its options and the conventions of its JSON output. |
 | `experiment_assembly` | E9: monomer, dimer and larger fractions per sample, against the A-alone and B-alone controls. |

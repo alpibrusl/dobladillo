@@ -159,9 +159,11 @@ looked odd is how wear gets confused with a sample difference.
 
 Common-techniques §8 still applies. Estimate the radius in Gwyddion from **S1**
 (before) and **S3** (after), and write them into `during/instrument.json` as
-`tip.measured_radius_before_nm` and `_after_nm`, with the tip's part number and
-nominal radius. This is independent of `calibrate`, and it is what every other
-command reads.
+`tip.measured_radius_before_nm` and `_after_nm`, with the tip's part number
+(`tip.part_number`) and nominal radius. This is independent of `calibrate`,
+and it is what every other command reads. Also `scan.direction`, `"trace"` or
+`"retrace"`: the direction the reconstructions are made from.
+`calibrate report` refuses without it and without the part number.
 
 ---
 
@@ -190,16 +192,18 @@ A contamination event splits the session: say which blocks are before it.
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate tip experiments/<folder>/during/raw/<scan> --out experiments/<folder>/post/tip.json
-uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
+uv run dobladillo calibrate report experiments/<folder>
 ```
 
-What K4 needs from `calibrate tip`, per block: the
-reconstructed tip, its apex radius with uncertainty, and **the depth to which
-it is determined**. From `calibrate report`: apex radius against cumulative
-lines scanned; tile and bundle against the bracketing staircase blocks,
-depth by depth; the Gwyddion comparison. Nothing in `post/` is edited by
-hand.
+`calibrate report` finds every block file by its name (`S1-01`, `T1-02`, …)
+and reconstructs each on its own, into `post/calibration.json`: per image,
+with its block, the reconstructed tip's summary, its apex radius with
+uncertainty, and **the depth to which it is determined**. To keep a whole
+tip array, run `calibrate tip <scan> --out` on that file. Not computed yet,
+and done from those numbers by hand: apex radius against cumulative lines
+scanned (from `sequence.csv`); tile and bundle against the bracketing
+staircase blocks, depth by depth; the Gwyddion comparison. Nothing in
+`post/` is edited by hand.
 
 ## When it fails
 
