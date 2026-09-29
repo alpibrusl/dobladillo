@@ -482,7 +482,7 @@ app.add_typer(lab_app, name="lab")
 PART_ARGUMENT = typer.Argument(
     ...,
     help="Which part: rectangle, bundle, hinge, hinge-locked-open, hinge-locked-latched, "
-    "twist-corrected, twist-uncorrected or pattern.",
+    "twist-corrected, twist-uncorrected, pattern or calibration-tile.",
 )
 PLATE_OPTION = typer.Option(96, "--plate", help="Well plate format: 96 or 384.")
 
@@ -759,6 +759,10 @@ def _make_part(which: str, out: Emitter) -> Any:
         from dobladillo.parts.pattern import patterned_rectangle
 
         return patterned_rectangle()
+    if which == "calibration-tile":
+        from dobladillo.parts.calibration_tile import calibration_tile
+
+        return calibration_tile()
     if which in ("hinge-locked-open", "hinge-locked-latched"):
         # E4's two FRET references: the same hinge, locked in one state.
         from dobladillo.hamiltonian.bracket import locked_references
@@ -1652,6 +1656,137 @@ def afm_synthetic(
             [("wrote", str(out)), ("seed", str(seed))] + [(k, str(v)) for k, v in truth.items()]
         ),
     )
+
+
+calibrate_app = typer.Typer(
+    help="AFM calibration from reference particles: scale, skew, tip, resolution, drift.",
+    no_args_is_help=True,
+)
+app.add_typer(calibrate_app, name="calibrate")
+
+REFERENCE_OPTION = typer.Option(
+    "calibration-tile",
+    "--reference",
+    help="The reference's geometry: 'calibration-tile' (this project's tile, nominal) or "
+    "a reference JSON written by `calibrate reference` or declared by hand.",
+)
+
+
+def _reference(spec: str, emitter: Emitter) -> Any:
+    from dobladillo.calibration import reference as ref
+
+    if spec == "calibration-tile":
+        return ref.from_tile()
+    path = Path(spec)
+    if not path.is_file():
+        emitter.fail(
+            f"no reference {spec!r}: give 'calibration-tile' or a reference JSON file",
+            kind="invalid_parameters",
+        )
+    try:
+        return ref.load(path)
+    except (ValueError, KeyError) as e:
+        emitter.fail(f"{path}: not a usable reference: {e}", kind="invalid_parameters")
+
+
+def _quantity_line(label: str, q: dict[str, Any], digits: int = 4) -> tuple[str, str]:
+    return (label, f"{q['value']:.{digits}f} +- {q['U_k2']:.{digits}f} (k=2)")
+
+
+@calibrate_app.command("reference")
+def calibrate_reference(
+    out: Path | None = typer.Option(None, "--out", help="Write the reference JSON here."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Write the calibration tile's reference geometry: its marks, in nm, with uncertainty.
+
+    The positions are the DESIGN's (base pairs x rise along the helices,
+    helices x inter-helix spacing across), so the reference is `nominal`: it
+    calibrates X/Y ratio and skew on its own, and absolute scale only to the
+    design's uncertainty, until a batch is certified (K8). To calibrate with
+    another sample, write a JSON of the same schema from its datasheet.
+    """
+    from dobladillo.calibration.reference import from_tile
+
+    emitter = Emitter(as_json)
+    reference = from_tile()
+    payload = reference.as_dict()
+    if out is not None:
+        reference.save(out)
+        payload["written"] = str(out)
+    rows = [
+        ("reference", reference.name),
+        ("status", reference.status),
+        ("features", str(len(reference.features))),
+        ("relative u (x, y)", ", ".join(f"{u:.2%}" for u in reference.relative_uncertainty)),
+        ("traceable", str(reference.traceable).lower()),
+    ]
+    if out is not None:
+        rows.append(("written", str(out)))
+    emitter.result(payload, "calibration reference\n" + _table(rows))
+
+
+@calibrate_app.command("lateral")
+def calibrate_lateral_command(
+    scans: list[Path] = typer.Argument(
+        ..., help="Scans of the reference, all at the same scan size and settings."
+    ),
+    reference_spec: str = REFERENCE_OPTION,
+    fixed_anisotropy: bool = typer.Option(
+        False,
+        "--fixed-anisotropy",
+        help="Hold the reference's own y scale at nominal instead of fitting it. Only when "
+        "its y dimension is certified, or the landing angles are too alike to separate it.",
+    ),
+    bootstrap: int = typer.Option(200, "--bootstrap", help="Bootstrap resamples over particles."),
+    channel: str | None = typer.Option(None, "--channel", help="Height channel, if not default."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """The scanner's X and Y scale and skew, from reference particles at random angles.
+
+    Mark centres, not outlines, are matched to the reference, so the tip's
+    broadening does not bias the scale. The scanner's error is fixed in the
+    image frame while each particle's own shape turns with it, which is what
+    separates the two; the fit refuses when the particles' angles are too
+    alike to do so. Every value carries a k=2 interval; `traceable` stays
+    false unless the reference is certified.
+    """
+    from dobladillo.calibration.lateral import CalibrationRefused, calibrate_lateral
+    from dobladillo.imaging.readers import UnreadableScan, read
+
+    emitter = Emitter(as_json)
+    reference = _reference(reference_spec, emitter)
+    images = []
+    for scan in scans:
+        try:
+            images.append(read(scan, channel=channel))
+        except (UnreadableScan, OSError) as e:
+            emitter.fail(f"{scan}: {e}", kind="unreadable_scan")
+    try:
+        result, _ = calibrate_lateral(
+            images,
+            reference,
+            fit_anisotropy=False if fixed_anisotropy else None,
+            bootstrap=bootstrap,
+        )
+    except CalibrationRefused as e:
+        emitter.fail(str(e), kind="calibration_refused")
+        return
+    payload = result.as_dict()
+    payload["scans"] = [str(s) for s in scans]
+    scanner, correction = payload["scanner"], payload["correction"]
+    rows = [
+        _quantity_line("scale x (reported/true)", scanner["scale_x"]),
+        _quantity_line("scale y (reported/true)", scanner["scale_y"]),
+        _quantity_line("skew, deg", scanner["skew_deg"], 3),
+        _quantity_line("correction x", correction["x"]),
+        _quantity_line("correction y", correction["y"]),
+        _quantity_line("reference y / nominal", payload["object_anisotropy"]),
+        ("particles, features", f"{result.n_particles}, {result.n_features}"),
+        ("rejected", ", ".join(f"{k} {v}" for k, v in sorted(result.rejected.items())) or "none"),
+        ("traceable", str(result.traceable).lower()),
+    ]
+    emitter.result(payload, f"lateral calibration against {reference.name}\n" + _table(rows))
 
 
 experiment_app = typer.Typer(help="Experiment folders: pre, during, post.", no_args_is_help=True)
