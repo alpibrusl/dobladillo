@@ -197,7 +197,11 @@ def test_each_result_is_the_file_level_commands_payload(tmp_path: Path) -> None:
     drift = runner.invoke(app, ["calibrate", "drift", *files, "--interval-s", "10", "--json"])
     (series,) = payload["analyses"]["drift"]["results"]
     assert series["series"] == "."
-    assert series["result"] == json.loads(drift.stdout)
+    single_drift = json.loads(drift.stdout)
+    # the one legitimate difference: where each took the frame times from
+    assert series["result"].pop("times_source") == "instrument.json"
+    assert single_drift.pop("times_source") == "--interval-s"
+    assert series["result"] == single_drift
     assert payload["analyses"]["lateral"]["status"] == "no_data"
 
 
@@ -262,15 +266,37 @@ def test_no_instrument_record_is_a_refusal(tmp_path: Path) -> None:
     assert code != 0 and payload["error"]["kind"] == "no_instrument"
 
 
-def test_a_movie_is_listed_not_read(tmp_path: Path) -> None:
-    """The seam for a movie reader (issue #26): refused by name, not skipped."""
+def test_a_movie_is_one_drift_series_with_its_own_frame_times(tmp_path: Path) -> None:
+    """#26 through the folder report: a synthetic .asd (the layout AFMReader
+    parses; tests/hsafm_files.py) with 3 and -2 nm/s imposed at 0.5 s a frame."""
+    pytest.importorskip("AFMReader")
+    from hsafm_files import drifting_field, write_asd
+
+    directory = _new_k_folder(tmp_path)
+    movie = directory / "during" / "raw" / "hsafm" / "A" / "movie-01.asd"
+    movie.parent.mkdir(parents=True)
+    write_asd(movie, drifting_field(10, step_nm=(1.5, -1.0)), x_nm=256, y_nm=256, frame_time=500.0)
+    _record(directory, FILLED)
+    code, payload = _report(directory)
+    assert code == 0, payload
+    (entry,) = payload["analyses"]["drift"]["results"]
+    assert entry["source"] == "movie" and entry["times_from"] == "the movie file"
+    result = entry["result"]
+    assert result["times_source"] == "file" and result["file_frame_interval_s"] == 0.5
+    v = result["velocity_nm_s"]
+    assert abs(v["x"] - 3.0) <= max(3 * v["x_uncertainty"], 0.02)
+    assert abs(v["y"] + 2.0) <= max(3 * v["y_uncertainty"], 0.02)
+
+
+def test_an_unreadable_movie_is_refused_not_skipped(tmp_path: Path) -> None:
+    pytest.importorskip("AFMReader")
     directory = _new_k_folder(tmp_path)
     movie = directory / "during" / "raw" / "hsafm" / "A" / "movie-01.asd"
     movie.parent.mkdir(parents=True)
     movie.write_bytes(b"\x00" * 16)
     _record(directory, FILLED)
     code, payload = _report(directory)
-    assert code != 0 and payload["error"]["kind"] == "movie_not_read"
+    assert code != 0 and payload["error"]["kind"] == "unreadable_scan"
 
 
 def _dummy_scans(directory: Path, *names: str) -> None:

@@ -1905,12 +1905,20 @@ def _tip_rows(
 
 @calibrate_app.command("drift")
 def calibrate_drift(
-    frames: list[Path] = typer.Argument(..., help="Frames of the same field, in time order."),
+    frames: list[Path] = typer.Argument(
+        ...,
+        help="Frames of the same field, in time order; or one high-speed movie (.asd, .h5-jpk).",
+    ),
     interval_s: float | None = typer.Option(
-        None, "--interval-s", help="Time between frames, s (evenly spaced frames)."
+        None,
+        "--interval-s",
+        help="Time between frames, s (evenly spaced frames). For a movie, replaces the file's.",
     ),
     times: str | None = typer.Option(
-        None, "--times", help="Comma-separated frame times in s, instead of --interval-s."
+        None,
+        "--times",
+        help="Comma-separated frame times in s, instead of --interval-s. For a movie, "
+        "replaces the file's.",
     ),
     channel: str | None = typer.Option(None, "--channel", help="Height channel, if not default."),
     as_json: bool = JSON_OPTION,
@@ -1918,39 +1926,88 @@ def calibrate_drift(
     """Drift between frames: displacement per frame and a velocity with its standard error.
 
     Sub-pixel cross-correlation of each frame against the first. Only drift
-    BETWEEN frames is measured, not the shear within one. High-speed AFM
-    movies (.asd, .h5-jpk) are not read yet: export the frames as .gsf.
+    BETWEEN frames is measured, not the shear within one. Give several image
+    files with --interval-s or --times, or ONE high-speed AFM movie (.asd,
+    .h5-jpk), whose frame times come from the file unless --interval-s or
+    --times replaces them; `times_source` in the output says which were used.
+    A movie whose times cannot be trusted is refused, not guessed at.
     """
     from dobladillo.calibration.payloads import drift_payload
-    from dobladillo.imaging.readers import UnreadableScan, read
+    from dobladillo.imaging.readers import MOVIES, UnreadableScan, read, read_stack, suffix_of
 
     emitter = Emitter(as_json)
-    if (interval_s is None) == (times is None):
-        emitter.fail("give exactly one of --interval-s or --times", kind="invalid_parameters")
+    if interval_s is not None and times is not None:
+        emitter.fail("give --interval-s or --times, not both", kind="invalid_parameters")
+    given_times: list[float] | None = None
     if times is not None:
         try:
-            times_s = [float(t) for t in times.split(",")]
+            given_times = [float(t) for t in times.split(",")]
         except ValueError:
             emitter.fail(f"could not read times from {times!r}", kind="invalid_parameters")
             return
-    else:
-        assert interval_s is not None
-        times_s = [i * interval_s for i in range(len(frames))]
-    if len(times_s) != len(frames):
-        emitter.fail(f"{len(frames)} frames but {len(times_s)} times", kind="invalid_parameters")
-    images = []
-    for frame in frames:
+    times_source = "--interval-s" if interval_s is not None else "--times" if times else "file"
+
+    movies = [f for f in frames if suffix_of(f) in MOVIES]
+    if movies:
+        if len(frames) != 1:
+            emitter.fail(
+                "give one movie, or several image files; not several movies, nor a movie "
+                f"with other files ({', '.join(str(m) for m in movies)})",
+                kind="invalid_parameters",
+            )
         try:
-            images.append(read(frame, channel=channel))
+            stack = read_stack(
+                frames[0], channel=channel, interval_s=interval_s, times_s=given_times
+            )
         except (UnreadableScan, OSError) as e:
-            emitter.fail(f"{frame}: {e}", kind="unreadable_scan")
+            emitter.fail(f"{frames[0]}: {e}", kind="unreadable_scan")
+            return
+        except ValueError as e:
+            emitter.fail(str(e), kind="invalid_parameters")
+            return
+        images = list(stack.frames)
+        times_s = list(stack.times_s)
+        described = stack.describe()
+        source: dict[str, Any] = {
+            "movie": str(frames[0]),
+            **{k: described[k] for k in ("instrument", "channel", "scan_direction")},
+            "times_source": times_source,
+            "file_frame_interval_s": stack.file_interval_s,
+            "file_times_note": stack.times_note,
+        }
+    else:
+        if interval_s is None and given_times is None:
+            emitter.fail(
+                "give --interval-s or --times: image files carry no frame times (only a "
+                "movie, .asd or .h5-jpk, does)",
+                kind="invalid_parameters",
+            )
+        if given_times is not None:
+            times_s = given_times
+        else:
+            assert interval_s is not None
+            times_s = [i * interval_s for i in range(len(frames))]
+        if len(times_s) != len(frames):
+            emitter.fail(
+                f"{len(frames)} frames but {len(times_s)} times", kind="invalid_parameters"
+            )
+        images = []
+        for frame in frames:
+            try:
+                images.append(read(frame, channel=channel))
+            except (UnreadableScan, OSError) as e:
+                emitter.fail(f"{frame}: {e}", kind="unreadable_scan")
+        source = {"frame_files": [str(f) for f in frames], "times_source": times_source}
     try:
-        payload = drift_payload(images, times_s)
+        payload = {**drift_payload(images, times_s), **source}
     except ValueError as e:
         emitter.fail(str(e), kind="invalid_parameters")
         return
-    payload["frame_files"] = [str(f) for f in frames]
-    emitter.result(payload, "drift\n" + _table(_drift_rows(payload)))
+    rows = _drift_rows(payload)
+    rows.insert(1, ("times from", times_source))
+    if movies and stack.times_source == "file":
+        rows.append(("file times", stack.times_note))
+    emitter.result(payload, "drift\n" + _table(rows))
 
 
 def _drift_rows(payload: dict[str, Any]) -> list[tuple[str, str]]:

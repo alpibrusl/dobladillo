@@ -7,9 +7,12 @@ and K1 (its drift rows passed). **Blocked** until three things exist:
 
 1. **HS-AFM time.** No instrument is lined up (`experiments/ROADMAP.md`,
    *Direction: high-speed AFM*). Arranging it is the maintainer's decision.
-2. **A reader for HS-AFM movies.** The current pipeline refuses `.asd` and
-   `.h5-jpk` stacks on purpose (`imaging/readers.py`: "this measures single
-   images"). `calibrate drift` exists, but reads frames exported as .gsf: the movie formats themselves are **not read yet**, which is K6's one software blocker.
+2. **The movie reader checked on a real file.** `calibrate drift` reads an
+   `.asd` or `.h5-jpk` movie directly, through AFMReader, with the frame
+   times from the file. It has only been tested on synthetic files written in
+   the layout AFMReader parses, and it takes the `.asd` frame time as
+   milliseconds, which AFMReader does not state. One file from the
+   operator's instrument, read before the session (checklist), closes this.
 3. For arm B only: **a biotinylated variant of the tile**, part
    `calibration-tile-biotin`: the same 48 staple ends as the hairpin tile, each
    with a TT spacer and a 3' biotin (IDT `/3Bio/`), ordered with
@@ -112,9 +115,12 @@ survival criterion, the two setpoints, and the operator's buffer. Commit `pre/`.
 
 - [ ] HS-AFM time arranged, by the maintainer's decision; the operator's
       protocol read.
-- [ ] `calibrate drift` reads your instrument's movie format. Test it on one
-      file from the operator **before** the session. If it does not, stop:
-      there is no analysis to run.
+- [ ] `calibrate drift` reads your instrument's movie format. Run
+      `uv run dobladillo calibrate drift <operator-file>.asd --json` on one
+      file from the operator **before** the session, and check two numbers
+      against the operator's own: `file_frame_interval_s` against 1 / frame
+      rate, and `pixel_nm` against frame size / pixels. If it does not read,
+      or either disagrees, stop: there is no analysis to run until it does.
 - [ ] K3's liquid result on the same batch, for the scale comparison.
 - [ ] Tile aliquots of one batch, named. Arm B's samples, if decided.
 - [ ] Imaging buffer: the operator's validated one, or MATERIALS §2's.
@@ -193,8 +199,9 @@ fill in the deposition cations (`deposition.mgcl2_mm`, `deposition.nicl2_mm`,
 `calibrate report` refuses the scale and the drift without them.
 
 **Raw files** go to `during/raw/hsafm/A/` and `during/raw/hsafm/B/`, native,
-untouched. `afm read` refuses them today. Do not convert them in place of the
-native file. A per-frame export loses the timestamps the drift analysis needs.
+untouched. `calibrate drift` reads them as they are; `afm read` and the other
+single-image commands refuse them. Do not convert them in place of the native
+file: a per-frame export loses the frame times the drift analysis needs.
 
 ## Readout
 
@@ -203,10 +210,11 @@ uv run dobladillo experiment check experiments/<folder>
 uv run dobladillo calibrate report experiments/<folder>
 ```
 
-`calibrate report` lists every movie in `during/raw/hsafm/` and refuses it
-by name (`movie_not_read`): **movies are not read yet**, and that is K6's one
-software blocker. The report leaves a place for them: when a reader lands,
-each movie is to become one drift series carrying its own frame times.
+`calibrate report` reads every movie in `during/raw/hsafm/` as one drift
+series, with the frame times from the file (`times_source` and
+`file_times_note` in `post/calibration.json` say how they were read; check
+them against the operator's frame rate, as the checklist asks). A movie whose
+times cannot be trusted is refused, not guessed at.
 
 From these: scale X, scale Y and skew with intervals; drift velocity against
 time, with instrument drift separated from particle motion where two or more
@@ -218,7 +226,8 @@ against end.
 
 | symptom | likely cause | what to do |
 |---|---|---|
-| `calibrate drift` cannot read the movies | the reader is not there yet | stop before the session (checklist); nothing else substitutes |
+| `calibrate drift` cannot read the movies | the instrument's file differs from what AFMReader parses (the reader is untested on real files) | stop before the session (checklist); send the error to the maintainer; nothing else substitutes |
+| the frame interval disagrees with the operator's frame rate | the `.asd` frame time is not in milliseconds on this instrument, or the file's times are otherwise wrong | give the operator's times with `--interval-s` or `--times`; `times_source` records that they replaced the file's |
 | marks lost at once, at every setpoint | the marks do not survive HS-AFM tapping | a result. Report the frame count; it points at the mark design |
 | marks lost in the control fields too | the tile or its marks come apart in the buffer | a result about the buffer and the time, not the tip |
 | tiles slide between frames | adsorption too weak for HS-AFM | the operator's usual fix (often NiCl₂); record it as a deviation, and remember K5's Ni result |

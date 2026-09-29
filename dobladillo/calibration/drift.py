@@ -53,10 +53,12 @@ image since the first frame, along the fast axis (columns) and slow axis
 (rows): frame i shows at (row, col) what frame 0 showed at
 (row - dy, col - dx), with dx and dy in pixels.
 
-**What is missing.** Real high-speed movies cannot be loaded yet:
-`imaging.readers` refuses `.asd` and `.h5-jpk` stacks (`NOT_READ`), because
-the rest of the pipeline measures single images. So this takes a sequence
-of `HeightMap`s and the frame times, from wherever they came.
+**Where the frames come from.** This takes a sequence of `HeightMap`s and
+the frame times, from wherever they came: single image files with times
+given by hand, or a high-speed movie (`.asd`, `.h5-jpk`) read whole by
+`imaging.readers.read_stack`, with the times its file gives. Those times are
+each frame's start, derived from one stated frame time or line rate rather
+than recorded per frame, so a pause between frames is not in them.
 """
 
 from __future__ import annotations

@@ -25,10 +25,9 @@ for; where they disagreed, what most of them used.
   and listed with its block. K4 is the only protocol that names tip scans.
 - **Drift** reads a series of frames, `frame-NN.<ext>`, one series per
   subfolder, frames in number order. The frame times come from the record,
-  `frames.interval_s` or `frames.times_s[<subfolder>]`. High-speed AFM
-  movies (`.asd`, `.h5-jpk`, K6) are listed as `movie_not_read`: that is the
-  seam for a movie reader, which would make each movie one series carrying
-  its own frame times (`_movie_series`).
+  `frames.interval_s` or `frames.times_s[<subfolder>]`. A high-speed AFM
+  movie (`.asd`, `.h5-jpk`, K6) is one series, carrying its own frame times
+  (`_movie_series`, through `imaging.readers.read_stack`).
 
 Everything else in `during/raw/` -- gels, gratings, `control-*` -- is not
 read. As everywhere (`experiments.pattern.scans_for`), native files are read
@@ -589,25 +588,55 @@ def _frame_times(
     )
 
 
-def _movie_series(directory: Path, movie: Path) -> Outcome:
-    """A high-speed AFM movie as a drift series. THE SEAM for issue #26.
+def _movie_series(directory: Path, record: Record, movie: Path) -> Outcome:
+    """A high-speed AFM movie as one drift series, with the frame times in the file.
 
-    When a movie reader lands, this reads the movie's frames and their times
-    from the file and runs `drift_payload` on them, as `_drift` does for a
-    series of frame files. Until then the movie is listed, and refused.
+    The same conditions as a frame series (scan angle, closed loop, a channel
+    that can be named) are required and refused the same way; the times come
+    from the movie (`imaging.readers.read_stack`), which refuses a file whose
+    times it would have to invent. `times_from` says so in the result.
     """
-    return Outcome(
+    from dobladillo.calibration.payloads import drift_payload
+    from dobladillo.imaging.readers import UnreadableScan, read_stack
+
+    base: dict[str, Any] = {"series": relative(movie, directory), "source": "movie"}
+    refusal = _missing(record, "drift")
+    if refusal is None:
+        _, refusal = _channel(record, (movie,))
+    if refusal is not None:
+        return Outcome({**base, "refused": refusal.as_dict()})
+    angle = angle_for(record.conditions.get("scan.angle_deg"), relative(movie, directory))
+    if angle is None:
+        return Outcome(
+            {
+                **base,
+                "refused": Refusal(
+                    "no_scan_angle",
+                    f"{INSTRUMENT}'s scan.angle_deg gives no angle for {movie.name}",
+                    ("scan.angle_deg",),
+                ).as_dict(),
+            }
+        )
+    channel, _ = _channel(record, (movie,))
+    try:
+        stack = read_stack(movie, channel=channel)
+        payload = drift_payload(list(stack.frames), list(stack.times_s))
+    except (UnreadableScan, OSError) as e:
+        return Outcome({**base, "refused": Refusal("unreadable_scan", str(e)).as_dict()})
+    except ValueError as e:
+        return Outcome({**base, "refused": Refusal("invalid_parameters", str(e)).as_dict()})
+    described = stack.describe()
+    payload.update(
         {
-            "series": relative(movie, directory),
-            "source": "movie",
-            "refused": Refusal(
-                "movie_not_read",
-                f"{movie.name} is a high-speed AFM movie; movies are not read yet (issue "
-                "#26). Do not convert it in place of the native file: a per-frame export "
-                "loses the frame times.",
-            ).as_dict(),
+            "movie": str(movie),
+            **{k: described[k] for k in ("instrument", "channel", "scan_direction")},
+            "times_source": stack.times_source,
+            "file_frame_interval_s": stack.file_interval_s,
+            "file_times_note": stack.times_note,
         }
     )
+    base.update({"scan_angle_deg": angle, "times_from": "the movie file"})
+    return Outcome({**base, "result": payload}, (movie,))
 
 
 def _drift(
@@ -616,7 +645,7 @@ def _drift(
     from dobladillo.calibration.payloads import drift_payload
     from dobladillo.imaging.readers import UnreadableScan
 
-    movie_outcomes = [_movie_series(directory, m) for m in movies]
+    movie_outcomes = [_movie_series(directory, record, m) for m in movies]
     if not sets:
         return {}, movie_outcomes
     refusal = _missing(record, "drift")
@@ -675,6 +704,7 @@ def _drift(
             )
             continue
         payload["frame_files"] = [str(p) for p in scan_set.files]
+        payload["times_source"] = "instrument.json"
         outcomes.append(Outcome({**base, "result": payload}, scan_set.files))
     return {}, outcomes + movie_outcomes
 
@@ -685,7 +715,7 @@ NAMING: Final = (
     "during/raw/: lateral reads pattern-NN and overlap-NN (any subfolder; one calibration "
     "per subfolder, prefix and scan angle); tip reads K4's <block>-NN, e.g. staircase/S1-01; "
     "drift reads frame-NN, one series per subfolder, with frame times from "
-    "instrument.json's frames. Movies (.asd, .h5-jpk) are not read yet."
+    "instrument.json's frames; a movie (.asd, .h5-jpk) is one series, with its own frame times."
 )
 
 

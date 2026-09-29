@@ -187,8 +187,9 @@ E10 ────────────┴── K4                          ti
   against the staircase.
 - **K5** needs K3 (a fixed measurement procedure: variation must come from the
   preparation, not the method).
-- **K6** needs K3's liquid arm, an HS-AFM, and a reader for HS-AFM stacks
-  (the current pipeline refuses `.asd`; see *Open* below).
+- **K6** needs K3's liquid arm, an HS-AFM, and one real movie from it to
+  check `calibrate drift`'s reader on (it reads `.asd` and `.h5-jpk`, but has
+  only been tested on synthetic files; see *Open* below).
 - **K7** needs K3 (a baseline) and K5 (the spread, which says what change is
   detectable).
 - **K8** needs K5 and K7 (what is certified is a preparation and a format,
@@ -251,10 +252,10 @@ measurement, with a complete uncertainty budget. Whether to call anything
 | sheet deforms non-affinely on mica | the ruler is not rigid; skew from the sample, not the scanner | K3, K5 | the rotation averaging in K3 exposes it; report, do not fit it away |
 | across-helix spacing unknown | no across-helix scale without K8 | already known | use along-helix, anisotropy and skew until certified |
 | blind reconstruction limited to 2–3 nm depth on the tile | cannot characterise the tip's sides | K4 | the 6HB and the staircase reach higher; say which depth each covers |
-| HS-AFM access; stacks unreadable today | K6 cannot run | K6 | the maintainer's decision; reader in `calibrate drift` |
+| HS-AFM access | K6 cannot run | K6 | the maintainer's decision (movies are read by `calibrate drift`) |
 | public data licence forbids use | K1 loses its real-data arm | K1 | synthetic data and our own K2/K3 images |
 | no partner for traceable measurement | no certificate | K8 | the kit stays an uncertified, open reference, and says so |
-| HS-AFM movie formats unread | K6 needs exported frames | K6 | export frames as .gsf from Gwyddion |
+| HS-AFM movie read wrongly: the reader is tested on synthetic files only, and takes the `.asd` frame time as milliseconds, which AFMReader does not state | drift in the wrong units, or wrong heights | K6 | K6's checklist: one operator file read before the session, its frame interval checked against the operator's frame rate; if it fails, frames exported as .gsf with `--times` |
 
 ## What partners would be asked for
 
