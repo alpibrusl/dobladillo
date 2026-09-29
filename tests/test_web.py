@@ -219,14 +219,39 @@ def test_names_outside_the_root_are_refused(root: Path, tmp_path: Path) -> None:
     assert not (root.parent / "escaped").exists()
 
 
-def test_downloads_are_bounded_to_order_and_post(root: Path) -> None:
+def test_every_file_of_the_experiment_downloads_and_nothing_outside_it(root: Path) -> None:
     client = _client(root)
     token = _token(client)
     client.post("/new", data={"slug": "e1", "part": "rectangle", "csrf": token})
-    ok = client.get("/e/e1/files/pre/order/rectangle_bulk.csv")
-    assert ok.status_code == 200 and "attachment" in ok.headers["content-disposition"]
-    for path in ("pre/prediction.json", "..%2F..%2Fsecret.txt", "pre/order/..%2F..%2F..%2Fx"):
+    folder = root / "e1"
+    (folder / "post" / "note.json").write_text("{}")
+    for path in (
+        "pre/order/rectangle_bulk.csv",
+        "pre/prediction.json",
+        "pre/plan.md",
+        "during/instrument.json",
+        "post/note.json",
+    ):
+        ok = client.get(f"/e/e1/files/{path}")
+        assert ok.status_code == 200, path
+        assert "attachment" in ok.headers["content-disposition"], path
+    secret = root.parent / "secret.txt"
+    secret.write_text("not yours")
+    (folder / "during" / "raw" / "link.txt").symlink_to(secret)
+    (folder / "pre" / ".hidden").write_text("x")
+    for path in (
+        "..%2F..%2Fsecret.txt",
+        "pre/order/..%2F..%2F..%2Fx",
+        "during/raw/link.txt",  # a symlink leading out of the folder
+        "pre/.hidden",
+        "pre",  # a directory
+        "missing.txt",
+    ):
         assert client.get(f"/e/e1/files/{path}").status_code == 404, path
+    page = client.get("/e/e1").text
+    assert 'id="files"' in page
+    assert "/e/e1/files/pre/plan.md" in page and "/e/e1/files/during/instrument.json" in page
+    assert "link.txt" not in page.split('id="files"')[1].split("</section>")[0]
 
 
 # ------------------------------------------------------------ the lifecycle

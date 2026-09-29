@@ -83,8 +83,11 @@ MAX_UPLOAD_BYTES: Final = 1 << 30
 #: The only names this server answers to.
 LOOPBACK_HOSTS: Final = ("127.0.0.1", "localhost")
 
-#: Where downloads may come from, inside an experiment folder.
-DOWNLOADABLE: Final = ("pre/order", "post")
+#: Where downloads may come from, inside an experiment folder: every phase.
+#: A file is served only if, once resolved, it is still inside one of these
+#: (so `..` and symlinks leading out are refused) and no part of its path is
+#: hidden (so nothing like `.git` is ever served).
+DOWNLOADABLE: Final = ("pre", "during", "post")
 
 SECURITY_HEADERS: Final = (
     (
@@ -433,6 +436,33 @@ def _protocol_rows(sheet: dict[str, Any]) -> list[tuple[str, str]]:
         return _flatten(sheet)
 
 
+def _downloadable(folder: Path, relative: str) -> Path | None:
+    """The file `relative` names inside `folder`, if it may be served; else None."""
+    if any(part.startswith(".") for part in Path(relative).parts):
+        return None
+    candidate = (folder / relative).resolve()
+    bases = [(folder / b).resolve() for b in DOWNLOADABLE]
+    if not any(base in candidate.parents for base in bases) or not candidate.is_file():
+        return None
+    return candidate
+
+
+def _phase_files(folder: Path) -> dict[str, list[dict[str, Any]]]:
+    """Every servable file of each phase, for the Files section."""
+    out: dict[str, list[dict[str, Any]]] = {}
+    for phase in DOWNLOADABLE:
+        base = folder / phase
+        if not base.is_dir():
+            continue
+        rows = []
+        for p in sorted(base.rglob("*")):
+            relative = str(p.relative_to(folder))
+            if p.is_file() and _downloadable(folder, relative) is not None:
+                rows.append({"path": relative, "bytes": p.stat().st_size})
+        out[phase] = rows
+    return out
+
+
 def _files_under(folder: Path, relative: str) -> list[dict[str, Any]]:
     base = folder / relative
     if not base.is_dir():
@@ -566,6 +596,7 @@ def experiment(request: Request) -> HTMLResponse:
         protocol=protocol.read_text() if protocol.is_file() else "",
         prediction=_prediction_rows(folder),
         order=_files_under(folder, "pre/order"),
+        files=_phase_files(folder),
         sheet=None
         if sheet is None
         else {
@@ -690,10 +721,14 @@ def download(request: Request) -> FileResponse:
     site: Site = request.app.state.site
     folder = site.folder(request.path_params["name"])
     relative = request.path_params["path"]
-    candidate = (folder / relative).resolve()
-    bases = [(folder / b).resolve() for b in DOWNLOADABLE]
-    if not any(base in candidate.parents for base in bases) or not candidate.is_file():
-        raise Refusal("not_downloadable", f"{relative!r} is not a file in pre/order or post", 404)
+    candidate = _downloadable(folder, relative)
+    if candidate is None:
+        raise Refusal(
+            "not_downloadable",
+            f"{relative!r} is not a file in this experiment's pre/, during/ or post/",
+            404,
+        )
+    # Always an attachment: nothing uploaded is ever rendered inside this origin.
     return FileResponse(candidate, filename=candidate.name, content_disposition_type="attachment")
 
 

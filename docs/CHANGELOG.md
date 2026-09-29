@@ -282,3 +282,7 @@
   or blocked, and the analyses for the part). The writing ones and `web` are
   in `mcp_server.FORBIDDEN_COMMANDS`; AGENTS.md and experiments/AGENTS.md say
   agents must not drive them or the page.
+- Web UI downloads: every file of an experiment's pre/, during/ and post/ can
+  be downloaded from a new Files section (raw scans link from their list too),
+  always as an attachment. Paths are resolved and must stay inside the phase;
+  `..`, hidden parts and symlinks leading out are refused.

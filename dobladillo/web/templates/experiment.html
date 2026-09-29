@@ -178,7 +178,7 @@
     <thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col">sha256</th></tr></thead>
     <tbody>
     {% for f in s.raw %}
-      <tr><td>{{ f.path }}</td><td>{{ f.bytes | size }}</td><td><code>{{ f.sha256 | short }}</code></td></tr>
+      <tr><td><a href="/e/{{ name | urlencode }}/files/during/raw/{{ f.path | urlencode }}">{{ f.path }}</a></td><td>{{ f.bytes | size }}</td><td><code>{{ f.sha256 | short }}</code></td></tr>
     {% endfor %}
     </tbody>
   </table></div>
@@ -238,6 +238,25 @@
     <button type="submit"{% if not locked %} disabled{% endif %}>Commit post/</button>
   </form>
   {% endif %}
+</section>
+
+<section id="files" aria-labelledby="files-h">
+  <h2 id="files-h">Files</h2>
+  <p class="muted">Everything in this experiment's folder, to download. Files are
+  served as downloads, never opened inside this page.</p>
+  {% for phase, rows in files.items() %}
+  <div class="scroll"><table class="list">
+    <caption>{{ phase }}/</caption>
+    <thead><tr><th scope="col">File</th><th scope="col">Size</th></tr></thead>
+    <tbody>
+    {% for f in rows %}
+      <tr><td><a href="/e/{{ name | urlencode }}/files/{{ f.path | urlencode }}">{{ f.path }}</a></td><td>{{ f.bytes | size }}</td></tr>
+    {% else %}
+      <tr><td colspan="2" class="muted">nothing yet</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endfor %}
 </section>
 
 <section id="provenance" aria-labelledby="provenance-h">
