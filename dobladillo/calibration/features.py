@@ -52,7 +52,7 @@ from typing import TYPE_CHECKING, Any, Final
 import numpy as np
 
 from dobladillo.imaging.flatten import flatten
-from dobladillo.imaging.particles import _measure, segment
+from dobladillo.imaging.particles import measure_mask, segment
 from dobladillo.imaging.pattern import SPOT_SIGMA, background_noise_nm
 
 if TYPE_CHECKING:
@@ -408,7 +408,7 @@ def detect(
     matches: list[ParticleMatch] = []
     segments = segment(levelled, background, peak_percentile=50)
     for seg in segments:
-        particle = _measure(heights, seg.mask, pixel, seg.label, levelled.shape)
+        particle = measure_mask(heights, seg.mask, pixel, seg.label, levelled.shape)
         if particle.touches_edge:
             rejected["touches_edge"] = rejected.get("touches_edge", 0) + 1
             continue

@@ -53,7 +53,7 @@ import numpy as np
 
 from dobladillo.imaging.heightmap import HeightMap
 from dobladillo.imaging.pattern import TRANSFORMS, frame_axes
-from dobladillo.imaging.synthetic import SHEET_HEIGHT_NM, _instrument
+from dobladillo.imaging.synthetic import SHEET_HEIGHT_NM, add_instrument
 from dobladillo.imaging.synthetic_pattern import MARK_RADIUS_NM
 
 __all__ = [
@@ -265,7 +265,7 @@ def calibration_scan(
             PlacedTile(centre_px=centre, angle_deg=angle, transform=transform, shows=shows)
         )
 
-    heights = _instrument(
+    heights = add_instrument(
         heights,
         rng,
         drift_shear=0.0,

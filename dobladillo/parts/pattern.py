@@ -112,6 +112,7 @@ __all__ = [
     "Marker",
     "PatternedRectangle",
     "check_hairpin",
+    "distance_along_helix_nm",
     "marker_faces",
     "patterned_rectangle",
 ]
@@ -540,7 +541,7 @@ class PatternedRectangle:
         }
 
 
-def _x_nm(offset: int, deletions: list[int], rise: float) -> float:
+def distance_along_helix_nm(offset: int, deletions: list[int], rise: float) -> float:
     """Distance along a helix to `offset`, counting bases rather than offsets."""
     return (offset - sum(1 for d in deletions if d < offset)) * rise
 
@@ -601,7 +602,7 @@ def patterned_rectangle(
             for x in d.deletions
         }
     )
-    half_x = _x_nm(length, deletions, rise) / 2.0
+    half_x = distance_along_helix_nm(length, deletions, rise) / 2.0
     mid_helix = (helices - 1) / 2.0
 
     marks = [m for cell in sorted(on) for m in candidates.get(cell, [])]
@@ -614,8 +615,8 @@ def patterned_rectangle(
                     col=col,
                     row=row,
                     x_nm=(
-                        _x_nm(col * CELL_BP, deletions, rise) - half_x,
-                        _x_nm((col + 1) * CELL_BP, deletions, rise) - half_x,
+                        distance_along_helix_nm(col * CELL_BP, deletions, rise) - half_x,
+                        distance_along_helix_nm((col + 1) * CELL_BP, deletions, rise) - half_x,
                     ),
                     y_nm=(bottom * spacing, (bottom + CELL_HELICES) * spacing),
                     on=(col, row) in on,
@@ -626,7 +627,10 @@ def patterned_rectangle(
         rows=rows,
         cells=tuple(cells),
         marks_nm=tuple(
-            (_x_nm(offset, deletions, rise) + rise / 2.0 - half_x, (helix - mid_helix) * spacing)
+            (
+                distance_along_helix_nm(offset, deletions, rise) + rise / 2.0 - half_x,
+                (helix - mid_helix) * spacing,
+            )
             for _, helix, offset, _ in marks
         ),
     )

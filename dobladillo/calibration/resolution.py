@@ -65,7 +65,7 @@ from typing import Any, Final
 
 import numpy as np
 
-from dobladillo.calibration.tip import _halves
+from dobladillo.calibration.tip import tip_half_sizes
 from dobladillo.constants import HELIX_DIAMETER_NM
 
 #: A dip must exceed this many noise standard deviations to count. Chosen,
@@ -210,7 +210,7 @@ def lateral_resolution(
     on the image's pixel grid; a `TipEstimate`'s `heights_nm` is one. See the
     module docstring for the criterion and the model.
     """
-    _halves(tip)
+    tip_half_sizes(tip)
     if pixel_nm <= 0 or noise_nm < 0 or feature_height_nm <= 0 or k <= 0:
         raise ValueError("pixel size, feature height and k must be positive; noise non-negative")
     dip = k * noise_nm

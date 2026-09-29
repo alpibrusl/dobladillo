@@ -88,7 +88,7 @@ from dobladillo.parts.pattern import (
     CELL_HELICES,
     MARGIN_HELICES,
     PatternedRectangle,
-    _x_nm,
+    distance_along_helix_nm,
     patterned_rectangle,
 )
 
@@ -281,12 +281,12 @@ def calibration_tile(
             for x in d.deletions
         }
     )
-    half_x = _x_nm(length, deletions, RISE_NM) / 2.0
+    half_x = distance_along_helix_nm(length, deletions, RISE_NM) / 2.0
     mid_helix = (helices - 1) / 2.0
 
     by_cell: dict[tuple[int, int], list[tuple[float, float]]] = {}
     for mark in patterned.markers:
-        x = _x_nm(mark.offset, deletions, RISE_NM) + RISE_NM / 2.0 - half_x
+        x = distance_along_helix_nm(mark.offset, deletions, RISE_NM) + RISE_NM / 2.0 - half_x
         y = (mark.helix - mid_helix) * SPACING_NM
         by_cell.setdefault(mark.cell, []).append((x, y))
 
@@ -295,8 +295,8 @@ def calibration_tile(
         bottom = MARGIN_HELICES + row * CELL_HELICES - 0.5 - mid_helix
         centre = (
             (
-                _x_nm(col * CELL_BP, deletions, RISE_NM)
-                + _x_nm((col + 1) * CELL_BP, deletions, RISE_NM)
+                distance_along_helix_nm(col * CELL_BP, deletions, RISE_NM)
+                + distance_along_helix_nm((col + 1) * CELL_BP, deletions, RISE_NM)
             )
             / 2.0
             - half_x,

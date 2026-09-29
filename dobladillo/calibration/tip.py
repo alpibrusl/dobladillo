@@ -195,7 +195,7 @@ RIM_THRESHOLDS: Final = 2.0
 # ------------------------------------------------------------------ helpers
 
 
-def _halves(tip: np.ndarray) -> tuple[int, int]:
+def tip_half_sizes(tip: np.ndarray) -> tuple[int, int]:
     """Validate a tip array and return its half-sizes (rows, cols)."""
     if tip.ndim != 2:
         raise ValueError(f"a tip is a 2D array, got {tip.ndim} dimensions")
@@ -225,7 +225,7 @@ def dilate(surface: np.ndarray, tip: np.ndarray) -> np.ndarray:
     A tip value of -inf means "no tip there", which lets a non-square tip sit
     in a square array.
     """
-    a, b = _halves(tip)
+    a, b = tip_half_sizes(tip)
     rows, cols = surface.shape
     padded = np.full((rows + 2 * a, cols + 2 * b), -np.inf)
     padded[a : a + rows, b : b + cols] = surface
@@ -245,7 +245,7 @@ def erode(image: np.ndarray, tip: np.ndarray) -> np.ndarray:
     Outside the image array there is no constraint, so near the border the
     bound comes only from what was imaged.
     """
-    a, b = _halves(tip)
+    a, b = tip_half_sizes(tip)
     rows, cols = image.shape
     padded = np.full((rows + 2 * a, cols + 2 * b), np.inf)
     padded[a : a + rows, b : b + cols] = image
@@ -448,7 +448,7 @@ def apex_radius(
     height offset, so skipping the cap leaves the curvature below it intact.
     See `ApexRadius` for how the value and its uncertainty are formed.
     """
-    _halves(tip)
+    tip_half_sizes(tip)
     if pixel_nm <= 0:
         raise ValueError(f"pixel size must be positive, got {pixel_nm}")
     if depth_nm <= 0 or cap_nm < 0:

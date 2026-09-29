@@ -169,7 +169,7 @@ def _stamp_rectangle(
     heights += height_nm * profile(along, length_px / 2) * profile(across, width_px / 2)
 
 
-def _instrument(
+def add_instrument(
     heights: np.ndarray,
     rng: np.random.Generator,
     *,
@@ -340,7 +340,7 @@ def synthetic_scan(
             )
         )
 
-    heights = _instrument(
+    heights = add_instrument(
         heights,
         rng,
         drift_shear=drift_shear,
@@ -607,7 +607,7 @@ def synthetic_rod_scan(
         heights += clump
         placed.append(PlacedRod(points_nm=spot, kind="aggregate"))
 
-    heights = _instrument(
+    heights = add_instrument(
         heights,
         rng,
         drift_shear=drift_shear,
@@ -641,9 +641,9 @@ def _add_defects(
     drift_shear: float,
     streak_lines: int,
 ) -> np.ndarray:
-    """`_instrument` under the name E9's scans were written against: the same
+    """`add_instrument` under the name E9's scans were written against: the same
     defects, drawn from `rng` in the same order."""
-    return _instrument(
+    return add_instrument(
         heights,
         rng,
         drift_shear=drift_shear,

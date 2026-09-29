@@ -95,7 +95,7 @@ def _interior(pixels: np.ndarray) -> np.ndarray:
     return pixels
 
 
-def _measure(
+def measure_mask(
     heights: np.ndarray, pixels: np.ndarray, pixel_nm: float, label: int, shape: tuple[int, int]
 ) -> Particle:
     coordinates = np.column_stack(np.nonzero(pixels)).astype(float)
@@ -213,7 +213,7 @@ def find_particles(
     """Everything standing proud of the surface, measured at half its height.
     See `segment` for `peak_percentile`."""
     return [
-        _measure(image.heights_nm, s.mask, image.pixel_nm, s.label, image.shape)
+        measure_mask(image.heights_nm, s.mask, image.pixel_nm, s.label, image.shape)
         for s in segment(
             image,
             background,
