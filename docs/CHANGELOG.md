@@ -286,3 +286,11 @@
   be downloaded from a new Files section (raw scans link from their list too),
   always as an attachment. Paths are resolved and must stay inside the phase;
   `..`, hidden parts and symlinks leading out are refused.
+- Web UI redesign and plain language: a card per lifecycle step, a stepper
+  (compact rows on phones), copper accent from the afmhot map, the pass/fail
+  criterion set in a serif as human writing, light and dark following the
+  device, a network badge when exposed. "pre/", "during/", "post/" and "gate"
+  are no longer used on their own: the UI and the CLI's step titles say Plan,
+  Lab record, Results and pass/fail criterion, with the folder name beside
+  them, and each experiment page explains the three in "How an experiment is
+  kept".

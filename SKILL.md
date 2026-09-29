@@ -35,11 +35,11 @@ experimental counterparts.
 - `dobladillo describe` — Emit the command surface, for an agent to read instead of `--help`.
 - `dobladillo experiment assembly` — Count assembly states per sample, against the controls. Writes post/assembly.json.
 - `dobladillo experiment check` — What is missing, and whether the results can be believed.
-- `dobladillo experiment commit` — Commit during/ or post/, so its time is evidence. Only after pre/ is locked.
+- `dobladillo experiment commit` — Save the lab record (during/) or results (post/) to git; only after the plan is locked.
 - `dobladillo experiment compare-arms` — Compare two blinded arms by flat fraction, and state the verdict both ways.
-- `dobladillo experiment criterion` — Write the gate into pre/plan.md's criterion line; refused once pre/ is locked.
+- `dobladillo experiment criterion` — Write the pass/fail criterion into the plan (pre/plan.md); refused once locked.
 - `dobladillo experiment folding-screen` — E11: yield against temperature and time, from gel band intensities.
-- `dobladillo experiment lock` — Commit pre/ with its gate, so the prediction provably predates the data.
+- `dobladillo experiment lock` — Lock the plan (pre/) with its pass/fail criterion, so it provably predates the data.
 - `dobladillo experiment log` — Append a timestamped entry to during/log.md.
 - `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.
 - `dobladillo experiment pattern` — Read the designed pattern off every well-formed particle, and say which way round.

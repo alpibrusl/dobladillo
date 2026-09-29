@@ -109,16 +109,17 @@ SECURITY_HEADERS: Final = (
 #: What to do about a refusal, by its kind. The message says what is wrong;
 #: this says where on the page to fix it. Absent kinds get the message alone.
 HINTS: Final[dict[str, str]] = {
-    "no_criterion": "Write the gate in section 1, then lock pre/.",
-    "empty_criterion": "Write the gate in section 1: what result would make this a failure?",
-    "locked": "The gate is committed. Record any change of mind in the session log (section "
-    "4); it stays visible as what it is.",
-    "not_locked": "Write the gate (section 1) and lock pre/ (section 3) first.",
+    "no_criterion": "Write the pass/fail criterion in section 1, then lock the plan.",
+    "empty_criterion": "Write the pass/fail criterion in section 1: what result would make "
+    "this a failure?",
+    "locked": "The criterion is locked in the plan. Record any change of mind in the session "
+    "log (section 4); it stays visible as what it is.",
+    "not_locked": "Write the pass/fail criterion (section 1) and lock the plan (section 3) first.",
     "not_in_git": "Keep the experiments folder inside a git repository (git init), then lock.",
-    "already_locked": "Nothing to do: pre/ is locked and unchanged.",
-    "pre_incomplete": "pre/ lacks a file `experiment new` writes; see section 2.",
-    "pre_changed": "pre/ changed after the lock. Lock again to commit the change as its own "
-    "act, or undo it.",
+    "already_locked": "Nothing to do: the plan is locked and unchanged.",
+    "pre_incomplete": "The plan (pre/) lacks a file `experiment new` writes; see section 2.",
+    "pre_changed": "The plan (pre/) changed after it was locked. Lock again to record the "
+    "change as its own act, or undo it.",
     "already_exists": "Raw files are never replaced. Upload it under another name.",
     "outside_raw": "Give a plain relative name, like scan-01.spm or staircase/S1-01.spm.",
     "unknown_field": "Nothing was written. Use the fields listed in section 4.",

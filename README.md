@@ -100,11 +100,11 @@ fails if this list drifts from what the tool accepts). Each takes `--help` and
 |---|---|
 | `dobladillo experiment assembly DIRECTORY` | Count assembly states per sample, against the controls. Writes post/assembly.json. |
 | `dobladillo experiment check DIRECTORY` | What is missing, and whether the results can be believed. |
-| `dobladillo experiment commit DIRECTORY` | Commit during/ or post/, so its time is evidence. Only after pre/ is locked. |
+| `dobladillo experiment commit DIRECTORY` | Save the lab record (during/) or results (post/) to git; only after the plan is locked. |
 | `dobladillo experiment compare-arms DIRECTORY` | Compare two blinded arms by flat fraction, and state the verdict both ways. |
-| `dobladillo experiment criterion DIRECTORY TEXT` | Write the gate into pre/plan.md's criterion line; refused once pre/ is locked. |
+| `dobladillo experiment criterion DIRECTORY TEXT` | Write the pass/fail criterion into the plan (pre/plan.md); refused once locked. |
 | `dobladillo experiment folding-screen DIRECTORY` | E11: yield against temperature and time, from gel band intensities. |
-| `dobladillo experiment lock DIRECTORY` | Commit pre/ with its gate, so the prediction provably predates the data. |
+| `dobladillo experiment lock DIRECTORY` | Lock the plan (pre/) with its pass/fail criterion, so it provably predates the data. |
 | `dobladillo experiment log DIRECTORY TEXT` | Append a timestamped entry to during/log.md. |
 | `dobladillo experiment new SLUG` | Scaffold an experiment, with its predictions recorded up front. |
 | `dobladillo experiment pattern DIRECTORY` | Read the designed pattern off every well-formed particle, and say which way round. |

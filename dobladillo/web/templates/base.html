@@ -11,6 +11,7 @@
 <header class="top">
   <a class="brand" href="/">dobladillo</a>
   <span class="where">experiments in <code>{{ root }}</code></span>
+  {% if exposed %}<span class="net" title="Reachable from the network, behind an access token">On the network</span>{% endif %}
 </header>
 <main id="main">
 {% block main %}{% endblock %}

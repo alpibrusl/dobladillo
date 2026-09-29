@@ -3153,7 +3153,7 @@ def experiment_criterion(
     text: str = typer.Argument(..., help="What result would make this experiment a failure."),
     as_json: bool = JSON_OPTION,
 ) -> None:
-    """Write the gate into pre/plan.md's criterion line; refused once pre/ is locked.
+    """Write the pass/fail criterion into the plan (pre/plan.md); refused once locked.
 
     The experimentalist's act, before any data exists. An agent may point out
     that the gate is empty; it may not write it (experiments/AGENTS.md).
@@ -3171,7 +3171,7 @@ def experiment_lock(
     directory: Path = typer.Argument(..., help="An experiment folder in a git repository."),
     as_json: bool = JSON_OPTION,
 ) -> None:
-    """Commit pre/ with its gate, so the prediction provably predates the data.
+    """Lock the plan (pre/) with its pass/fail criterion, so it provably predates the data.
 
     Refuses when the gate is empty, a required pre/ file is missing, the folder
     is not in a git repository, or pre/ is already committed and unchanged.
@@ -3276,7 +3276,7 @@ def experiment_commit(
     message: str | None = typer.Option(None, "-m", "--message", help="The commit message."),
     as_json: bool = JSON_OPTION,
 ) -> None:
-    """Commit during/ or post/, so its time is evidence. Only after pre/ is locked."""
+    """Save the lab record (during/) or results (post/) to git; only after the plan is locked."""
     from dobladillo.experiments import lifecycle
 
     emitter = Emitter(as_json)

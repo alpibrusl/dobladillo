@@ -271,7 +271,7 @@ def test_the_whole_lifecycle_through_the_page(root: Path, tmp_path: Path) -> Non
     assert response.url.path == "/e/e1"
     folder = root / "e1"
     assert (folder / "pre" / "prediction.json").is_file()
-    assert "Save the gate" in response.text
+    assert "Save the criterion" in response.text
 
     # Uploading before the lock is the command's refusal, shown with its kind.
     raw = tmp_path / "instrument" / "scan-01.gsf"
@@ -366,7 +366,7 @@ def test_the_whole_lifecycle_through_the_page(root: Path, tmp_path: Path) -> Non
     assert gate in analyse
     assert "length: measured" in analyse and "width: designed vs measured" in analyse
     assert "tolerance" in analyse and "standard error" in analyse
-    assert "Nothing here evaluates the gate" in analyse
+    assert "Nothing here evaluates the criterion" in analyse
     comparison = json.loads((folder / "post" / "comparison.json").read_text())
     assert comparison["comparisons"]["width"]["observations"]
 
@@ -431,7 +431,7 @@ def test_home_lists_folders_with_their_next_step(root: Path) -> None:
     token = _token(client)
     client.post("/new", data={"slug": "e1", "part": "bundle", "csrf": token})
     page = client.get("/").text
-    assert 'href="/e/e1"' in page and "bundle" in page and "Write the gate" in page
+    assert 'href="/e/e1"' in page and "bundle" in page and "Write the pass/fail criterion" in page
     assert "New experiment" in page
 
 

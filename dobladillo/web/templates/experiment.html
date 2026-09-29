@@ -8,6 +8,24 @@
 
 {{ m.outcome(flash) }}
 
+<details class="card legend">
+  <summary>How an experiment is kept</summary>
+  <dl>
+    <dt>Plan <code>pre/</code></dt>
+    <dd>Everything fixed <em>before</em> the experiment: the plan, the pass/fail criterion,
+    what the software predicts, what to order and the protocol. Locking it records, with a
+    date, that it was written before any data existed.</dd>
+    <dt>Lab record <code>during/</code></dt>
+    <dd>What happened at the bench: the session log, the instrument's settings and the raw
+    files exactly as the instrument wrote them.</dd>
+    <dt>Results <code>post/</code></dt>
+    <dd>Computed by the software from the two above. Nothing there is edited by hand.</dd>
+    <dt>Pass/fail criterion</dt>
+    <dd>Written in advance: the result that would count as a failure. Afterwards it is
+    shown next to the results; deciding the verdict is yours.</dd>
+  </dl>
+</details>
+
 <nav aria-label="Lifecycle">
   <ol class="steps">
   {% for step in s.steps %}
@@ -29,21 +47,21 @@
 {% endif %}
 
 <section id="plan" aria-labelledby="plan-h">
-  <h2 id="plan-h">1. Plan and gate {{ m.state(steps.gate) }}</h2>
-  <h3>The gate</h3>
+  <h2 id="plan-h">1. Plan and pass/fail criterion {{ m.state(steps.gate) }}</h2>
+  <h3>The pass/fail criterion</h3>
   {% if locked %}
     <blockquote class="gate">{{ s.lock.committed_gate }}</blockquote>
     <p>Locked in commit <code>{{ s.lock.commit.short }}</code> at {{ s.lock.commit.at_iso }}
     by {{ s.lock.commit.author }}. It can no longer be changed here.</p>
   {% else %}
     <p>What result would make this experiment a failure? Write it <strong>before</strong> taking
-    data: a gate written afterwards is a description of the data. Only you write it.</p>
+    data: a criterion written afterwards is a description of the data. Only you write it.</p>
     <form method="post" action="/e/{{ name | urlencode }}/criterion" class="stack">
       {{ m.csrf_field() }}
       <label for="criterion">Criterion <span class="muted">(written into pre/plan.md's
       <code>&gt; criterion:</code> line)</span></label>
       <textarea id="criterion" name="text" rows="4" required>{{ s.criterion.text }}</textarea>
-      <button type="submit">Save the gate</button>
+      <button type="submit">Save the criterion</button>
     </form>
   {% endif %}
   <h3>What is predicted</h3>
@@ -69,7 +87,7 @@
     </tbody>
   </table></div>
   {% else %}
-  <p>pre/order holds no files.</p>
+  <p>There are no order files (<code>pre/order/</code>).</p>
   {% endif %}
   <h3>Folding protocol</h3>
   {% if sheet %}
@@ -88,9 +106,9 @@
 </section>
 
 <section id="lock" aria-labelledby="lock-h">
-  <h2 id="lock-h">3. Lock pre/ {{ m.state(steps.lock) }}</h2>
-  <p>Commits <code>pre/</code> to git with the gate in it. The commit's time is what shows the
-  prediction and the gate came before the data.</p>
+  <h2 id="lock-h">3. Lock the plan <code class="phase">pre/</code> {{ m.state(steps.lock) }}</h2>
+  <p>Saves the plan (<code>pre/</code>) to git with the pass/fail criterion in it. The
+  commit's time is what shows the prediction and the criterion came before the data.</p>
   {% if s.lock.commit %}
     <p>Last commit touching pre/: <code>{{ s.lock.commit.short }}</code> at
     {{ s.lock.commit.at_iso }} by {{ s.lock.commit.author }}.</p>
@@ -102,12 +120,12 @@
   {{ m.blocked_reason(steps.lock, "lock-why") }}
   <form method="post" action="/e/{{ name | urlencode }}/lock">
     {{ m.csrf_field() }}
-    <button type="submit"{% if steps.lock.blocked or steps.lock.done %} disabled aria-describedby="lock-why"{% endif %}>Lock pre/</button>
+    <button type="submit"{% if steps.lock.blocked or steps.lock.done %} disabled aria-describedby="lock-why"{% endif %}>Lock the plan</button>
   </form>
 </section>
 
 <section id="during" aria-labelledby="during-h">
-  <h2 id="during-h">4. During {{ m.state(steps.data) }}</h2>
+  <h2 id="during-h">4. Lab record <code class="phase">during/</code> {{ m.state(steps.data) }}</h2>
 
   <h3 id="instrument">Instrument record</h3>
   <p class="muted"><code>during/instrument.json</code>, through
@@ -184,7 +202,7 @@
   </table></div>
   {% endif %}
 
-  <h3 id="commit-during">Commit during/ {{ m.state(steps.commit_during) }}</h3>
+  <h3 id="commit-during">Save the lab record {{ m.state(steps.commit_during) }}</h3>
   <p class="muted">{{ steps.commit_during.detail }}{% if s.changed.during %}:
   {{ s.changed.during | join(", ") }}{% endif %}</p>
   {{ m.blocked_reason(steps.commit_during, "commit-during-why") }}
@@ -193,22 +211,22 @@
     <input type="hidden" name="phase" value="during">
     <label for="during-msg">Message</label>
     <input id="during-msg" name="message" size="40" placeholder="{{ name }}: during/">
-    <button type="submit"{% if steps.commit_during.blocked %} disabled aria-describedby="commit-during-why"{% endif %}>Commit during/</button>
+    <button type="submit"{% if steps.commit_during.blocked %} disabled aria-describedby="commit-during-why"{% endif %}>Save the lab record</button>
   </form>
 </section>
 
 <section id="analyse" aria-labelledby="analyse-h">
   <h2 id="analyse-h">5. Analyse {{ m.state(steps.analyse) }}</h2>
   <div class="gate-beside">
-    <h3>Your gate</h3>
+    <h3>Your pass/fail criterion</h3>
     {% if s.criterion.text %}
       <blockquote class="gate">{{ s.criterion.text }}</blockquote>
       <p class="muted">{% if locked %}Committed in <code>{{ s.lock.commit.short }}</code>, before
-      the data.{% else %}Not locked: pre/ is not committed.{% endif %}</p>
+      the data.{% else %}Not locked: the plan has not been saved yet.{% endif %}</p>
     {% else %}
-      <p class="blocked">No gate was written.</p>
+      <p class="blocked">No pass/fail criterion was written.</p>
     {% endif %}
-    <p>Whether the result passes is your judgement. Nothing here evaluates the gate.</p>
+    <p>Whether the result passes is your judgement. Nothing here evaluates the criterion.</p>
   </div>
   {{ m.blocked_reason(steps.analyse, "analyse-why") }}
   {% for a in analyses %}
@@ -225,7 +243,7 @@
       {{ m.rows_table(r.rows) }}
       <p><a href="/e/{{ name | urlencode }}/files/{{ r.path | urlencode }}">Download {{ r.path }}</a></p>
     {% else %}
-      <p class="muted">No result in post/ yet.</p>
+      <p class="muted">No results yet (<code>post/</code>).</p>
     {% endfor %}
   </article>
   {% endfor %}
@@ -235,18 +253,21 @@
     <input type="hidden" name="phase" value="post">
     <label for="post-msg">Message</label>
     <input id="post-msg" name="message" size="40" placeholder="{{ name }}: post/">
-    <button type="submit"{% if not locked %} disabled{% endif %}>Commit post/</button>
+    <button type="submit"{% if not locked %} disabled{% endif %}>Save the results</button>
   </form>
   {% endif %}
 </section>
 
 <section id="files" aria-labelledby="files-h">
   <h2 id="files-h">Files</h2>
+  <p class="muted"><strong>Plan</strong> (<code>pre/</code>): fixed before the experiment.
+  <strong>Lab record</strong> (<code>during/</code>): what happened at the bench.
+  <strong>Results</strong> (<code>post/</code>): computed by the software.</p>
   <p class="muted">Everything in this experiment's folder, to download. Files are
   served as downloads, never opened inside this page.</p>
   {% for phase, rows in files.items() %}
   <div class="scroll"><table class="list">
-    <caption>{{ phase }}/</caption>
+    <caption>{{ {"pre": "Plan", "during": "Lab record", "post": "Results"}[phase] }} <code class="phase">{{ phase }}/</code></caption>
     <thead><tr><th scope="col">File</th><th scope="col">Size</th></tr></thead>
     <tbody>
     {% for f in rows %}
@@ -260,7 +281,7 @@
 </section>
 
 <section id="provenance" aria-labelledby="provenance-h">
-  <h2 id="provenance-h">6. Provenance</h2>
+  <h2 id="provenance-h">Provenance</h2>
   {% set chain = s.check.provenance %}
   {% if chain %}
   <p>Design &rarr; prediction &rarr; order &rarr; folder &rarr; scans:

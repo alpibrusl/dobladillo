@@ -297,7 +297,7 @@ def write_criterion(folder: Path, text: str) -> dict[str, Any]:
         "file": "pre/plan.md",
         "criterion": plan_criterion(plan.read_text()),
         "previous": previous or None,
-        "next": "Lock pre/ (`dobladillo experiment lock`) before taking data.",
+        "next": "Lock the plan (`dobladillo experiment lock`) before taking data.",
     }
 
 
@@ -787,7 +787,7 @@ def upload(folder: Path, source: Path, *, name: str | None = None) -> dict[str, 
         "bytes": size,
         "recorded_in": f"during/{UPLOADS}",
         "ignored_by_git": ignored,
-        "next": "Commit during/ (`dobladillo experiment commit --phase during`) so the "
+        "next": "Save the lab record (`dobladillo experiment commit --phase during`) so the "
         "file's time becomes evidence"
         + (
             ". git ignores this file, so its hash in during/uploads.json is its record"
@@ -821,8 +821,8 @@ def commit_phase(
         raise Refused(f"{folder} is not inside a git repository", kind="not_in_git")
     if not state.locked:
         raise Refused(
-            f"pre/ is not locked: committing {phase}/ first would put the data before the "
-            "gate. Lock pre/ first",
+            f"the plan (pre/) is not locked: saving {phase}/ first would put the data "
+            "before the pass/fail criterion. Lock the plan first",
             kind="not_locked",
         )
     if state.changed:
@@ -992,54 +992,56 @@ def status(folder: Path) -> dict[str, Any]:
 
     step(
         "gate",
-        "Write the gate",
+        "Write the pass/fail criterion",
         bool(criterion),
         None,
-        f"written in {source}" if criterion else "pre/plan.md's criterion line is empty",
+        f"written in {source}"
+        if criterion
+        else "not written yet (it goes in the plan, pre/plan.md)",
     )
     order_ok = "order/" not in pre_missing
     step(
         "order",
         "Order files",
         order_ok,
-        None if order_ok else "pre/order is empty",
-        "pre/order holds the files to order from" if order_ok else "",
+        None if order_ok else "the order files are missing (pre/order/)",
+        "ready to download (pre/order/)" if order_ok else "",
     )
     lock_blocked = (
         "the folder is not in a git repository"
         if not in_git
-        else "write the gate first"
+        else "write the pass/fail criterion first"
         if not criterion
-        else f"pre/ is missing {', '.join(pre_missing)}"
+        else f"the plan is missing {', '.join(pre_missing)}"
         if pre_missing
         else None
     )
     lock_done = lock_now.locked and not lock_now.changed
     step(
         "lock",
-        "Lock pre/",
+        "Lock the plan",
         lock_done,
         None if lock_done else lock_blocked,
         "committed " + lock_now.commit.sha[:10]
         if lock_done and lock_now.commit
-        else "pre/ changed since the lock: " + ", ".join(lock_now.changed)
+        else "the plan changed after it was locked: " + ", ".join(lock_now.changed)
         if lock_now.locked
-        else "pre/ is not locked",
+        else "the plan (pre/) is not locked yet",
     )
     step(
         "data",
-        "Record and upload data",
+        "Record the lab work",
         bool(raw),
-        None if lock_now.locked else "lock pre/ first",
-        f"{len(raw)} raw file(s)" if raw else "during/raw holds no data yet",
+        None if lock_now.locked else "lock the plan first",
+        f"{len(raw)} raw file(s)" if raw else "no raw data yet (during/raw/)",
     )
     commit_done = bool(raw) and in_git and not during_changed
     step(
         "commit_during",
-        "Commit during/",
+        "Save the lab record",
         commit_done,
-        None if lock_now.locked and in_git else "lock pre/ first",
-        "during/ is committed"
+        None if lock_now.locked and in_git else "lock the plan first",
+        "the lab record (during/) is committed"
         if commit_done
         else f"{len(during_changed)} change(s) not committed"
         if during_changed
@@ -1055,7 +1057,7 @@ def status(folder: Path) -> dict[str, Any]:
         else None
         if raw
         else "no raw data yet",
-        ", ".join(p for p in post) or "post/ holds no results yet",
+        ", ".join(p for p in post) or "no results yet (post/)",
     )
     next_step = next((s["step"] for s in steps if not s["done"] and not s["blocked"]), None)
     for s in steps:
