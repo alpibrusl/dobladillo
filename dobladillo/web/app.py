@@ -94,7 +94,12 @@ SECURITY_HEADERS: Final = (
     ),
     (b"x-content-type-options", b"nosniff"),
     (b"x-frame-options", b"DENY"),
-    (b"referrer-policy", b"no-referrer"),
+    # same-origin, NOT no-referrer: under the Fetch standard a POST from a page
+    # whose policy is no-referrer carries `Origin: null`, which the origin check
+    # below refuses -- every form failed in a real browser (2026-09-29) while
+    # the tests, whose client sends no Origin, passed. same-origin still sends
+    # nothing, and so no token-bearing URL, to any other site.
+    (b"referrer-policy", b"same-origin"),
     (b"cache-control", b"no-store"),
 )
 

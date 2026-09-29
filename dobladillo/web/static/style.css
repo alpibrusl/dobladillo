@@ -23,7 +23,10 @@ body {
 main { max-width: 72rem; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
 /* Nothing may push the page wider than the screen: long paths and hashes
    wrap, and wide tables scroll inside their own box. */
-code, td, th, .where, blockquote, p, li { overflow-wrap: anywhere; }
+code, .where, blockquote, p, li { overflow-wrap: anywhere; }
+/* Cells break only a word too long for any line; "anywhere" let columns shrink
+   below word width, so phones read "rectan gle". A table too wide scrolls in .scroll. */
+td, th { overflow-wrap: break-word; }
 .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 .scroll > table { margin-top: 0; }
 img, input, select, textarea { max-width: 100%; }

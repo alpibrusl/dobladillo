@@ -103,6 +103,32 @@ def test_a_post_from_another_origin_is_refused(root: Path) -> None:
     assert response.status_code == 403 and not (root / "e1").exists()
 
 
+def test_a_post_the_way_a_browser_sends_it_is_accepted(root: Path) -> None:
+    """A real browser sends its own Origin on a same-origin form POST. With
+    `Referrer-Policy: no-referrer` it sends `Origin: null` instead, and every
+    form was refused in a browser while these tests (which sent no Origin)
+    passed. So: the policy must not be no-referrer, and the page's own origin
+    must be accepted while `null` is not."""
+    client = _client(root)
+    policy = client.get("/").headers["referrer-policy"]
+    assert policy != "no-referrer"
+    token = _token(client)
+    refused = client.post(
+        "/new",
+        data={"slug": "e0", "part": "rectangle", "csrf": token},
+        headers={"origin": "null"},
+    )
+    assert refused.status_code == 403 and not (root / "e0").exists()
+    accepted = client.post(
+        "/new",
+        data={"slug": "e1", "part": "rectangle", "csrf": token},
+        headers={"origin": "http://testserver"},
+        follow_redirects=False,
+    )
+    assert accepted.status_code in (200, 303), accepted.text
+    assert (root / "e1").exists()
+
+
 def test_only_loopback_host_names_are_answered(root: Path) -> None:
     client = TestClient(web.create_app(root))  # the default: 127.0.0.1 and localhost only
     assert client.get("/", headers={"host": "rebound.example"}).status_code == 400
