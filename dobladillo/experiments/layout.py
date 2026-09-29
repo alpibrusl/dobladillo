@@ -187,16 +187,44 @@ class Check:
         }
 
 
+#: The line in `pre/plan.md` that carries the gate. `experiment new` leaves it
+#: empty; `experiment criterion` writes it, continuing on further `>` lines.
+CRITERION_LINE: Final = "> criterion:"
+
+
+def plan_criterion(text: str) -> str:
+    """The gate written in a plan's `> criterion:` line (and the quoted lines
+    continuing it), or "" when it is empty or absent."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if not line.strip().startswith(CRITERION_LINE):
+            continue
+        parts = [line.strip()[len(CRITERION_LINE) :].strip()]
+        for more in lines[i + 1 :]:
+            if not more.strip().startswith(">"):
+                break
+            parts.append(more.strip()[1:].strip())
+        return "\n".join(parts).strip()
+    return ""
+
+
+def prediction_criterion(text: str) -> str:
+    """The gate a `prediction.json`'s text carries, the other place one can go,
+    or "" when it is absent or still `experiment new`'s placeholder."""
+    try:
+        gate = json.loads(text).get("gate") or {}
+        criterion = str(gate.get("criterion", "")).strip()
+    except (ValueError, AttributeError):
+        return ""
+    return "" if criterion.startswith("FILL THIS IN") else criterion
+
+
 def _gate_in_prediction(path: Path) -> bool:
     """Whether `prediction.json` carries a written gate, the other place one can go."""
-    import json
-
     try:
-        gate = json.loads(path.read_text()).get("gate") or {}
-    except (OSError, ValueError, AttributeError):
+        return bool(prediction_criterion(path.read_text()))
+    except OSError:
         return False
-    criterion = str(gate.get("criterion", "")).strip()
-    return bool(criterion) and not criterion.startswith("FILL THIS IN")
 
 
 #: Parts whose experiments are calibrations (the K series), and so record the
@@ -285,9 +313,10 @@ def check(root: Path) -> Check:
     # an empty one is the most important thing in the folder still missing.
     # Only a person writes it (experiments/AGENTS.md); this only says so.
     plan = root / "pre" / "plan.md"
-    plan_empty = plan.is_file() and any(
-        line.strip() == "> criterion:" for line in plan.read_text().splitlines()
-    )
+    plan_text = plan.read_text() if plan.is_file() else ""
+    plan_empty = any(
+        line.strip().startswith(CRITERION_LINE) for line in plan_text.splitlines()
+    ) and not plan_criterion(plan_text)
     if plan_empty and not _gate_in_prediction(root / "pre" / "prediction.json"):
         problems.append(
             "the gate is not written: pre/plan.md's `criterion:` line is empty. Write what "

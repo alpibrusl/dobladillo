@@ -96,6 +96,25 @@ REVIEWED = {
     # The official MCP Python SDK, modelcontextprotocol/python-sdk. Used over
     # stdio only; the package itself still opens no connection.
     "mcp": "MIT",
+    # The `web` extra (the local web UI, `dobladillo web`). Each licence file read in the
+    # installed dist-info on 2026-09-29, to its last clause:
+    # starlette 1.7.0 licenses/LICENSE.md: BSD 3-clause text (Encode OSS Ltd).
+    "starlette": "BSD-3-Clause",
+    # uvicorn 0.54.0 licenses/LICENSE.md: BSD 3-clause text (Encode OSS Ltd). Pulls in click
+    # (LICENSE.txt, BSD-3-Clause, Pallets) and h11 (LICENSE.txt, MIT).
+    "uvicorn": "BSD-3-Clause",
+    # jinja2 3.1.6 licenses/LICENSE.txt: BSD 3-clause text (Pallets). Pulls in MarkupSafe
+    # 3.0.3, whose LICENSE.txt is the same BSD 3-clause text.
+    "jinja2": "BSD-3-Clause",
+    # python-multipart 0.0.32 licenses/LICENSE.txt: the Apache License 2.0 text.
+    "python-multipart": "Apache-2.0",
+    # markdown-it-py 4.2.0: LICENSE is the MIT text (ExecutableBookProject); LICENSE.markdown-it,
+    # for the JavaScript original it ports, is MIT too. Pulls in mdurl 0.1.2, LICENSE MIT.
+    "markdown-it-py": "MIT",
+    # httpx2 2.13.1 (dev only: Starlette's TestClient drives the web tests through it):
+    # licenses/LICENSE.md is BSD 3-clause text. Pulls in httpcore2 (LICENSE.md BSD-3-Clause),
+    # idna (LICENSE.md BSD-3-Clause), truststore (LICENSE MIT) and anyio (LICENSE MIT).
+    "httpx2": "BSD-3-Clause",
 }
 
 #: Reviewed and rejected, so nobody re-proposes them without re-reading this.
@@ -119,11 +138,18 @@ REJECTED = {
 
 #: Imports that mean the code talks to a network. The toolchain runs on
 #: hardware we control and never calls out; `gh` in the scripts directory is
-#: the operator's tool, not the package's.
+#: the operator's tool, not the package's. The one listener is `dobladillo web`
+#: (uvicorn, 127.0.0.1 unless `--host` says otherwise, and then behind a token);
+#: it imports none of these except in `ADDRESS_LOOKUP`, which reads this
+#: machine's own addresses to print its URLs and sends nothing.
 NETWORK_IMPORTS = re.compile(
     r"^\s*(import|from)\s+(requests|httpx|aiohttp|urllib3|urllib\.request|http\.client|socket|ftplib|smtplib)\b",
     re.MULTILINE,
 )
+
+
+#: The one file allowed `socket`, and only `socket`: see its docstring.
+ADDRESS_LOOKUP = "dobladillo/web/addresses.py"
 
 
 def _declared() -> set[str]:
@@ -162,5 +188,8 @@ def test_the_package_never_talks_to_a_network() -> None:
         str(path.relative_to(ROOT))
         for path in (ROOT / "dobladillo").rglob("*.py")
         if NETWORK_IMPORTS.search(path.read_text())
+        and str(path.relative_to(ROOT)) != ADDRESS_LOOKUP
     ]
     assert not offenders, f"network access in: {offenders}"
+    imported = {m.group(2) for m in NETWORK_IMPORTS.finditer((ROOT / ADDRESS_LOOKUP).read_text())}
+    assert imported == {"socket"}

@@ -55,11 +55,23 @@ in the README, *For agents*. When you change the tool:
   folders and files as names relative to the server's root, through its
   `folder`/`scan_file` helpers, which refuse anything outside it.
 - **Never expose a human gate.** No tool may order oligos, create an
-  experiment, write a gate, or write under `during/raw/`.
+  experiment, write a gate, the session log or the instrument record, write
+  under `during/raw/`, or commit an experiment's phase (`experiment new`,
+  `criterion`, `lock`, `log`, `record`, `upload`, `commit`).
   `FORBIDDEN_COMMANDS` lists them, and `tests/test_mcp_server.py` checks that
-  no tool wraps one.
+  no tool wraps one. A new command that writes the record goes on that list.
+- **Do not drive those commands, or the web UI, yourself.** `dobladillo web`
+  is the experimentalist's page: every form on it runs one of those commands.
+  An agent that clicks through it, or runs the commands at a shell, to write
+  a gate, a reading, raw data or a commit has done exactly what the list
+  exists to prevent. Building and testing the web UI in a temporary git
+  repository is fine; writing into a real experiment folder is not.
+- **The web UI follows the MCP server's contract.** Each action runs the CLI
+  command with `--json` (`dobladillo._invoke.run_json`) and renders the
+  payload; logic goes into the command (for the lifecycle,
+  `dobladillo/experiments/lifecycle.py`), never into `dobladillo/web/`.
 - **To check a change as CI does**, install the same extras
-  (`uv sync --extra dev --extra design --extra imaging --extra mcp`) and run
+  (`uv sync --extra dev --extra design --extra imaging --extra mcp --extra web`) and run
   the suite with `GITHUB_ACTIONS=true`: the CLI's output changes under it.
 
 ## Two standing prohibitions

@@ -742,6 +742,23 @@ def folding_window_command(
     out.result(payload, f"{part}: folding window at {mg_mm} mM Mg\n" + _table(rows))
 
 
+#: Every part `_make_part` builds, and so every part `lab` and `experiment new`
+#: accept; `experiment new` also takes E9's `dimer`.
+PARTS: tuple[str, ...] = (
+    "rectangle",
+    "bundle",
+    "hinge",
+    "hinge-locked-open",
+    "hinge-locked-latched",
+    "twist-corrected",
+    "twist-uncorrected",
+    "pattern",
+    "calibration-tile",
+    "calibration-tile-biotin",
+)
+EXPERIMENT_PARTS: tuple[str, ...] = (*PARTS, "dimer")
+
+
 def _make_part(which: str, out: Emitter) -> Any:
     if which == "rectangle":
         from dobladillo.parts.rectangle import rothemund_rectangle
@@ -3113,6 +3130,188 @@ def experiment_check(
         raise typer.Exit(1)
 
 
+# The experimentalist's acts: gate, lock, log, record, upload, commit. Each
+# writes the record, so each is in mcp_server.FORBIDDEN_COMMANDS; the logic
+# and the refusals live in `dobladillo.experiments.lifecycle`.
+
+
+def _act(emitter: Emitter, act: Any) -> dict[str, Any] | None:
+    """Run a lifecycle act; a refusal fails with its kind, never a traceback."""
+    from dobladillo.experiments.lifecycle import Refused
+
+    try:
+        result: dict[str, Any] = act()
+    except Refused as e:
+        emitter.fail(str(e), kind=e.kind)
+        return None
+    return result
+
+
+@experiment_app.command("criterion")
+def experiment_criterion(
+    directory: Path = typer.Argument(..., help="An experiment folder."),
+    text: str = typer.Argument(..., help="What result would make this experiment a failure."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Write the gate into pre/plan.md's criterion line; refused once pre/ is locked.
+
+    The experimentalist's act, before any data exists. An agent may point out
+    that the gate is empty; it may not write it (experiments/AGENTS.md).
+    """
+    from dobladillo.experiments import lifecycle
+
+    emitter = Emitter(as_json)
+    out = _act(emitter, lambda: lifecycle.write_criterion(directory, text))
+    if out is not None:
+        emitter.result(out, f"gate written in {out['file']}:\n  {out['criterion']}\n{out['next']}")
+
+
+@experiment_app.command("lock")
+def experiment_lock(
+    directory: Path = typer.Argument(..., help="An experiment folder in a git repository."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Commit pre/ with its gate, so the prediction provably predates the data.
+
+    Refuses when the gate is empty, a required pre/ file is missing, the folder
+    is not in a git repository, or pre/ is already committed and unchanged.
+    The commit's author is the local git identity.
+    """
+    from dobladillo.experiments import lifecycle
+
+    emitter = Emitter(as_json)
+    out = _act(emitter, lambda: lifecycle.lock(directory))
+    if out is not None:
+        commit = out["commit"]
+        rows = [
+            ("commit", f"{commit['short']} at {commit['at_iso']} by {commit['author']}"),
+            ("gate", out["criterion"]),
+        ]
+        rows += [("NOTE", n) for n in out["notes"]]
+        emitter.result(out, "pre/ locked\n" + _table(rows))
+
+
+@experiment_app.command("log")
+def experiment_log(
+    directory: Path = typer.Argument(..., help="An experiment folder."),
+    text: str = typer.Argument(..., help="The entry: a deviation, an observation, a file."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Append a timestamped entry to during/log.md."""
+    from dobladillo.experiments import lifecycle
+
+    emitter = Emitter(as_json)
+    out = _act(emitter, lambda: lifecycle.log(directory, text))
+    if out is not None:
+        emitter.result(out, f"logged at {out['at']} in {out['file']}")
+
+
+@experiment_app.command("record")
+def experiment_record(
+    directory: Path = typer.Argument(..., help="An experiment folder."),
+    assignments: list[str] | None = typer.Option(
+        None,
+        "--set",
+        help="field=value, e.g. tip.measured_radius_before_nm=9.5. Repeatable. An empty "
+        "value clears the field. Without --set, lists the fields and changes nothing.",
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Set during/instrument.json fields, each checked against what it may hold.
+
+    Unknown fields and values that cannot be the reading (a tip radius of 0, a
+    scan direction that is not trace or retrace) are refused, and nothing is
+    written. Without --set, lists every field with its meaning, what it
+    accepts and its current value.
+    """
+    from dobladillo.experiments import lifecycle
+
+    emitter = Emitter(as_json)
+    if not assignments:
+        listing = _act(emitter, lambda: lifecycle.describe_record(directory))
+        if listing is not None:
+            rows = [
+                (f["field"], f"{json.dumps(f['value'])}   ({f['allowed']})")
+                for f in listing["fields"]
+            ]
+            emitter.result(listing, f"{listing['file']}\n" + _table(rows))
+        return
+    out = _act(emitter, lambda: lifecycle.set_record(directory, list(assignments)))
+    if out is not None:
+        rows = [
+            (k, f"{json.dumps(v['from'])} -> {json.dumps(v['to'])}")
+            for k, v in out["changed"].items()
+        ]
+        emitter.result(out, f"{out['file']}\n" + _table(rows))
+
+
+@experiment_app.command("upload")
+def experiment_upload(
+    directory: Path = typer.Argument(..., help="An experiment folder, pre/ locked."),
+    file: Path = typer.Argument(..., help="The raw file, exactly as the instrument wrote it."),
+    as_name: str | None = typer.Option(
+        None, "--as", help="Its name under during/raw, e.g. staircase/S1-01.spm. Default: its own."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Copy a raw file into during/raw/ and record its sha256; never before the lock.
+
+    Refuses before pre/ is locked, over an existing file, and for a name that
+    resolves outside during/raw. The hash goes into during/uploads.json, which
+    is committed with during/ even when git ignores the file itself.
+    """
+    from dobladillo.experiments import lifecycle
+
+    emitter = Emitter(as_json)
+    out = _act(emitter, lambda: lifecycle.upload(directory, file, name=as_name))
+    if out is not None:
+        rows = [("copied", out["path"]), ("sha256", out["sha256"]), ("bytes", str(out["bytes"]))]
+        emitter.result(out, "raw file\n" + _table(rows) + f"\n{out['next']}")
+
+
+@experiment_app.command("commit")
+def experiment_commit(
+    directory: Path = typer.Argument(..., help="An experiment folder, pre/ locked."),
+    phase: str = typer.Option(..., "--phase", help="during or post."),
+    message: str | None = typer.Option(None, "-m", "--message", help="The commit message."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Commit during/ or post/, so its time is evidence. Only after pre/ is locked."""
+    from dobladillo.experiments import lifecycle
+
+    emitter = Emitter(as_json)
+    out = _act(emitter, lambda: lifecycle.commit_phase(directory, phase, message=message))
+    if out is not None:
+        commit = out["commit"]
+        rows = [("commit", f"{commit['short']} at {commit['at_iso']}")]
+        rows += [("file", f) for f in out["files"]]
+        rows += [("NOT COMMITTED (git ignores it)", f) for f in out["ignored_by_git"]]
+        emitter.result(out, f"{phase}/ committed\n" + _table(rows))
+
+
+@experiment_app.command("status")
+def experiment_status(
+    directory: Path = typer.Argument(..., help="An experiment folder."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Where a folder is in its lifecycle: each step done, next or blocked, and why.
+
+    Reads only. Includes `experiment check`'s payload, the lock's commit, the
+    raw files with their hashes, and the analyses that apply to the folder's
+    part.
+    """
+    from dobladillo.experiments import lifecycle
+
+    emitter = Emitter(as_json)
+    out = _act(emitter, lambda: lifecycle.status(directory))
+    if out is not None:
+        rows = [
+            (s["title"], s["state"] + (f": {s['blocked']}" if s["blocked"] else f", {s['detail']}"))
+            for s in out["steps"]
+        ]
+        emitter.result(out, f"{directory} ({out['part']})\n" + _table(rows))
+
+
 @app.command("compare")
 def compare_command(
     part: str = PART_ARGUMENT,
@@ -3632,6 +3831,37 @@ def mcp_serve(root: Path = EXPERIMENTS_ROOT) -> None:
         typer.echo(f"error: the MCP server needs the `mcp` extra ({e})", err=True)
         raise typer.Exit(2) from e
     main(root)
+
+
+@app.command("web")
+def web_serve(
+    root: Path = EXPERIMENTS_ROOT,
+    port: int = typer.Option(8765, "--port", help="Port to listen on."),
+    host: str = typer.Option(
+        "127.0.0.1",
+        "--host",
+        help="Address to bind. Anything but loopback (e.g. 0.0.0.0, for a phone on the same "
+        "network) makes the page reachable from the network, so it then requires the "
+        "access token printed at startup.",
+    ),
+) -> None:
+    """Run an experiment's lifecycle in the browser: a local page, 127.0.0.1 by default.
+
+    Needs the `web` extra. Every action runs the matching CLI command with
+    --json and shows its payload or its refusal, so the page can do nothing
+    the CLI would not. Folders are addressed by name under --root. With a
+    non-loopback --host every request needs the random token printed with
+    the URLs, and a warning says the page is reachable from the network.
+    """
+    try:
+        from dobladillo.web import serve
+    except ImportError as e:  # the optional extra is not installed
+        typer.echo(f"error: the web UI needs the `web` extra ({e})", err=True)
+        raise typer.Exit(2) from e
+    if not root.is_dir():
+        typer.echo(f"error: no experiments folder at {root}", err=True)
+        raise typer.Exit(2)
+    serve(root, port=port, host=host)
 
 
 @app.command("readme")

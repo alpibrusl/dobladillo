@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Refused{% endblock %}
+{% block main %}
+<p><a href="/">&larr; Experiments</a></p>
+<section class="outcome refused" role="alert">
+  <h1>Refused</h1>
+  <p><strong class="kind">{{ kind }}</strong>: {{ message }}</p>
+  {% if hint %}<p class="hint"><strong>What to do:</strong> {{ hint }}</p>{% endif %}
+</section>
+{% endblock %}

@@ -70,6 +70,25 @@ def test_no_tool_passes_a_human_gate() -> None:
     assert not any("order" in n for n in names)
 
 
+def test_the_experimentalists_acts_are_all_forbidden() -> None:
+    """Every command that writes a gate, a reading, raw data or a commit is on
+    the list, so the check above covers it. A new writing command must be added."""
+    import typer
+
+    from dobladillo.cli import app
+
+    acts = {"criterion", "lock", "log", "record", "upload", "commit", "new"}
+    for act in acts:
+        assert f"experiment {act}" in mcp_server.FORBIDDEN_COMMANDS, act
+    assert "web" in mcp_server.FORBIDDEN_COMMANDS
+    # And each named command exists, so the list cannot rot into names of nothing.
+    cli = typer.main.get_command(app)
+    for command in mcp_server.FORBIDDEN_COMMANDS:
+        group: object = cli
+        for word in command.split():
+            group = group.commands[word]  # type: ignore[attr-defined]
+
+
 def test_e1_analysis_runs_end_to_end_through_tools(tmp_path: Path) -> None:
     _e1_like_folder(tmp_path, tip_measured=True)
     server = mcp_server.create_server(tmp_path)

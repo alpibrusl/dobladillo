@@ -69,6 +69,24 @@ directly is how a guessed radius gets in.
 
 Every command takes `--json`.
 
+## The commands that write the record are not yours
+
+```bash
+dobladillo experiment criterion <folder> "<gate>"   # the gate, into pre/plan.md
+dobladillo experiment lock <folder>                 # commits pre/: the pre-registration
+dobladillo experiment log <folder> "<entry>"        # during/log.md
+dobladillo experiment record <folder> --set k=v     # during/instrument.json
+dobladillo experiment upload <folder> <file>        # into during/raw/, hash recorded
+dobladillo experiment commit <folder> --phase during|post
+```
+
+These, and `dobladillo web` -- the local page a person uses to run the whole
+lifecycle, whose every form calls one of them -- are the experimentalist's.
+Do not run them, and do not drive the web page, to write a gate, a reading, a
+log entry, raw data or a commit. `experiment record` without `--set`, and
+`experiment status`, only read: use them to say what is missing. The MCP
+server has no tool for any of the writing ones, on purpose.
+
 ## Report the record, not just the result
 
 `experiment check` and `experiment report` both flag problems with the

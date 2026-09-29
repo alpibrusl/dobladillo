@@ -20,6 +20,19 @@ Mirrors the table in DESIGN.md section 11. One row per roadmap item.
 Priority per DESIGN.md section 9: **Q1 through Q5 plus M4**, because those are
 what make a first closed loop possible. Everything else waits.
 
+## Local web UI, first version, 2026-09-29
+
+- `dobladillo web --root experiments` runs an experiment's lifecycle in the
+  browser on 127.0.0.1 (or, with `--host`, from a phone on the same
+  network, behind an access token): new folder, gate, lock, order files, instrument
+  record, log, raw upload, commit, the part's analyses, the result beside the
+  gate, provenance. Every action is a CLI command with `--json`.
+- Not yet: logins and per-user git authorship (the lifecycle functions take
+  an `author`; nothing passes one), forms for every other CLI command,
+  `during/gel_quant.csv` for E11 (written by hand; the upload goes only into
+  `during/raw/`), choosing `--scan` subsets for `experiment report` (K2, K5
+  and K7 pass them), E3's hand count.
+
 ## Hinge joint sweep (#17), 2026-09-29: no verdict yet
 
 The re-tiled hinge ran at joints of 4, 8, 16 and 32 nt on CPU: 1e6

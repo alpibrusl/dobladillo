@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Experiments{% endblock %} · dobladillo</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="/">dobladillo</a>
+  <span class="where">experiments in <code>{{ root }}</code></span>
+</header>
+<main id="main">
+{% block main %}{% endblock %}
+</main>
+<footer>
+  {% if exposed %}Reachable from the network, behind an access token.{% else %}Local only, on
+  127.0.0.1.{% endif %} Every action runs a <code>dobladillo</code> command with
+  <code>--json</code>; the experiment folder, in git, is the record.
+</footer>
+</body>
+</html>

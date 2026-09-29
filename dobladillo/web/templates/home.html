@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block main %}
+<h1>Experiments</h1>
+<p><a class="button" href="/new">New experiment</a></p>
+{% if not folders %}
+<p>No experiment folders here yet. Start one with <em>New experiment</em>.</p>
+{% else %}
+<div class="scroll"><table class="list">
+  <thead>
+    <tr><th scope="col">Folder</th><th scope="col">Part</th><th scope="col">pre/</th>
+        <th scope="col">Next step</th><th scope="col">Record problems</th></tr>
+  </thead>
+  <tbody>
+  {% for f in folders %}
+    {% set s = f.status %}
+    <tr>
+      <td><a href="/e/{{ f.name | urlencode }}">{{ f.name }}</a></td>
+      {% if s.error %}
+      <td colspan="4" class="refused-text">{{ s.error.kind }}: {{ s.error.message }}</td>
+      {% else %}
+      <td>{{ s.part or "unknown" }}</td>
+      <td>{% if s.lock.locked %}locked {{ s.lock.commit.short }}{% elif not s.lock.in_git %}not in git{% else %}not locked{% endif %}</td>
+      <td>
+        {% set nxt = s.steps | selectattr("step", "equalto", s.next) | first %}
+        {{ nxt.title if nxt else "nothing: every step is done or blocked" }}
+      </td>
+      <td>{{ s.check.problems | length }}</td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+{% endblock %}

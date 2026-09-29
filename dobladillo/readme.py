@@ -43,6 +43,7 @@ EXTRA_PURPOSE: Final[dict[str, str]] = {
     "design": "scadnano, the design data model: build, lint, order, simulate",
     "imaging": "read and measure AFM scans; `calibrate`",
     "mcp": "the MCP server (`dobladillo mcp`)",
+    "web": "the local web UI for running an experiment (`dobladillo web`), 127.0.0.1 only",
     "dev": "tests, lint, format and type checks",
     "mechanics": "indentation mechanics; declares a private dependency it cannot install",
 }

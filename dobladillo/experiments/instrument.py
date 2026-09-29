@@ -237,6 +237,14 @@ def _check_condition(name: str, value: Any) -> str | None:
     return None
 
 
+def condition_problem(name: str, value: Any) -> str | None:
+    """Why `value` cannot be recorded as the condition `name` (dotted), or None.
+
+    The same test `read_conditions` applies, for a writer that validates a
+    value before it enters the record (`experiment record`)."""
+    return _check_condition(name, value)
+
+
 def read_conditions(data: dict[str, Any]) -> Conditions:
     """The calibration conditions in an instrument record's data."""
     values: dict[str, Any] = {}

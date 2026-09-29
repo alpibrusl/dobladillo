@@ -1,0 +1,42 @@
+{% macro csrf_field() -%}
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{%- endmacro %}
+
+{% macro rows_table(rows, caption=None) -%}
+{% if rows %}
+<div class="scroll">
+<table class="kv">
+  {% if caption %}<caption>{{ caption }}</caption>{% endif %}
+  <tbody>
+  {% for label, value in rows %}
+    <tr><th scope="row">{{ label }}</th><td>{{ value }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro outcome(o) -%}
+{% if o %}
+<section class="outcome {{ 'refused' if o.refused else 'ok' }}" role="status" aria-live="polite">
+  <h2>{{ 'Refused' if o.refused else 'Done' }} <span class="muted">at {{ o.at }}</span></h2>
+  <p><code>{{ o.command }}</code> exited {{ o.code }}.</p>
+  {% if o.refused %}
+    <p><strong class="kind">{{ o.kind }}</strong>: {{ o.message }}</p>
+    {% if o.hint %}<p class="hint"><strong>What to do:</strong> {{ o.hint }}</p>{% endif %}
+  {% else %}
+    {{ rows_table(o.rows) }}
+  {% endif %}
+  <details><summary>Full JSON payload</summary><pre>{{ o.payload | pretty }}</pre></details>
+</section>
+{% endif %}
+{%- endmacro %}
+
+{% macro state(step) -%}
+<span class="state state-{{ step.state }}">{{ step.state }}</span>
+{%- endmacro %}
+
+{% macro blocked_reason(step, id) -%}
+{% if step.blocked %}<p class="blocked" id="{{ id }}">Blocked: {{ step.blocked }}.</p>{% endif %}
+{%- endmacro %}

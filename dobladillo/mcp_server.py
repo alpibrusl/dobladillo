@@ -15,11 +15,13 @@ same logic would drift from the first, and the refusals are the part that
 must not.
 
 **What is deliberately not here.** No tool orders oligos, creates an
-experiment, writes a gate, or touches `during/raw/`. Ordering is a purchase,
-and creating an experiment is pre-registration, the experimentalist's own
-act (`experiments/AGENTS.md`). An agent may analyse, check and report. It
-may not pass a human gate, and the absence of a tool is the strongest way to
-say so. `test_mcp_server.py` checks that list.
+experiment, writes a gate, writes the session log or the instrument record,
+touches `during/raw/`, or commits. Ordering is a purchase, creating an
+experiment is pre-registration, and the record is what happened at the bench:
+each is the experimentalist's own act (`experiments/AGENTS.md`), done at the
+CLI or in the local web UI (`dobladillo web`), never through here. An agent
+may analyse, check and report. It may not pass a human gate, and the absence
+of a tool is the strongest way to say so. `test_mcp_server.py` checks that list.
 
 **Nothing may print.** On stdio the server's stdout IS the protocol stream,
 so every command runs inside the CLI runner, which captures its output, and
@@ -28,7 +30,8 @@ nothing here writes to stdout directly.
 **Where it can look.** Experiment folders are addressed by name, relative to
 one root, and a name that resolves outside that root is refused. The server
 runs on stdio only: it is a local process for a local agent, and the package
-never opens a network connection (`tests/test_licences.py`).
+never calls out (`tests/test_licences.py`). Its one listener is the web UI,
+bound to 127.0.0.1.
 
 Requires the optional `mcp` extra (the official Python SDK, MIT).
 """
@@ -43,6 +46,8 @@ from typing import Any
 # registration. This module is only imported when the `mcp` extra is present.
 from mcp.server.mcpserver import MCPServer
 from mcp_types import CallToolResult, TextContent
+
+from dobladillo._invoke import run_json
 
 #: Parts the tools accept by name.
 PARTS: tuple[str, ...] = (
@@ -60,27 +65,19 @@ PARTS: tuple[str, ...] = (
 FORBIDDEN_COMMANDS: dict[str, str] = {
     "lab order": "an oligo order is a purchase, a human gate",
     "experiment new": "creating an experiment is pre-registration, the experimentalist's act",
+    "experiment criterion": "the gate is the experimentalist's, written before the data",
+    "experiment lock": "the lock commits the pre-registration; its time is evidence",
+    "experiment log": "the session log is what happened at the bench, written by who was there",
+    "experiment record": "an instrument reading an agent writes is a guess that looks measured",
+    "experiment upload": "raw data enter the record only from the instrument, by its operator",
+    "experiment commit": "a commit makes the record's times evidence; it is the experimentalist's",
+    "web": "the web UI writes gates and records; it is for a person at the bench, not an agent",
 }
 
 
 def _run(*args: str) -> tuple[int, dict[str, Any]]:
     """Run a CLI command with --json in-process; return its exit code and payload."""
-    from typer.testing import CliRunner
-
-    from dobladillo.cli import app
-
-    result = CliRunner().invoke(app, [*args, "--json"])
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        payload = {
-            "error": {
-                "kind": "no_json",
-                "message": (result.stdout + (result.stderr or "")).strip()[-2000:]
-                or repr(result.exception),
-            }
-        }
-    return result.exit_code, payload
+    return run_json(*args)
 
 
 def _answer(code: int, payload: dict[str, Any]) -> CallToolResult:

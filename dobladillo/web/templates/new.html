@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}New experiment{% endblock %}
+{% block main %}
+<p><a href="/">&larr; Experiments</a></p>
+<h1>New experiment</h1>
+{{ m.outcome(outcome) }}
+<p>This runs <code>dobladillo experiment new</code>: it writes the plan, the protocol, the
+order files and <code>pre/prediction.json</code>, which records what is predicted before any
+data exists.</p>
+<form method="post" action="/new" class="stack">
+  {{ m.csrf_field() }}
+  <label for="slug">Folder name <span class="muted">(start it with the date)</span></label>
+  <input id="slug" name="slug" value="{{ slug }}" required size="40">
+  <label for="part">Part</label>
+  <select id="part" name="part">
+    {% for p in parts %}<option value="{{ p }}"{% if p == part %} selected{% endif %}>{{ p }}</option>{% endfor %}
+  </select>
+  <button type="submit">Create</button>
+</form>
+{% endblock %}

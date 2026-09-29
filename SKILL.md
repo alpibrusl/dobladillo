@@ -35,12 +35,19 @@ experimental counterparts.
 - `dobladillo describe` — Emit the command surface, for an agent to read instead of `--help`.
 - `dobladillo experiment assembly` — Count assembly states per sample, against the controls. Writes post/assembly.json.
 - `dobladillo experiment check` — What is missing, and whether the results can be believed.
+- `dobladillo experiment commit` — Commit during/ or post/, so its time is evidence. Only after pre/ is locked.
 - `dobladillo experiment compare-arms` — Compare two blinded arms by flat fraction, and state the verdict both ways.
+- `dobladillo experiment criterion` — Write the gate into pre/plan.md's criterion line; refused once pre/ is locked.
 - `dobladillo experiment folding-screen` — E11: yield against temperature and time, from gel band intensities.
+- `dobladillo experiment lock` — Commit pre/ with its gate, so the prediction provably predates the data.
+- `dobladillo experiment log` — Append a timestamped entry to during/log.md.
 - `dobladillo experiment new` — Scaffold an experiment, with its predictions recorded up front.
 - `dobladillo experiment pattern` — Read the designed pattern off every well-formed particle, and say which way round.
+- `dobladillo experiment record` — Set during/instrument.json fields, each checked against what it may hold.
 - `dobladillo experiment report` — Measure the scans and compare them against what was predicted.
 - `dobladillo experiment rods` — Trace every rod, check its length, and ask whether the population is straight.
+- `dobladillo experiment status` — Where a folder is in its lifecycle: each step done, next or blocked, and why.
+- `dobladillo experiment upload` — Copy a raw file into during/raw/ and record its sha256; never before the lock.
 - `dobladillo export` — Write a local archive of a part in Nanobase's layout. Never uploads.
 - `dobladillo export-check` — Validate an export archive against its layout. Exits non-zero if it departs.
 - `dobladillo folding-window` — Where this design should fold: staple melting temperatures, weak staples, a screen.
@@ -62,6 +69,7 @@ experimental counterparts.
 - `dobladillo skill` — Print a SKILL.md for this tool, generated from its own commands.
 - `dobladillo twist-pair` — The matched pair that tests whether the twist correction does anything.
 - `dobladillo version` — Print the version.
+- `dobladillo web` — Run an experiment's lifecycle in the browser: a local page, 127.0.0.1 by default.
 
 Every command accepts `--json`. Start with `dobladillo describe --json`, which
 emits the whole surface with options, types and defaults.

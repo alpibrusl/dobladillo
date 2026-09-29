@@ -15,7 +15,7 @@ Working rules for coding agents: `AGENTS.md`.
 ## Install
 
 ```bash
-uv sync --extra dev --extra design --extra imaging --extra mcp
+uv sync --extra dev --extra design --extra imaging --extra mcp --extra web
 ```
 
 The extras, if you want less (generated from `pyproject.toml`):
@@ -26,8 +26,9 @@ The extras, if you want less (generated from `pyproject.toml`):
 | `design` | scadnano, the design data model: build, lint, order, simulate | `scadnano==0.21.1` |
 | `imaging` | read and measure AFM scans; `calibrate` | `scipy>=1.11`, `afmreader==0.0.7`, `scikit-image>=0.22` |
 | `mechanics` | indentation mechanics; declares a private dependency it cannot install | nothing (see pyproject.toml) |
-| `dev` | tests, lint, format and type checks | `pytest>=8.0`, `ruff>=0.6`, `mypy>=1.11`, `scipy>=1.11`, `hypothesis>=6.100` |
+| `dev` | tests, lint, format and type checks | `pytest>=8.0`, `ruff>=0.6`, `mypy>=1.11`, `scipy>=1.11`, `hypothesis>=6.100`, `httpx2>=2.0` |
 | `mcp` | the MCP server (`dobladillo mcp`) | `mcp>=2.2,<3` |
+| `web` | the local web UI for running an experiment (`dobladillo web`), 127.0.0.1 only | `starlette>=1.0`, `uvicorn>=0.30`, `jinja2>=3.1`, `python-multipart>=0.0.18`, `markdown-it-py>=3.0` |
 <!-- /generated:extras -->
 
 oxDNA is not a Python dependency: point `$OXDNA` at a CPU build, and on
@@ -64,6 +65,7 @@ fails if this list drifts from what the tool accepts). Each takes `--help` and
 | `dobladillo skill` | Print a SKILL.md for this tool, generated from its own commands. |
 | `dobladillo twist-pair` | The matched pair that tests whether the twist correction does anything. |
 | `dobladillo version` | Print the version. |
+| `dobladillo web` | Run an experiment's lifecycle in the browser: a local page, 127.0.0.1 by default. |
 
 **afm**
 
@@ -98,12 +100,19 @@ fails if this list drifts from what the tool accepts). Each takes `--help` and
 |---|---|
 | `dobladillo experiment assembly DIRECTORY` | Count assembly states per sample, against the controls. Writes post/assembly.json. |
 | `dobladillo experiment check DIRECTORY` | What is missing, and whether the results can be believed. |
+| `dobladillo experiment commit DIRECTORY` | Commit during/ or post/, so its time is evidence. Only after pre/ is locked. |
 | `dobladillo experiment compare-arms DIRECTORY` | Compare two blinded arms by flat fraction, and state the verdict both ways. |
+| `dobladillo experiment criterion DIRECTORY TEXT` | Write the gate into pre/plan.md's criterion line; refused once pre/ is locked. |
 | `dobladillo experiment folding-screen DIRECTORY` | E11: yield against temperature and time, from gel band intensities. |
+| `dobladillo experiment lock DIRECTORY` | Commit pre/ with its gate, so the prediction provably predates the data. |
+| `dobladillo experiment log DIRECTORY TEXT` | Append a timestamped entry to during/log.md. |
 | `dobladillo experiment new SLUG` | Scaffold an experiment, with its predictions recorded up front. |
 | `dobladillo experiment pattern DIRECTORY` | Read the designed pattern off every well-formed particle, and say which way round. |
+| `dobladillo experiment record DIRECTORY` | Set during/instrument.json fields, each checked against what it may hold. |
 | `dobladillo experiment report DIRECTORY` | Measure the scans and compare them against what was predicted. |
 | `dobladillo experiment rods DIRECTORY` | Trace every rod, check its length, and ask whether the population is straight. |
+| `dobladillo experiment status DIRECTORY` | Where a folder is in its lifecycle: each step done, next or blocked, and why. |
+| `dobladillo experiment upload DIRECTORY FILE` | Copy a raw file into during/raw/ and record its sha256; never before the lock. |
 
 **lab**
 
@@ -123,6 +132,42 @@ fails if this list drifts from what the tool accepts). Each takes `--help` and
 | `dobladillo sim status` | What the queue is doing. |
 | `dobladillo sim sweep` | Build one hinge bundle per joint length, and queue them. |
 <!-- /generated:commands -->
+
+### Running an experiment in the browser
+
+`dobladillo web` serves the experiment lifecycle as a local page, for the
+person at the bench (needs the `web` extra):
+
+```bash
+uv run dobladillo web --root experiments      # then open http://127.0.0.1:8765/
+```
+
+One page per experiment folder takes it through the order the folder layout
+asks for: write the gate, lock `pre/` (a git commit), download the order
+files and read the protocol, fill in the instrument record, keep the session
+log, upload the raw scans, commit `during/`, run the analyses that apply to
+the folder's part, and read the result beside the gate written before the
+data. Every button runs the matching CLI command with `--json` --
+`experiment new`, `criterion`, `lock`, `record`, `log`, `upload`, `commit`,
+`report` and the rest -- and shows its payload, or its refusal with the
+`error.kind` and what to do. So the page can do nothing the CLI would not, and
+the folder in git stays the only record. By default it binds 127.0.0.1,
+answers only to `127.0.0.1` or `localhost`, needs the page's own token on
+every form, and runs no JavaScript. The folder must live in a git repository
+for the lock to work: the commit time is the evidence.
+
+To use it from a phone on the same Wi-Fi, bind another address:
+
+```bash
+uv run dobladillo web --root experiments --host 0.0.0.0
+```
+
+It then warns that the page is reachable from the network and prints one URL
+per address of this machine, each ending in `?token=...`: a random token made
+at startup. Every request without it gets a 401 and no data; the first page
+opened with it stores it in an HttpOnly, SameSite=Strict cookie. Open that
+link on the phone. The pages work at phone width, and the raw-file upload is
+a plain file input, so the phone offers its files or its camera.
 
 ### For agents
 
@@ -202,15 +247,23 @@ it is refused.
 <!-- /generated:mcp-tools -->
 
 **What no route will do.** An agent may analyse, check and report. No tool
-orders oligos, creates an experiment (pre-registration), writes a gate, or
-touches `during/raw/`: those are the experimentalist's acts
-(`experiments/AGENTS.md`). These commands exist in the CLI and are kept out of
+orders oligos, creates an experiment (pre-registration), writes a gate, the
+session log or the instrument record, touches `during/raw/`, or commits:
+those are the experimentalist's acts (`experiments/AGENTS.md`), and an agent
+must not reach them by driving the CLI or the web UI either. These commands exist in the CLI and are kept out of
 the MCP server on purpose (generated from `mcp_server.FORBIDDEN_COMMANDS`; a
 test checks no tool wraps them):
 
 <!-- generated:mcp-forbidden -->
 - `lab order`: an oligo order is a purchase, a human gate.
 - `experiment new`: creating an experiment is pre-registration, the experimentalist's act.
+- `experiment criterion`: the gate is the experimentalist's, written before the data.
+- `experiment lock`: the lock commits the pre-registration; its time is evidence.
+- `experiment log`: the session log is what happened at the bench, written by who was there.
+- `experiment record`: an instrument reading an agent writes is a guess that looks measured.
+- `experiment upload`: raw data enter the record only from the instrument, by its operator.
+- `experiment commit`: a commit makes the record's times evidence; it is the experimentalist's.
+- `web`: the web UI writes gates and records; it is for a person at the bench, not an agent.
 <!-- /generated:mcp-forbidden -->
 
 ## Principles

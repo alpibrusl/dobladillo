@@ -56,9 +56,20 @@ imaging = [
 # to keep `dobladillo.mechanics` honest about needing something it cannot pull.
 # Install nanoindent from its own checkout. See mechanics.NANOINDENT_NOTE.
 mechanics = []
-dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "scipy>=1.11", "hypothesis>=6.100"]
+# httpx2: the HTTP client Starlette's TestClient drives the web UI's tests with.
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "scipy>=1.11", "hypothesis>=6.100", "httpx2>=2.0"]
 mcp = [
     "mcp>=2.2,<3",  # MCPServer; FastMCP in 1.x had another API
+]
+# The local web UI (`dobladillo web`): server-rendered HTML forms over the
+# CLI's --json contract, bound to 127.0.0.1. No JavaScript library and nothing
+# fetched at run time. See dobladillo/web and tests/test_licences.py.
+web = [
+    "starlette>=1.0",
+    "uvicorn>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.18",
+    "markdown-it-py>=3.0",  # renders pre/plan.md and pre/protocol.md, raw HTML off
 ]
 
 [project.scripts]

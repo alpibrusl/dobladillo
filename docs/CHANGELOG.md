@@ -253,3 +253,32 @@
   line offsets, rigid folding keeps shape, reference JSON round-trips, order
   sequences accepted/refused correctly, settling verdict unit-independent.
   Each was shown to fail on a deliberately broken implementation.
+- Local web UI, first version (`dobladillo web`, new `web` extra: Starlette,
+  uvicorn, Jinja2, python-multipart, markdown-it-py; each licence read and
+  recorded in `tests/test_licences.py`, with httpx2 in `dev` for the tests).
+  One page per experiment folder runs the lifecycle in order -- gate, lock,
+  order files and protocol, instrument record, session log, raw upload,
+  commit, the analyses that apply to the folder's part, the result beside
+  the gate, provenance -- and every action runs the matching CLI command
+  with `--json` (`dobladillo._invoke.run_json`, now shared with the MCP
+  server), rendering its payload or its refusal. Bound to 127.0.0.1, Host
+  checked, a per-process token on every form, a foreign Origin refused,
+  bodies capped, folder names bounded to `--root`, no JavaScript.
+  `--host` (e.g. 0.0.0.0, for a phone on the same Wi-Fi) is allowed only
+  behind a random access token printed in the URLs at startup, kept after
+  the first request in an HttpOnly, SameSite=Strict cookie; without it every
+  request is a 401 with no data, and startup warns that the page is
+  reachable from the network. Pages work at 375 px wide: wide tables scroll
+  in their own box, the instrument record stacks into cards, buttons and
+  fields are touch-sized.
+- New experiment commands for the steps that had none, logic in
+  `experiments/lifecycle.py`: `experiment criterion` (the gate, refused once
+  locked), `lock` (commits `pre/`; refuses without a gate, with `pre/`
+  incomplete, outside git, or when already committed and unchanged), `log`,
+  `record` (typed, validated `instrument.json` fields; without `--set` it
+  lists them), `upload` (into `during/raw/` only after the lock, never over
+  a file, never outside it; hash in `during/uploads.json`), `commit --phase
+  during|post`, and the read-only `experiment status` (each step done, next
+  or blocked, and the analyses for the part). The writing ones and `web` are
+  in `mcp_server.FORBIDDEN_COMMANDS`; AGENTS.md and experiments/AGENTS.md say
+  agents must not drive them or the page.

@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ name }}{% endblock %}
+{% block main %}
+{% set locked = s.lock.locked %}
+<p><a href="/">&larr; Experiments</a></p>
+<h1>{{ name }} <span class="muted">({{ s.part or "unknown part" }})</span></h1>
+
+{{ m.outcome(flash) }}
+
+<nav aria-label="Lifecycle">
+  <ol class="steps">
+  {% for step in s.steps %}
+    <li class="step-{{ step.state }}">
+      {{ m.state(step) }} {{ step.title }}
+      <span class="muted">{{ step.blocked if step.blocked else step.detail }}</span>
+    </li>
+  {% endfor %}
+  </ol>
+</nav>
+
+{% if s.check.problems %}
+<section class="problems" aria-labelledby="problems-h">
+  <h2 id="problems-h">Problems with the record</h2>
+  <p>From <code>dobladillo experiment check</code>. They belong in any report of this
+  experiment, in the same breath as its numbers.</p>
+  <ul>{% for p in s.check.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section id="plan" aria-labelledby="plan-h">
+  <h2 id="plan-h">1. Plan and gate {{ m.state(steps.gate) }}</h2>
+  <h3>The gate</h3>
+  {% if locked %}
+    <blockquote class="gate">{{ s.lock.committed_gate }}</blockquote>
+    <p>Locked in commit <code>{{ s.lock.commit.short }}</code> at {{ s.lock.commit.at_iso }}
+    by {{ s.lock.commit.author }}. It can no longer be changed here.</p>
+  {% else %}
+    <p>What result would make this experiment a failure? Write it <strong>before</strong> taking
+    data: a gate written afterwards is a description of the data. Only you write it.</p>
+    <form method="post" action="/e/{{ name | urlencode }}/criterion" class="stack">
+      {{ m.csrf_field() }}
+      <label for="criterion">Criterion <span class="muted">(written into pre/plan.md's
+      <code>&gt; criterion:</code> line)</span></label>
+      <textarea id="criterion" name="text" rows="4" required>{{ s.criterion.text }}</textarea>
+      <button type="submit">Save the gate</button>
+    </form>
+  {% endif %}
+  <h3>What is predicted</h3>
+  <p class="muted">From <code>pre/prediction.json</code>, recorded when the folder was made. Read
+  only: it is what the result is compared against.</p>
+  {{ m.rows_table(prediction) }}
+  <details>
+    <summary>pre/plan.md</summary>
+    <div class="doc">{{ plan | markdown }}</div>
+  </details>
+</section>
+
+<section id="order" aria-labelledby="order-h">
+  <h2 id="order-h">2. Order {{ m.state(steps.order) }}</h2>
+  {% if order %}
+  <div class="scroll"><table class="list">
+    <thead><tr><th scope="col">File</th><th scope="col">Size</th></tr></thead>
+    <tbody>
+    {% for f in order %}
+      <tr><td><a href="/e/{{ name | urlencode }}/files/{{ f.path | urlencode }}">{{ f.name }}</a></td>
+          <td>{{ f.bytes | size }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <p>pre/order holds no files.</p>
+  {% endif %}
+  <h3>Folding protocol</h3>
+  {% if sheet %}
+    {% if sheet.refused %}
+      <p class="refused-text"><code>dobladillo lab protocol {{ s.part }}</code>:
+      {{ sheet.payload.error.kind }}: {{ sheet.payload.error.message }}</p>
+    {% else %}
+      <p class="muted">From <code>dobladillo lab protocol {{ s.part }}</code>.</p>
+      {{ m.rows_table(sheet.rows) }}
+    {% endif %}
+  {% endif %}
+  <details>
+    <summary>pre/protocol.md, the protocol to follow</summary>
+    <div class="doc">{{ protocol | markdown }}</div>
+  </details>
+</section>
+
+<section id="lock" aria-labelledby="lock-h">
+  <h2 id="lock-h">3. Lock pre/ {{ m.state(steps.lock) }}</h2>
+  <p>Commits <code>pre/</code> to git with the gate in it. The commit's time is what shows the
+  prediction and the gate came before the data.</p>
+  {% if s.lock.commit %}
+    <p>Last commit touching pre/: <code>{{ s.lock.commit.short }}</code> at
+    {{ s.lock.commit.at_iso }} by {{ s.lock.commit.author }}.</p>
+  {% endif %}
+  {% if s.lock.changed_since %}
+    <p class="blocked">pre/ has changed since it was committed:
+    {{ s.lock.changed_since | join(", ") }}.</p>
+  {% endif %}
+  {{ m.blocked_reason(steps.lock, "lock-why") }}
+  <form method="post" action="/e/{{ name | urlencode }}/lock">
+    {{ m.csrf_field() }}
+    <button type="submit"{% if steps.lock.blocked or steps.lock.done %} disabled aria-describedby="lock-why"{% endif %}>Lock pre/</button>
+  </form>
+</section>
+
+<section id="during" aria-labelledby="during-h">
+  <h2 id="during-h">4. During {{ m.state(steps.data) }}</h2>
+
+  <h3 id="instrument">Instrument record</h3>
+  <p class="muted"><code>during/instrument.json</code>, through
+  <code>dobladillo experiment record</code>. Write what the instrument and the tip measured,
+  never a nominal or protocol value. An empty field clears it. Only the fields you change are
+  sent.</p>
+  {% if record.error %}
+    <p class="refused-text">{{ record.error.kind }}: {{ record.error.message }}</p>
+  {% else %}
+  <form method="post" action="/e/{{ name | urlencode }}/record">
+    {{ m.csrf_field() }}
+    <table class="list record">
+      <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th>
+          <th scope="col">Allowed</th><th scope="col">Value</th></tr></thead>
+      <tbody>
+      {% for f in fields %}
+        <tr>
+          <th scope="row"><label for="f-{{ loop.index }}"><code>{{ f.field }}</code></label></th>
+          <td data-label="Meaning">{{ f.meaning }}</td>
+          <td data-label="Allowed">{{ f.allowed }}</td>
+          <td data-label="Value">
+          {% if f.choices %}
+            <select id="f-{{ loop.index }}" name="f:{{ f.field }}">
+              <option value=""{% if not f.input %} selected{% endif %}>(not recorded)</option>
+              {% for c in f.choices %}<option value="{{ c }}"{% if c == f.input %} selected{% endif %}>{{ c }}</option>{% endfor %}
+            </select>
+          {% else %}
+            <input id="f-{{ loop.index }}" name="f:{{ f.field }}" value="{{ f.input }}">
+          {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit">Save the instrument record</button>
+  </form>
+  {% endif %}
+
+  <h3 id="log">Session log</h3>
+  <form method="post" action="/e/{{ name | urlencode }}/log" class="stack">
+    {{ m.csrf_field() }}
+    <label for="log-text">New entry for <code>during/log.md</code>, timestamped: deviations,
+    observations, which files came from this session</label>
+    <textarea id="log-text" name="text" rows="3" required></textarea>
+    <button type="submit">Add to the log</button>
+  </form>
+
+  <h3 id="raw">Raw files</h3>
+  <p class="muted">Exactly as the instrument wrote them, into <code>during/raw/</code> through
+  <code>dobladillo experiment upload</code>, which records each file's sha256. Never replaced,
+  renamed or converted. Up to {{ max_upload | size }}.</p>
+  {{ m.blocked_reason(steps.data, "upload-why") }}
+  <form method="post" action="/e/{{ name | urlencode }}/upload" enctype="multipart/form-data" class="stack">
+    {{ m.csrf_field() }}
+    <fieldset{% if not locked %} disabled aria-describedby="upload-why"{% endif %}>
+      <legend>Upload a raw file</legend>
+      <label for="raw-file">File</label>
+      <input id="raw-file" type="file" name="file" required>
+      <label for="raw-as">Name under during/raw <span class="muted">(optional, e.g.
+      staircase/S1-01.spm; default: the file's own name)</span></label>
+      <input id="raw-as" name="as" size="40">
+      <button type="submit">Upload</button>
+    </fieldset>
+  </form>
+  {% if s.raw %}
+  <div class="scroll"><table class="list">
+    <caption>during/raw</caption>
+    <thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col">sha256</th></tr></thead>
+    <tbody>
+    {% for f in s.raw %}
+      <tr><td>{{ f.path }}</td><td>{{ f.bytes | size }}</td><td><code>{{ f.sha256 | short }}</code></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+
+  <h3 id="commit-during">Commit during/ {{ m.state(steps.commit_during) }}</h3>
+  <p class="muted">{{ steps.commit_during.detail }}{% if s.changed.during %}:
+  {{ s.changed.during | join(", ") }}{% endif %}</p>
+  {{ m.blocked_reason(steps.commit_during, "commit-during-why") }}
+  <form method="post" action="/e/{{ name | urlencode }}/commit" class="inline">
+    {{ m.csrf_field() }}
+    <input type="hidden" name="phase" value="during">
+    <label for="during-msg">Message</label>
+    <input id="during-msg" name="message" size="40" placeholder="{{ name }}: during/">
+    <button type="submit"{% if steps.commit_during.blocked %} disabled aria-describedby="commit-during-why"{% endif %}>Commit during/</button>
+  </form>
+</section>
+
+<section id="analyse" aria-labelledby="analyse-h">
+  <h2 id="analyse-h">5. Analyse {{ m.state(steps.analyse) }}</h2>
+  <div class="gate-beside">
+    <h3>Your gate</h3>
+    {% if s.criterion.text %}
+      <blockquote class="gate">{{ s.criterion.text }}</blockquote>
+      <p class="muted">{% if locked %}Committed in <code>{{ s.lock.commit.short }}</code>, before
+      the data.{% else %}Not locked: pre/ is not committed.{% endif %}</p>
+    {% else %}
+      <p class="blocked">No gate was written.</p>
+    {% endif %}
+    <p>Whether the result passes is your judgement. Nothing here evaluates the gate.</p>
+  </div>
+  {{ m.blocked_reason(steps.analyse, "analyse-why") }}
+  {% for a in analyses %}
+  <article class="analysis">
+    <h3><code>dobladillo {{ a.command }}</code> <span class="muted">{{ a.experiment }},
+    {{ a.protocol }}</span></h3>
+    <form method="post" action="/e/{{ name | urlencode }}/analyse">
+      {{ m.csrf_field() }}
+      <input type="hidden" name="command" value="{{ a.command }}">
+      <button type="submit"{% if not s.raw %} disabled aria-describedby="analyse-why"{% endif %}>Run {{ a.command }}</button>
+    </form>
+    {% for r in a.results %}
+      <h4>{{ r.path }}</h4>
+      {{ m.rows_table(r.rows) }}
+      <p><a href="/e/{{ name | urlencode }}/files/{{ r.path | urlencode }}">Download {{ r.path }}</a></p>
+    {% else %}
+      <p class="muted">No result in post/ yet.</p>
+    {% endfor %}
+  </article>
+  {% endfor %}
+  {% if s.post %}
+  <form method="post" action="/e/{{ name | urlencode }}/commit" class="inline">
+    {{ m.csrf_field() }}
+    <input type="hidden" name="phase" value="post">
+    <label for="post-msg">Message</label>
+    <input id="post-msg" name="message" size="40" placeholder="{{ name }}: post/">
+    <button type="submit"{% if not locked %} disabled{% endif %}>Commit post/</button>
+  </form>
+  {% endif %}
+</section>
+
+<section id="provenance" aria-labelledby="provenance-h">
+  <h2 id="provenance-h">6. Provenance</h2>
+  {% set chain = s.check.provenance %}
+  {% if chain %}
+  <p>Design &rarr; prediction &rarr; order &rarr; folder &rarr; scans:
+  <strong>{{ "verified" if chain.verified else "NOT verified" }}</strong>{% if chain.legacy %}
+  (no design hash recorded){% endif %}.</p>
+  <div class="scroll"><table class="list">
+    <thead><tr><th scope="col">Node</th><th scope="col">Record</th><th scope="col">sha256</th>
+        <th scope="col">Parent</th></tr></thead>
+    <tbody>
+    {% for link in chain.links %}
+      <tr><td>{{ link.node }}</td><td>{{ link.name }}</td><td><code>{{ link.sha256 | short }}</code></td>
+          <td><code>{{ link.parent | short }}</code></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if chain.problems %}<ul>{% for p in chain.problems %}<li>{{ p }}</li>{% endfor %}</ul>{% endif %}
+  {% endif %}
+</section>
+{% endblock %}
