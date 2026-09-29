@@ -32,6 +32,34 @@ when it does. See `../ROADMAP.md`. E4's analysis chain can already be dry-run
 on synthetic FRET data (`e4_dryrun.py`, no real data accepted), as E1 and E2
 were on synthetic scans.
 
+## The AFM calibration kit (K series)
+
+A separate project, planned 2026-09-29: an open DNA-origami calibration kit
+and method for AFM. See
+[`projects/afm-calibration-kit/PROJECT.md`](../../projects/afm-calibration-kit/PROJECT.md)
+for its goal, scope, prior art and phases, and
+[`MATERIALS.md`](../../projects/afm-calibration-kit/MATERIALS.md) for what to
+buy. **K** is for *kit*. The K numbers are their own series and depend on E
+experiments where stated. The part `calibration-tile` and the commands
+`dobladillo calibrate lateral|tip|drift|report` are **being implemented**. Every
+K protocol names them as such.
+
+| protocol | experiment | status |
+|---|---|---|
+| [`K1-software-validation.md`](K1-software-validation.md) | K1: does `calibrate` recover known scale, skew, tip and drift, with honest uncertainties? (no lab) | blocked: `calibrate` and the tile part being implemented |
+| [`K2-calibration-tile-fold.md`](K2-calibration-tile-fold.md) | K2: does the tile fold, purify and show its marks, and how much do we get? | after E1 and E8; `calibrate` after K1 |
+| [`K3-lateral-calibration.md`](K3-lateral-calibration.md) | K3: X, Y and skew on one instrument, air and liquid, against a traceable grating | after K1 and K2 (bundle arm: E10) |
+| [`K4-tip-reconstruction.md`](K4-tip-reconstruction.md) | K4: do the tile and the bundle reconstruct the same tip as the GATTA-AFM 3D staircase? Tip wear | after K1, K2 and E10; a purchase |
+| [`K5-preparation-sensitivity.md`](K5-preparation-sensitivity.md) | K5: how far do the tile's dimensions move with Mg, Ni, drying and deposition time? | after K3 |
+| [`K6-hsafm-scale-drift-markers.md`](K6-hsafm-scale-drift-markers.md) | K6: HS-AFM scale, drift, and hairpin marks against streptavidin under the tip | blocked: HS-AFM access (the maintainer's decision), a movie reader |
+| [`K7-kit-format-shelf-life.md`](K7-kit-format-shelf-life.md) | K7: frozen, freeze-thawed, 4 °C or dried on mica: which keeps, for how long? | after K3 and K5; 12 months |
+| [`K8-certification.md`](K8-certification.md) | K8: a value with a traceable uncertainty for one batch | after K5 and K7; a partner is the maintainer's decision |
+
+**The same rules apply.** The gate is written by the experimentalist before
+the session. `pre/` is committed first. Raw files go in untouched. No number
+an instrument should have produced is filled in. Each K protocol leaves its
+`> criterion:` line empty and gives a proposal to start from.
+
 ## Run them in this order
 
 **E1 first, always.** It tells you which magnesium concentration folds our

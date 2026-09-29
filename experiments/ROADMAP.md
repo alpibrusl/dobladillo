@@ -125,6 +125,46 @@ same core. E1, E2, E3 and E7 are single constructs or small sets on cores
 already counted.
 
 
+## Project: the open AFM calibration kit (K series)
+
+Planned 2026-09-29, after a literature review. It is a separate project with
+its own series, not an epic of the Hamiltonian line. It reuses E1's rectangle,
+E8's hairpin marks, E10's bundle and E11's isothermal fold. The goal is
+an open kit: samples, protocol, software (`dobladillo calibrate`, being
+implemented) and a certificate method. Everything else is in
+[`projects/afm-calibration-kit/PROJECT.md`](../projects/afm-calibration-kit/PROJECT.md):
+scope and non-goals, prior art (GATTAquant's GATTA-AFM and GATTA-AFM 3D,
+Korpelainen et al. 2017, Raab et al. 2018, Kielar et al. 2020), risks, and
+what partners would be asked for.
+
+| # | experiment | needs | ready? |
+|---|---|---|---|
+| **K1** | software validation, synthetic and public data | `calibrate`, `calibration-tile` | no: both being implemented |
+| **K2** | calibration tile: fold, purify, yield, marks | E1, E8; K1 for `calibrate` | after E1 and E8 |
+| **K3** | lateral calibration, air and liquid, against a traceable grating | K1, K2 (E10 for the bundle arm) | after K2 |
+| **K4** | tip reconstruction: tile and bundle against the GATTA-AFM 3D staircase; wear | K1, K2, E10 | after K2 and E10 |
+| **K5** | preparation sensitivity (Mg, Ni, dry, deposition time) → the uncertainty | K3 | after K3 |
+| **K6** | HS-AFM: scale, drift, hairpin against streptavidin marks | K3, HS-AFM access, a movie reader | blocked |
+| **K7** | kit format and shelf life, 12 months | K3, K5 | after K5 |
+| **K8** | certification against a traceable reference | K5, K7, a partner | the maintainer's decision |
+
+```
+E1 ── E8 ──┐
+E11 ·······┤ (optional)
+           K2 ──┬── K3 ──┬── K5 ── K7 ── K8     the reference line
+K1 ─────────────┤        └── K6                 HS-AFM
+E10 ────────────┴── K4                          tip
+```
+
+Not scored. Relevance, difficulty and P(success) are judgements for the
+maintainer, and the K series is not yet in `dobladillo/programme.py`, so the
+dashboard does not show it.
+
+**How it meets the direction below.** K6 is this roadmap's first HS-AFM
+experiment. What it establishes (scale and drift on an HS-AFM from all-DNA
+fiducials, and how long the marks last under the tip) is what a
+hinge-switching movie would need to be measured rather than watched.
+
 ## Direction: high-speed AFM
 
 Recorded 2026-09-28, with no experiment yet, because no instrument is lined

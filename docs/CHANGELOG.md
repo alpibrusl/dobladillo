@@ -155,3 +155,13 @@
   the fastest good fold beside the predicted window.
 - Roadmap: high-speed AFM recorded as a direction: hinge switching first,
   folding second.
+- Project: an open DNA-origami calibration kit and method for AFM
+  (`projects/afm-calibration-kit/`: `PROJECT.md`, `MATERIALS.md`), planned
+  2026-09-29 after a literature review. Protocols K1-K8 in
+  `experiments/protocols/` (software validation, the calibration tile's fold,
+  lateral calibration against a traceable grating, tip reconstruction against
+  the GATTA-AFM 3D staircase, preparation sensitivity, HS-AFM scale, drift and
+  marker survival, kit format and shelf life, certification). Every gate is left
+  empty, with a proposal. `calibration-tile` and `dobladillo calibrate` are
+  named as being implemented. Indexed in `experiments/protocols/README.md` and
+  `experiments/ROADMAP.md`; not yet in `programme.py`.
