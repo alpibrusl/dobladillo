@@ -180,3 +180,18 @@ def test_pixel_noise_is_recovered_through_features_and_line_offsets() -> None:
     noise = pixel_noise(image)
     assert abs(noise.sigma_nm - sigma) <= 3 * noise.uncertainty_nm
     assert noise.uncertainty_nm < 0.01 * sigma * 5
+
+
+def test_bustamante_keller_reproduces_the_articles_worked_example() -> None:
+    """Box 1 of Bustamante & Keller (1995): a 10 nm paraboloid tip and a 0.5 nm
+    dimple resolve equal features 6.4 nm apart (6.32 unrounded). Its second
+    example, 12.5 nm for a 2 nm height difference, does not follow from its own
+    equation (10.2 nm); the equation is what is implemented."""
+    import pytest
+
+    from dobladillo.calibration.resolution import bustamante_keller_nm
+
+    assert bustamante_keller_nm(tip_radius_nm=10.0, dip_nm=0.5) == pytest.approx(6.4, abs=0.1)
+    assert bustamante_keller_nm(
+        tip_radius_nm=10.0, dip_nm=0.5, height_step_nm=2.0
+    ) == pytest.approx(10.23, abs=0.01)

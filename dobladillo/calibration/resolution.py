@@ -18,6 +18,11 @@ reached at
     d = sqrt(2 R) (sqrt(Delta z) + sqrt(Delta z + Delta h)),
 
 with Delta h the features' height difference (zero here), so d = sqrt(8 R Delta z).
+Checked against the article's Box 1 on 2026-09-29 (#29): that is its equation,
+valid for d > sqrt(2 R Delta h). Its first worked example (R = 10 nm, a 0.5 nm
+dip, 6.4 nm) is this formula's 6.3 nm rounded; its second (a 2.0 nm height
+difference, 12.5 nm) does not follow from its own equation, which gives
+10.2 nm -- a slip in the example, not in the formula.
 The formula takes the required dip as an input; setting it to k times the
 image noise, with k = 3 by default, is the choice made here.
 

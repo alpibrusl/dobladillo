@@ -64,9 +64,16 @@ is again an outer bound, and no blunter than t_i. Start from t_0 = 0 -- a
 flat punch the size of the array, blunter than any real tip -- and repeat
 until it stops changing. At an isolated spike only w = 0 passes (2), and (1)
 returns the image around the spike: the tip, in one step. That is the
-structure of the paper's argument, re-derived here in this convention; (2)
-is the restriction to possible contacts as derived above, and is the line to
-read against the paper's own statement of it.
+structure of the paper's argument, re-derived here in this convention.
+
+*Checked against the paper (2026-09-29, #29).* The paper draws the tip
+reflected, p, with t(v) = p(-v). Substituting that and w = -d, (1) is its
+Eq. (17) and (2) is its Eq. (19), i(x') - i(x' - d) <= p(d) with the apex at
+the origin -- the same restriction, not an approximation of it. Its noise
+rule (Sec. 6.3: change a tip value only when the new bound is lower by more
+than `thresh`, and then to new + thresh) is `min(t_i, bound + tolerance)`
+below. Applying the tolerance to (2) as well is this module's addition; it
+admits more contacts, so it can only loosen the bound, never break it.
 
 **Noise.** Noise makes an image locally sharper than the tip that made it,
 and (1) would then return a tip sharper than the real one -- no longer an
