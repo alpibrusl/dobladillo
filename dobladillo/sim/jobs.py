@@ -159,10 +159,15 @@ METAL_SETTINGS: Final = {
 }
 
 #: The Metal backend implements the Brownian (`john`) thermostat and not
-#: `bussi`. The thermostat sets the dynamics, not the equilibrium, so shape
-#: observables are comparable -- which is exactly what the validation run
-#: checks rather than assumes (see METAL_VALIDATION).
-METAL_THERMOSTAT: Final = {"thermostat": "john", "diff_coeff": 2.5}
+#: `bussi`. Measured on 2026-09-29 (`dobladillo-runs/metal-validation/
+#: FINDINGS.md`): at oxDNA's usual diff_coeff 2.5, `john` damps slow shape
+#: changes so hard that a run stays near its starting shape. The CPU with
+#: `john` did exactly what Metal did, so this is the thermostat, not Metal.
+#: At diff_coeff 25 -- ten times lighter -- Metal reproduced what the CPU
+#: did with `bussi` from the same state (the bend rotating onto the design's
+#: arc), taking ~1.2e6 steps instead of 2e5. At 250 it wandered without
+#: settling. Hence 25; and for frustrated designs, run several seeds.
+METAL_THERMOSTAT: Final = {"thermostat": "john", "diff_coeff": 25}
 
 #: Evidence that Metal runs reproduce CPU runs, or None. `analysis.runs.check_run`
 #: refuses a Metal run while this is None: a 143,000-line unreviewed fork does
