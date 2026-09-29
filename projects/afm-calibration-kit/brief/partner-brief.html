@@ -142,7 +142,7 @@
 <div class="table-wrap"><table>
   <thead><tr><th style="width:24%">Part</th><th>What it is</th></tr></thead>
   <tbody>
-    <tr><td><strong>Software</strong></td><td><code>dobladillo calibrate</code>: reads a scan of any reference whose geometry is declared (ours, GATTAquant's, Kolbeck's) and reports lateral scale, skew, tip shape, resolution and drift, each with an uncertainty. Open source, runs locally.</td></tr>
+    <tr><td><strong>Software</strong></td><td><code>dobladillo calibrate</code> (working, validated on synthetic scans): reads a scan of any reference whose geometry is declared (ours, GATTAquant's, Kolbeck's) and reports lateral scale, skew, tip shape, resolution and drift, each with an uncertainty. Open source, runs locally.</td></tr>
     <tr><td><strong>Reference samples</strong></td><td>A <em>calibration tile</em>: a DNA-origami rectangle carrying a sparse, chiral pattern of hairpin marks whose centres are the ruler, all DNA, readable whichever way it lands. A <em>six-helix bundle</em> of about 380&#8239;nm as a long-range length and width reference.</td></tr>
     <tr><td><strong>Protocol</strong></td><td>Folding, purification, deposition and imaging specified tightly enough that the 3&ndash;10&#8239;% preparation spread is measured and bounded, not assumed away.</td></tr>
     <tr><td><strong>Certificate method</strong></td><td>How a batch's dimensions are tied to a traceable reference, with a GUM-style uncertainty budget. Until then every output carries <code>traceable: false</code>.</td></tr>
@@ -161,18 +161,27 @@
         <path d="M20 52 H320 M20 87 H320 M20 122 H320 M20 157 H320"/>
       </g>
       <g id="marks" fill="url(#hot)">
-        <circle cx="35" cy="36" r="10"/><circle cx="185" cy="36" r="10"/><circle cx="305" cy="36" r="10"/>
-        <circle cx="95" cy="104" r="10"/><circle cx="245" cy="104" r="10"/>
-        <circle cx="35" cy="176" r="10"/><circle cx="155" cy="176" r="10"/><circle cx="305" cy="176" r="10"/>
+        <circle cx="65" cy="37.6" r="9"/>
+        <circle cx="125" cy="37.6" r="9"/>
+        <circle cx="185" cy="37.6" r="9"/>
+        <circle cx="275" cy="37.6" r="9"/>
+        <circle cx="95" cy="108.0" r="9"/>
+        <circle cx="155" cy="108.0" r="9"/>
+        <circle cx="215" cy="108.0" r="9"/>
+        <circle cx="275" cy="108.0" r="9"/>
+        <circle cx="65" cy="178.4" r="9"/>
+        <circle cx="155" cy="178.4" r="9"/>
+        <circle cx="215" cy="178.4" r="9"/>
+        <circle cx="275" cy="178.4" r="9"/>
       </g>
-      <text x="20" y="214">calibration tile, about 90 &times; 70 nm &middot; marks shown are illustrative</text>
+      <text x="20" y="214">calibration tile: 12 marked cells, 48 hairpin staples &middot; the actual design</text>
       <path d="M20 14 H320" stroke="#8a939c" stroke-width="0.8"/><text x="112" y="9" fill="#8a939c" font-size="9">along the helices: bp &times; rise</text>
       <rect x="370" y="96" width="250" height="24" rx="12" fill="url(#hot)"/>
       <text x="370" y="140">six-helix bundle, about 380 nm (drawn shortened)</text>
       <text x="370" y="156" font-size="10" fill="#8a939c">long-range length and width reference</text>
     </g>
   </svg>
-  <figcaption>The two references. Each mark on the tile is a cell of hairpins; its centre, not its edge, is what is measured, because tip broadening widens a mark symmetrically and does not move its centre. The pattern is chiral so that every landing orientation, including face-down, is identified.</figcaption>
+  <figcaption>The two references. Each mark on the tile is a cell of hairpins; its centre, not its edge, is what is measured, because tip broadening widens a mark symmetrically and does not move its centre. No two marked cells touch, so each images as its own spot, and the pattern is chiral, so every landing orientation is identified. The mark centres span 75.5 &times; 38.8&#8239;nm.</figcaption>
 </figure>
 
 <h3>Why the scale can be separated from the sample</h3>
@@ -183,12 +192,26 @@
   <thead><tr><th style="width:21%">Quantity</th><th style="width:40%">From</th><th>Method</th></tr></thead>
   <tbody>
     <tr><td>x and y scale, skew</td><td>Mark centres on many tiles at varied angles</td><td>Joint least-squares fit of scanner and tile; bootstrap over tiles; combined with the reference's own uncertainty</td></tr>
-    <tr><td>Tip shape, apex radius</td><td>Any image with sharp features: the staircase, the bundle, the tile</td><td>Blind tip reconstruction implemented from Villarrubia (1997); the estimate is an outer bound of the true tip</td></tr>
+    <tr><td>Tip shape, apex radius</td><td>Blind: any image with features sharper than the tip. Known geometry: a declared reference such as the staircase</td><td>Villarrubia (1997), implemented from the paper; a blind estimate is an outer bound, never sharper than the true tip, and a scan that cannot constrain it is flagged</td></tr>
     <tr><td>Lateral resolution</td><td>The reconstructed tip and the image noise</td><td>Smallest separation at which two marks show a dip deeper than the noise; checked directly where marks are paired</td></tr>
-    <tr><td>Drift</td><td>A series of frames (high-speed AFM or repeated scans)</td><td>Sub-pixel phase correlation between frames; linear drift velocity with its standard error</td></tr>
+    <tr><td>Drift</td><td>A series of frames (high-speed AFM or repeated scans)</td><td>Sub-pixel cross-correlation between frames; linear drift velocity with its standard error</td></tr>
   </tbody>
 </table></div>
-<p>Every value is reported with its standard uncertainty and a k&#8239;=&#8239;2 interval. Scans are read in their native formats (Bruker, JPK, Asylum, Gwyddion, high-speed AFM <code>.asd</code>) through the open AFMReader library. Before any real image is used, the software is validated on synthetic scans with a known distortion and a known tip, including a check that the true value falls inside the stated interval as often as it should.</p>
+<h3>Validation so far: synthetic scans with a known answer</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th style="width:22%">Test</th><th>Put in</th><th>Recovered</th></tr></thead>
+  <tbody>
+    <tr><td>Scanner and tile, 40 tiles</td><td class="num">scale x 1.05, y 0.97, skew 1.5&deg;, tile 1.08</td><td class="num">1.0499, 0.9700, 1.501&deg;, 1.0800 (statistical u &le; 0.0003; 0.013&deg;)</td></tr>
+    <tr><td>Tip insensitivity</td><td>the same tiles, 5 vs 15&#8239;nm tip</td><td>mark centres move 0.11&#8239;nm rms; outlines widen 4.9&#8239;nm</td></tr>
+    <tr><td>Honest intervals</td><td>30 independent sessions</td><td>truth inside the k&#8239;=&#8239;2 interval 27&ndash;28 times; the bootstrap reads about 15&#8239;% low, and the report says so</td></tr>
+    <tr><td>Tip, blind</td><td>paraboloid tips of 5, 10, 20&#8239;nm, sharp spikes</td><td>5.5, 10.5, 20.5&#8239;nm &plusmn;&#8239;0.55 without noise; with noise an upper bound, 11&ndash;53&#8239;% high</td></tr>
+    <tr><td>Resolution</td><td>10&#8239;nm tip, 0.1&#8239;nm noise, 2&#8239;nm features</td><td>5.1&#8239;nm, within 1&#8239;% of the closed-form sphere&ndash;cylinder result</td></tr>
+    <tr><td>Drift</td><td>0.30 and &minus;0.20&#8239;nm/s over 20 frames</td><td>0.3001 &plusmn;&#8239;0.0002 and &minus;0.1998 &plusmn;&#8239;0.0001&#8239;nm/s</td></tr>
+    <tr><td>Refusals</td><td>tiles all at one angle; too few tiles; plain rectangles; a featureless scan</td><td>each refused or flagged with the reason, never a confident number</td></tr>
+  </tbody>
+</table></div>
+<p>Two findings from this stage shape the plan. The tile's size across the helices cannot be taken from the design, because published helix spacings range over 2.25&ndash;2.6&#8239;nm; the fit therefore measures it, and the x/y ratio and skew do not depend on it. And a staircase of flat blocks gives <em>blind</em> reconstruction nothing to work with, since a flat top with sloped sides is consistent with any blunter tip; it constrains the tip through its declared geometry instead. The published staircase work reports blind reconstruction from real images, so experiment K4 tests this on real data.</p>
+<p>Every value is reported with its standard uncertainty and a k&#8239;=&#8239;2 interval. Scans are read in their native formats (Bruker, JPK, Asylum, Gwyddion) through the open AFMReader library. No real image has been analysed yet: that is K3 onwards. Not built yet: a report that reads a whole experiment folder at once, high-speed AFM movie formats (frames are exported one by one), and grating pitch analysis (Gwyddion does it).</p>
 
 <h2><span class="n">6</span>Experiments</h2>
 <p>Each experiment has a written protocol, a named readout computed by the software, and a pass criterion that the project lead writes before the data exist. Desk work needs no laboratory.</p>
