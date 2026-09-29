@@ -21,6 +21,8 @@ simulation happened; the metadata says what is still owed.
 from __future__ import annotations
 
 import json
+import os
+import platform
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
@@ -178,14 +180,50 @@ METAL_THERMOSTAT: Final = {"thermostat": "john", "diff_coeff": 25}
 #: output, refreshing velocities every 10 steps with probability 0.1 held
 #: the temperature flat and relaxed best (24 pairs broken at the end of
 #: stage 2, ~150 after release). Refreshing every step over-damped it and
-#: slowed the traps (115, ~520). So stages 2 and 3 use this; production,
-#: which needs mobility, keeps METAL_THERMOSTAT.
+#: slowed the traps (115, ~520). But strong coupling also freezes the
+#: bundle's SHAPE: from the same MC output the CPU with this coupling stayed
+#: straight (383 -> 382 nm end-to-end) while the CPU with bussi bent (380 ->
+#: 349), and a rod relaxed straight bends only slowly afterwards on every
+#: backend. The heat spike is over within ~10k steps of the traps engaging,
+#: so only stage 2 uses this; release and production, which need the shape to
+#: move, use METAL_THERMOSTAT.
 METAL_RELAX_THERMOSTAT: Final = {"thermostat": "john", "newtonian_steps": 10, "pt": 0.1}
 
 #: Evidence that Metal runs reproduce CPU runs, or None. `analysis.runs.check_run`
 #: refuses a Metal run while this is None: a 143,000-line unreviewed fork does
 #: not get to produce results on its word.
-METAL_VALIDATION: Final[str | None] = None
+METAL_VALIDATION: Final[str | None] = (
+    "2026-09-29, dobladillo-runs/metal-validation/FINDINGS.md. Same potential "
+    "energy as the CPU on one configuration (-1.525177 vs -1.525176); holds the "
+    "CPU's bent 28/14 and deletion-bent 6HB shapes; releases the same number of "
+    "designed pairs as the CPU with the same thermostat (~485 vs ~490 of 7000); "
+    "reaches the CPU's bent state (end-to-end 316-340 vs 321 +- 3 nm) from a "
+    "straight start; unit 6HB end-to-end 377 +- 2 on both. Every disagreement "
+    "found was the thermostat or the relaxation path, reproduced on the CPU."
+)
+
+#: Environment variable naming the Metal build of METAL_FORK at METAL_COMMIT.
+METAL_BINARY_ENV: Final = "OXDNA_METAL"
+
+
+def metal_binary() -> str | None:
+    """The configured Metal oxDNA binary, or None when there is none to run."""
+    path = os.environ.get(METAL_BINARY_ENV)
+    if path and Path(path).is_file() and os.access(path, os.X_OK):
+        return path
+    return None
+
+
+def default_backend() -> str:
+    """Metal on Apple Silicon when its binary is configured, otherwise CPU.
+
+    Metal is ~100x the CPU on a 14k-nt bundle and passed its validation
+    (METAL_VALIDATION). CUDA is never chosen implicitly: it is only for a
+    machine someone has deliberately pointed a bundle at.
+    """
+    if platform.system() == "Darwin" and platform.machine() == "arm64" and metal_binary():
+        return "Metal"
+    return "CPU"
 
 
 def _on_metal(settings: dict[str, Any], *, relaxing: bool) -> dict[str, Any]:
@@ -387,7 +425,7 @@ def stages(
                 st.name,
                 st.options
                 if st.name == "01_mc"
-                else _on_metal(st.options, relaxing=st.name != "04_production"),
+                else _on_metal(st.options, relaxing=st.name == "02_md_trapped"),
                 st.comment,
             )
             for st in chain
@@ -441,7 +479,7 @@ def write_job_bundle(
     directory: Path,
     name: str,
     part: str,
-    backend: str = "CUDA",
+    backend: str | None = None,
     test_mode: bool = False,
     steps_override: dict[str, int] | None = None,
     salt_m: float = OXDNA_NA_PROXY_M[0],
@@ -459,6 +497,7 @@ def write_job_bundle(
     does not claim otherwise, but it says how long it was, because "short" is
     a property a reader of the results needs.
     """
+    backend = backend or default_backend()
     if backend not in {"CPU", "CUDA", "Metal"}:
         raise ValueError(f"backend must be CPU, CUDA or Metal, got {backend!r}")
     check_sequences_pair(design)

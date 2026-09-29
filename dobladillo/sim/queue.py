@@ -224,12 +224,43 @@ def progress(directory: Path) -> dict[str, Any]:
     return stages
 
 
+def stage_binary(directory: Path, stage: str, *, oxdna: str) -> str | None:
+    """The binary a stage needs: the Metal build for a Metal stage, else `oxdna`.
+
+    A Metal bundle runs its Monte Carlo stage on the CPU and the rest on the
+    GPU, so one bundle needs both. None when the stage wants Metal and no Metal
+    binary is configured.
+    """
+    if _stage_settings(directory, stage).get("backend") == "Metal":
+        from dobladillo.sim.jobs import metal_binary
+
+        return metal_binary()
+    return oxdna
+
+
 def run_stage(directory: Path, stage: str, *, oxdna: str) -> subprocess.Popen[bytes]:
     """Start one stage. The caller owns waiting for it."""
+    binary = stage_binary(directory, stage, oxdna=oxdna)
+    if binary is None:
+        from dobladillo.sim.jobs import METAL_BINARY_ENV
+
+        raise FileNotFoundError(f"stage {stage} runs on Metal; set ${METAL_BINARY_ENV}")
     log = (directory / f"{stage}.log").open("ab")
     return subprocess.Popen(
-        [oxdna, f"input_{stage}"], cwd=directory, stdout=log, stderr=subprocess.STDOUT
+        [binary, f"input_{stage}"], cwd=directory, stdout=log, stderr=subprocess.STDOUT
     )
+
+
+def _start(root: Path, job: Job, index: int, *, oxdna: str) -> subprocess.Popen[bytes] | None:
+    """Start a job's stage, or record the job as failed when it cannot start."""
+    try:
+        return run_stage(job.directory, STAGES[index], oxdna=oxdna)
+    except OSError as e:
+        job.state = "failed"
+        job.error = str(e)
+        job.finished_at = time.time()
+        _write(root, job)
+        return None
 
 
 def run(
@@ -279,7 +310,11 @@ def run(
                 continue
             job.stage = STAGES[index]
             _write(root, job)
-            running[job_id] = (job, index, run_stage(job.directory, STAGES[index], oxdna=oxdna))
+            process = _start(root, job, index, oxdna=oxdna)
+            if process is None:
+                finished += 1
+                continue
+            running[job_id] = (job, index, process)
 
         queued = [j for j in load(root) if j.state == "queued"]
         while queued and len(running) < workers:
@@ -297,7 +332,11 @@ def run(
             job.state = "running"
             job.stage = STAGES[index]
             _write(root, job)
-            running[job.id] = (job, index, run_stage(job.directory, STAGES[index], oxdna=oxdna))
+            process = _start(root, job, index, oxdna=oxdna)
+            if process is None:
+                finished += 1
+                continue
+            running[job.id] = (job, index, process)
 
         if not running and not queued:
             break

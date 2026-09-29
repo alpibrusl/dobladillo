@@ -17,8 +17,10 @@ file is the short form, not a replacement.
    clear note of what the human must provide. Folding and imaging happen in a
    partner lab and nothing here substitutes for them. Simulation is no longer
    a gate: oxDNA's CPU backend is single-threaded, so `sim sweep` and `sim
-   run` execute bundles several at a time on whatever machine you are on. A
-   CUDA build is faster, not required.
+   run` execute bundles several at a time on whatever machine you are on. On
+   Apple Silicon, bundles default to the Metal backend (~100x the CPU) when
+   `$OXDNA_METAL` points at the pinned fork's binary (`sim.jobs.METAL_FORK`);
+   otherwise CPU. CUDA is used only when asked for.
 5. **Record units and conditions** (salt, temperature, model version) in the
    metadata of every result file. A prediction made at one proxy salt is not
    comparable to one made at another.

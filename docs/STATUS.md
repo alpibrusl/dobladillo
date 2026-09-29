@@ -200,6 +200,11 @@ oxDNA was built here from v3.7.0, CPU only (this is an Apple M4 Max: no CUDA,
 and oxDNA's GPU backend is CUDA; a Metal backend exists only as an unmerged
 pull request, on hardware with no fp64 at all).
 
+*Update 2026-09-29:* that Metal pull request is now built from a pinned fork
+and validated against the CPU (`sim.jobs.METAL_VALIDATION`; evidence in
+`dobladillo-runs/metal-validation/FINDINGS.md`). It is the default backend on
+Apple Silicon when `$OXDNA_METAL` is set.
+
 A test-mode bundle for the six-helix bundle runs stages 1, 2 and 3 to
 completion and chains correctly through their configurations. Stage 4 stops
 with:

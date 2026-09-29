@@ -948,9 +948,10 @@ app.add_typer(sim_app, name="sim")
 def sim_bundle(
     part: str = PART_ARGUMENT,
     out_dir: Path = typer.Option(..., "--out", help="Directory to write the bundle into."),
-    backend: str = typer.Option(
-        "CUDA",
-        help="oxDNA backend for the real run: CPU, CUDA or Metal (Apple GPU; see sim.jobs).",
+    backend: str | None = typer.Option(
+        None,
+        help="oxDNA backend for the real run: CPU, CUDA or Metal. Default: Metal on "
+        "Apple Silicon when $OXDNA_METAL points at its binary, otherwise CPU.",
     ),
     test_mode: bool = typer.Option(
         False, "--test", help="Short stages, CPU, to prove the bundle runs end to end."
@@ -987,7 +988,7 @@ def sim_bundle(
         ("nucleotides", f"{job.nucleotides:,}"),
         ("trapped pairs", f"{job.trapped_pairs:,}"),
         ("stages", " -> ".join(meta["protocol"]["stages"])),
-        ("backend", "CPU (test mode)" if test_mode else backend),
+        ("backend", "CPU (test mode)" if test_mode else meta["backend"]["name"]),
         ("salt proxy", f"{meta['model']['salt_concentration_m']} M Na+"),
         ("status", meta["status"]),
     ]
@@ -1313,7 +1314,6 @@ def sim_sweep(
                 directory=out_dir / name,
                 name=name,
                 part="hinge",
-                backend="CPU",
                 steps_override={"steps_production": steps, "steps_relax": relax},
             )
         except ValueError as e:

@@ -231,12 +231,18 @@ def test_test_mode_forces_cpu(bundle) -> None:
         assert "backend = CPU" in (bundle.directory / f"input_{stage}").read_text()
 
 
-def test_a_real_bundle_targets_the_gpu_and_says_what_is_owed(tmp_path) -> None:
+def test_a_real_bundle_targets_its_backend_and_says_what_is_owed(tmp_path) -> None:
+    from dobladillo.sim.jobs import default_backend
+
     real = write_job_bundle(
-        six_helix_bundle().design, directory=tmp_path, name="b", part="bundle", test_mode=False
+        six_helix_bundle().design, directory=tmp_path / "d", name="b", part="bundle"
     )
-    assert "backend = CUDA" in (tmp_path / "input_04_production").read_text()
+    assert f"backend = {default_backend()}" in (tmp_path / "d" / "input_04_production").read_text()
     assert "not executed" in real.metadata["owed_by_human"]
+    write_job_bundle(
+        six_helix_bundle().design, directory=tmp_path / "c", name="b", part="bundle", backend="CUDA"
+    )
+    assert "backend = CUDA" in (tmp_path / "c" / "input_04_production").read_text()
 
 
 def test_run_script_refuses_without_oxdna(tmp_path) -> None:
@@ -304,19 +310,20 @@ def test_a_metal_bundle_moves_md_to_the_gpu_and_says_what_it_changed(tmp_path) -
         assert "backend_precision = mixed" in inputs[stage]
         assert "thermostat = john" in inputs[stage]
         assert "bussi" not in inputs[stage]
-    # relaxation holds the temperature; only production gets the light damping
-    for stage in ("input_02_md_trapped", "input_03_md_released"):
-        assert "pt = 0.1" in inputs[stage] and "newtonian_steps = 10" in inputs[stage]
-        assert "diff_coeff" not in inputs[stage]
-    assert "diff_coeff = 25" in inputs["input_04_production"]
-    assert "pt =" not in inputs["input_04_production"]
+    # trap engagement holds the temperature; release and production let the shape move
+    assert "pt = 0.1" in inputs["input_02_md_trapped"]
+    assert "newtonian_steps = 10" in inputs["input_02_md_trapped"]
+    assert "diff_coeff" not in inputs["input_02_md_trapped"]
+    for stage in ("input_03_md_released", "input_04_production"):
+        assert "diff_coeff = 25" in inputs[stage]
+        assert "pt =" not in inputs[stage]
     backend = json.loads((tmp_path / "b" / "metadata.json").read_text())["backend"]
     assert backend["name"] == "Metal" and backend["commit"] == METAL_COMMIT
     assert "john" in backend["thermostat_note"]
     assert job.metadata["backend"]["name"] == "Metal"
 
 
-def test_a_metal_run_is_not_a_result_until_metal_is_validated(tmp_path) -> None:
+def test_a_metal_run_is_not_a_result_until_metal_is_validated(tmp_path, monkeypatch) -> None:
     from dobladillo.analysis.runs import check_run
     from dobladillo.parts.bundle import six_helix_bundle
     from dobladillo.sim import jobs
@@ -328,11 +335,44 @@ def test_a_metal_run_is_not_a_result_until_metal_is_validated(tmp_path) -> None:
         part="bundle",
         backend="Metal",
     )
-    problems = check_run(tmp_path / "b").problems
-    if jobs.METAL_VALIDATION is None:
-        assert any("Metal backend" in p for p in problems)
-    else:
-        assert not any("Metal backend" in p for p in problems)
+    assert jobs.METAL_VALIDATION, "Metal is the default; its evidence must be recorded"
+    assert not any("Metal backend" in p for p in check_run(tmp_path / "b").problems)
+    monkeypatch.setattr(jobs, "METAL_VALIDATION", None)
+    assert any("Metal backend" in p for p in check_run(tmp_path / "b").problems)
+
+
+def test_metal_is_the_default_only_where_it_can_run(tmp_path, monkeypatch) -> None:
+    from dobladillo.sim import jobs
+
+    binary = tmp_path / "oxDNA-metal"
+    binary.write_text("#!/bin/sh\n")
+    binary.chmod(0o755)
+    monkeypatch.setattr(jobs.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(jobs.platform, "machine", lambda: "arm64")
+    monkeypatch.setenv(jobs.METAL_BINARY_ENV, str(binary))
+    assert jobs.default_backend() == "Metal"
+    monkeypatch.delenv(jobs.METAL_BINARY_ENV)
+    assert jobs.default_backend() == "CPU"  # Apple Silicon, but nothing to run it
+    monkeypatch.setenv(jobs.METAL_BINARY_ENV, str(binary))
+    monkeypatch.setattr(jobs.platform, "machine", lambda: "x86_64")
+    assert jobs.default_backend() == "CPU"  # never CUDA implicitly
+
+
+def test_the_runner_sends_each_stage_to_its_backend(tmp_path, monkeypatch) -> None:
+    """A Metal bundle runs MC on the CPU binary and MD on the Metal one; with no
+    Metal binary configured the stage cannot start, rather than running the
+    GPU input on the CPU build."""
+    from dobladillo.parts.bundle import six_helix_bundle
+    from dobladillo.sim import jobs
+    from dobladillo.sim.queue import stage_binary
+
+    design = six_helix_bundle().design
+    write_job_bundle(design, directory=tmp_path / "b", name="b", part="bundle", backend="Metal")
+    monkeypatch.setenv(jobs.METAL_BINARY_ENV, "/bin/sh")
+    assert stage_binary(tmp_path / "b", "01_mc", oxdna="oxDNA") == "oxDNA"
+    assert stage_binary(tmp_path / "b", "02_md_trapped", oxdna="oxDNA") == "/bin/sh"
+    monkeypatch.delenv(jobs.METAL_BINARY_ENV)
+    assert stage_binary(tmp_path / "b", "02_md_trapped", oxdna="oxDNA") is None
 
 
 def test_a_strained_design_gets_the_smaller_production_timestep(tmp_path) -> None:
