@@ -31,6 +31,31 @@ file is the short form, not a replacement.
 8. **If a domain rule conflicts with a published reference design, flag it**
    rather than silently relaxing the rule.
 
+## Using the tool, and keeping its agent interfaces in step
+
+How to use the tool as an agent (the JSON CLI, the skill, the MCP server) is
+in the README, *For agents*. When you change the tool:
+
+- **Every command takes `--json`** and prints exactly one JSON object on
+  stdout. A failure is `{"error": {"kind": ..., "message": ...}}` with a
+  non-zero exit. A new command follows the same contract (`Emitter` in
+  `cli.py`). Never let a traceback or a banner reach stdout.
+- **Regenerate `SKILL.md`** after any change to the command surface:
+  `uv run dobladillo skill > SKILL.md`. A test fails when the committed copy
+  is stale.
+- **Expose an analysis command over MCP** when an agent would call it: add a
+  tool to `dobladillo/mcp_server.py` that runs the CLI command with `--json`
+  and returns its payload. Never reimplement the command's logic there. Take
+  folders and files as names relative to the server's root, through its
+  `folder`/`scan_file` helpers, which refuse anything outside it.
+- **Never expose a human gate.** No tool may order oligos, create an
+  experiment, write a gate, or write under `during/raw/`.
+  `FORBIDDEN_COMMANDS` lists them, and `tests/test_mcp_server.py` checks that
+  no tool wraps one.
+- **To check a change as CI does**, install the same extras
+  (`uv sync --extra dev --extra design --extra imaging --extra mcp`) and run
+  the suite with `GITHUB_ACTIONS=true`: the CLI's output changes under it.
+
 ## Two standing prohibitions
 
 - **Do not contact anyone, and do not draft outreach.** The design document's
