@@ -169,17 +169,31 @@ METAL_SETTINGS: Final = {
 #: settling. Hence 25; and for frustrated designs, run several seeds.
 METAL_THERMOSTAT: Final = {"thermostat": "john", "diff_coeff": 25}
 
+#: ...but not while relaxing. When the traps first pull the rough MC
+#: structure together it sheds ~1 unit of potential energy per nucleotide.
+#: `bussi` removes that at once. `john` at diff_coeff 25 let the deletion-bent
+#: 6HB run at twice its temperature (kinetic 0.68 against 0.29) and melt a
+#: third of its pairs, a structure whose energy still looked physical
+#: (FINDINGS.md, 2026-09-29). Of three couplings tried from the same MC
+#: output, refreshing velocities every 10 steps with probability 0.1 held
+#: the temperature flat and relaxed best (24 pairs broken at the end of
+#: stage 2, ~150 after release). Refreshing every step over-damped it and
+#: slowed the traps (115, ~520). So stages 2 and 3 use this; production,
+#: which needs mobility, keeps METAL_THERMOSTAT.
+METAL_RELAX_THERMOSTAT: Final = {"thermostat": "john", "newtonian_steps": 10, "pt": 0.1}
+
 #: Evidence that Metal runs reproduce CPU runs, or None. `analysis.runs.check_run`
 #: refuses a Metal run while this is None: a 143,000-line unreviewed fork does
 #: not get to produce results on its word.
 METAL_VALIDATION: Final[str | None] = None
 
 
-def _on_metal(settings: dict[str, Any]) -> dict[str, Any]:
+def _on_metal(settings: dict[str, Any], *, relaxing: bool) -> dict[str, Any]:
     """An MD stage's settings, moved to the Metal backend."""
-    out = {k: v for k, v in settings.items() if k not in ("thermostat", "bussi_tau")}
+    drop = ("thermostat", "bussi_tau", "diff_coeff", "pt")
+    out = {k: v for k, v in settings.items() if k not in drop}
     out.update(METAL_SETTINGS)
-    out.update(METAL_THERMOSTAT)
+    out.update(METAL_RELAX_THERMOSTAT if relaxing else METAL_THERMOSTAT)
     return out
 
 
@@ -369,7 +383,13 @@ def stages(
     ]
     if backend == "Metal":
         chain = [
-            Stage(st.name, _on_metal(st.options) if st.name != "01_mc" else st.options, st.comment)
+            Stage(
+                st.name,
+                st.options
+                if st.name == "01_mc"
+                else _on_metal(st.options, relaxing=st.name != "04_production"),
+                st.comment,
+            )
             for st in chain
         ]
     return chain
@@ -519,6 +539,7 @@ def write_job_bundle(
                     "commit": METAL_COMMIT,
                     "settings": METAL_SETTINGS,
                     "thermostat": METAL_THERMOSTAT,
+                    "relax_thermostat": METAL_RELAX_THERMOSTAT,
                     "thermostat_note": "bussi is not implemented on Metal; john replaces it "
                     "in the MD stages. It changes the dynamics, not the equilibrium.",
                     "validation": METAL_VALIDATION,

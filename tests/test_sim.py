@@ -304,6 +304,12 @@ def test_a_metal_bundle_moves_md_to_the_gpu_and_says_what_it_changed(tmp_path) -
         assert "backend_precision = mixed" in inputs[stage]
         assert "thermostat = john" in inputs[stage]
         assert "bussi" not in inputs[stage]
+    # relaxation holds the temperature; only production gets the light damping
+    for stage in ("input_02_md_trapped", "input_03_md_released"):
+        assert "pt = 0.1" in inputs[stage] and "newtonian_steps = 10" in inputs[stage]
+        assert "diff_coeff" not in inputs[stage]
+    assert "diff_coeff = 25" in inputs["input_04_production"]
+    assert "pt =" not in inputs["input_04_production"]
     backend = json.loads((tmp_path / "b" / "metadata.json").read_text())["backend"]
     assert backend["name"] == "Metal" and backend["commit"] == METAL_COMMIT
     assert "john" in backend["thermostat_note"]
