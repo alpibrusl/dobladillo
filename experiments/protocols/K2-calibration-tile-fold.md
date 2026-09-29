@@ -18,8 +18,8 @@ step for step. Materials: [`MATERIALS.md`](../../projects/afm-calibration-kit/MA
 ## What you are testing, and why it matters
 
 The tile is E1's rectangle with hairpins on the staples of a few **isolated
-cells**, arranged in a sparse, chiral pattern (the part `calibration-tile`,
-being implemented; PROJECT.md describes it). E8 asked whether hairpin marks
+cells**, arranged in a sparse, chiral pattern (the part `calibration-tile`;
+PROJECT.md describes it). E8 asked whether hairpin marks
 can draw a picture. K2 asks what a calibration reference needs on top of that:
 
 1. **Does it fold as well as E1's rectangle?** Same scaffold, same routing,
@@ -99,7 +99,7 @@ nothing to stand on.
 uv run dobladillo experiment new <YYYY-MM-DD>-k2-calibration-tile --part calibration-tile --root experiments
 ```
 
-**`--part calibration-tile` is being implemented.** When it lands, it is
+**`--part calibration-tile` exists (2026-09-29):** it is
 expected to write, like E8's `--part pattern`:
 
 - `pre/order/calibration-tile_plates.xlsx` and `_bulk.csv`: only the marked
@@ -301,7 +301,7 @@ height** with where it came from (as E8, step 11):
 uv run dobladillo experiment check experiments/<folder>
 uv run dobladillo experiment report experiments/<folder> --scan experiments/<folder>/during/raw/pattern-01.<ext> --scan ...
 uv run dobladillo experiment pattern experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>    # (being implemented)
+uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
 ```
 
 - `experiment report` **with `--scan` for the tile files only.** Without it,
@@ -312,7 +312,7 @@ uv run dobladillo calibrate lateral experiments/<folder>    # (being implemented
   cells from `pre/prediction.json`, **if the tile part records them as E8's
   does**. Confirm this when the part lands. If it does not, skip this line
   and say so in the log.
-- `calibrate lateral` (being implemented): the mark detection rate per
+- `calibrate lateral`: the mark detection rate per
   designed cell, the false-mark rate, the mark height above the sheet, and a
   first scale. **The scale is not K2's result.** One instrument, no grating:
   that is K3.

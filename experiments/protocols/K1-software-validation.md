@@ -3,7 +3,7 @@
 **Project:** [open AFM calibration kit](../../projects/afm-calibration-kit/PROJECT.md), phase 0
 **Folder:** create it (step 0): `experiments/<YYYY-MM-DD>-k1-software-validation/`
 **Run after:** nothing at the bench. It needs `dobladillo calibrate` and the
-`calibration-tile` part, both **being implemented**
+`calibration-tile` part, both in place since 2026-09-29
 **Time:** about 1 day once the commands exist, most of it waiting for runs
 **Cost:** none. No oligos, no instrument time
 **Read first:** `experiments/AGENTS.md`, the E8 dry run (end of
@@ -75,7 +75,8 @@ scanner bow, drift shear and a streak. K1 also needs:
 - the **calibration tile**'s pattern, at random orientations and landing
   face-up or face-down.
 
-These are part of the calibration work being implemented. If any is missing
+Not all of these exist yet (the calibrate commands take scan files; there
+is no folder-level `calibrate report`). If any is missing
 when K1 runs, the dependent row of the grid below cannot run. Say so in
 `post/`. Do not substitute a different test.
 
@@ -115,7 +116,7 @@ skew × tip, at 100 seeds each.
 uv run dobladillo experiment new <YYYY-MM-DD>-k1-software-validation --part calibration-tile --root experiments
 ```
 
-**`--part calibration-tile` is being implemented.** Until it lands this
+**`--part calibration-tile` exists (2026-09-29).** Before it did, this
 command refuses with `unknown_part`, which is correct. The folder gets an
 order file. **Do not order it.** K1 is software.
 
@@ -143,10 +144,10 @@ With the commands as they land. The arguments here are the shape this
 protocol assumes. The commands' own `--help` wins.
 
 ```bash
-uv run dobladillo calibrate lateral <scan> --json        # (being implemented)
-uv run dobladillo calibrate tip <scan> --json            # (being implemented)
-uv run dobladillo calibrate drift <scan-series> --json   # (being implemented)
-uv run dobladillo calibrate report experiments/<folder>  # (being implemented)
+uv run dobladillo calibrate lateral <scans...> --json
+uv run dobladillo calibrate tip <scan> --json
+uv run dobladillo calibrate drift <frames...> --interval-s <s> --json
+uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
 
 **Synthetic scans are regenerated from their seeds. They are not committed,
@@ -200,7 +201,7 @@ checked and recorded first.
   generator version; every seed; the public dataset's DOI, licence, date
   checked, file names and hashes; anything that crashed.
 - `during/gwyddion_tip.csv`: the independent check.
-- `post/`: written by `calibrate report` (being implemented). Accuracy and
+- `post/`: the `--json` output of each `calibrate` command (`lateral.json`, `tip.json`, `drift.json`); a folder-level `calibrate report` is not built yet. Accuracy and
   coverage per quantity and condition, every refusal with its kind, and the
   Gwyddion comparison. Nothing in `post/` is edited by hand.
 

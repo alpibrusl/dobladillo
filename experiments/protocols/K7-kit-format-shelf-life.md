@@ -102,7 +102,7 @@ batch is folded:
 uv run dobladillo experiment new <YYYY-MM-DD>-k7-shelf-life --part calibration-tile --root experiments
 ```
 
-(`--part calibration-tile` is being implemented.) Write the gate, the time
+Write the gate, the time
 points as calendar dates, and the batch name in `pre/plan.md`. Commit `pre/`
 **before** folding.
 
@@ -162,14 +162,14 @@ After each time point:
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>   # (being implemented)
+uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
 uv run dobladillo experiment report experiments/<folder> --scan experiments/<folder>/during/raw/<tp>/<format>/pattern-01.<ext> --scan ...
 ```
 
 After 12 months, or whenever a format fails:
 
 ```bash
-uv run dobladillo calibrate report experiments/<folder>    # (being implemented)
+uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
 
 It reports, per format, the four quantities against time relative to t0,

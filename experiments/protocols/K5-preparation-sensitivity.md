@@ -118,7 +118,7 @@ first fold:
 uv run dobladillo experiment new <YYYY-MM-DD>-k5-preparation --part calibration-tile --root experiments
 ```
 
-(`--part calibration-tile` is being implemented.) Do not order: K5 uses K2's
+Do not order: K5 uses K2's
 pool. Write the levels, the gate and who holds the key in `pre/plan.md`, and
 commit `pre/`.
 
@@ -212,7 +212,7 @@ Blind, per code:
 ```bash
 uv run dobladillo afm read experiments/<folder>/during/raw/K-01/pattern-01.<ext>
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>    # (being implemented)
+uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
 uv run dobladillo experiment report experiments/<folder> --scan experiments/<folder>/during/raw/K-01/pattern-01.<ext> --scan ...
 ```
 
@@ -223,7 +223,7 @@ measured tip in `instrument.json`, as in K2.
 After unblinding:
 
 ```bash
-uv run dobladillo calibrate report experiments/<folder>     # (being implemented)
+uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
 
 It reads `conditions.csv` and reports the spread at C (between depositions,

@@ -148,3 +148,39 @@ def test_compare_arms_refuses_through_mcp_without_the_record(tmp_path: Path) -> 
     result = _call(server, "experiment_compare_arms", name="e1")
     assert result.is_error
     assert _payload(result)["error"]["kind"].startswith("no_")
+
+
+def test_lateral_calibration_runs_through_the_tool(tmp_path: Path) -> None:
+    from dobladillo.imaging.readers import write_gsf
+    from dobladillo.imaging.synthetic_calibration import calibration_scan
+    from dobladillo.parts.calibration_tile import calibration_tile
+
+    tile = calibration_tile()
+    names = []
+    for k in range(2):
+        scan = calibration_scan(
+            tile.marks_nm,
+            sheet_nm=tile.sheet_nm,
+            n_tiles=20,
+            seed=90 + k,
+            scale_x=1.04,
+            scale_y=0.98,
+            skew_deg=1.0,
+            anisotropy=1.05,
+        )
+        write_gsf(scan.image, tmp_path / f"tile-{k}.gsf")
+        names.append(f"tile-{k}.gsf")
+    server = mcp_server.create_server(tmp_path)
+    result = _call(server, "calibrate_lateral", scans=names)
+    assert not result.is_error, result
+    scanner = _payload(result)["scanner"]
+    assert abs(scanner["scale_x"]["value"] - 1.04) <= scanner["scale_x"]["U_k2"]
+
+
+def test_calibration_tools_refuse_files_outside_the_root(tmp_path: Path) -> None:
+    (tmp_path / "root").mkdir()
+    (tmp_path / "outside.gsf").write_text("not a scan")
+    server = mcp_server.create_server(tmp_path / "root")
+    result = _call(server, "calibrate_tip", scan="../outside.gsf")
+    assert result.is_error
+    assert _payload(result)["error"]["kind"] == "outside_root"

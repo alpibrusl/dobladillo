@@ -94,7 +94,7 @@ session:
 uv run dobladillo experiment new <YYYY-MM-DD>-k4-tip --part calibration-tile --root experiments
 ```
 
-(`--part calibration-tile` is being implemented.) Do not order: K4 uses K2's
+Do not order: K4 uses K2's
 aliquots and E10's bundle.
 
 **Choose the medium** before committing `pre/`. The staircase is used under
@@ -190,11 +190,11 @@ A contamination event splits the session: say which blocks are before it.
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate tip experiments/<folder>      # (being implemented)
-uv run dobladillo calibrate report experiments/<folder>   # (being implemented)
+uv run dobladillo calibrate tip experiments/<folder>/during/raw/<scan> --out experiments/<folder>/post/tip.json
+uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
 
-What K4 needs from `calibrate tip` (being implemented), per block: the
+What K4 needs from `calibrate tip`, per block: the
 reconstructed tip, its apex radius with uncertainty, and **the depth to which
 it is determined**. From `calibrate report`: apex radius against cumulative
 lines scanned; tile and bundle against the bracketing staircase blocks,

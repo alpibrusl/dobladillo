@@ -50,7 +50,7 @@ Three parts are involved. Two of them already exist as orders:
 | part | what | order with | oligos | estimate |
 |---|---|---|---:|---:|
 | `rectangle` | E1's plates. **Reuse E1's if your lab has them.** Every tile staple that is not marked is one of these. | `uv run dobladillo lab order rectangle --out <dir>` | 220 on 3 plates | €693 |
-| `calibration-tile` | only the **marked** staples: E1's staple plus the hairpin | `uv run dobladillo lab order calibration-tile --out <dir>` **(being implemented)** | about 4 per marked cell | about €21.5 per marked cell |
+| `calibration-tile` | only the **marked** staples: E1's staple plus the hairpin | `uv run dobladillo lab order calibration-tile --out <dir>` (48 marker staples, 2,561 bases; the other 172 are E1's) | about 4 per marked cell | about €21.5 per marked cell |
 | `bundle` | E10's plates. **Reuse E10's if your lab has them.** | `uv run dobladillo lab order bundle --out <dir>` | 168 on 2 plates | €706 |
 
 The estimates are what `lab order` prints. Its assumptions are 0.10 per base,
@@ -61,7 +61,7 @@ per-cell figure is derived from E8's order: 28 oligos, 1,502 nt, €150.20 for
 the part exists.
 
 **In practice, order from the experiment folder, not by hand.** `experiment
-new <slug> --part calibration-tile` (being implemented, like the part) is
+new <slug> --part calibration-tile` is
 expected to write the order into `pre/order/` as `--part pattern` does for E8.
 Then the order is recorded next to the prediction it belongs to.
 

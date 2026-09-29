@@ -61,7 +61,7 @@ Create the folder, then write the measurand, the route and the gate, and commit:
 uv run dobladillo experiment new <YYYY-MM-DD>-k8-certification --part calibration-tile --root experiments
 ```
 
-(`--part calibration-tile` is being implemented.)
+
 
 ## 2. The route: two options, for the maintainer
 
@@ -156,8 +156,8 @@ partner measurement or the homogeneity days:
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>   # (being implemented)
-uv run dobladillo calibrate report experiments/<folder>    # (being implemented)
+uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
+uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
 
 `calibrate report` is expected to take the partner's budget, K5's and K7's

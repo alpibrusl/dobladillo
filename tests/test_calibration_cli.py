@@ -66,3 +66,69 @@ def test_lateral_refuses_particles_that_all_land_alike(tmp_path: Path) -> None:
     result = runner.invoke(app, ["calibrate", "lateral", *scans, "--json"])
     assert result.exit_code != 0
     assert json.loads(result.stdout)["error"]["kind"] == "calibration_refused"
+
+
+def _spike_scan(tmp_path: Path, radius_nm: float, *, featureless: bool = False) -> str:
+    """Sharp spikes imaged by a known paraboloid tip, with a little noise."""
+    import numpy as np
+
+    from dobladillo.calibration.tip import dilate, paraboloid_tip
+    from dobladillo.imaging.heightmap import HeightMap
+
+    rng = np.random.default_rng(3)
+    surface = np.zeros((256, 256))  # mostly substrate, as a real scan is
+    if not featureless:
+        for _ in range(8):
+            i, j = rng.integers(20, 236, 2)
+            surface[i, j] = rng.uniform(25, 40)
+    image = dilate(surface, paraboloid_tip(radius_nm, 1.0, 31))
+    image = image + rng.normal(0, 0.05, image.shape)
+    return str(write_gsf(HeightMap(image, 1.0, "synthetic"), tmp_path / "spikes.gsf"))
+
+
+def test_tip_reports_an_upper_bound_radius_and_a_resolution(tmp_path: Path) -> None:
+    payload = _run("calibrate", "tip", _spike_scan(tmp_path, 10.0))
+    assert payload["tip"]["informative"] is True
+    radius = payload["apex_radius"]
+    assert radius["determined"]
+    # an outer bound: at least the true radius (within its uncertainty), not wildly above
+    assert 10.0 - 2 * radius["uncertainty_nm"] <= radius["radius_nm"] <= 16.0
+    assert payload["resolution"]["resolvable"]
+
+
+def test_tip_says_when_the_scan_cannot_constrain_it(tmp_path: Path) -> None:
+    payload = _run("calibrate", "tip", _spike_scan(tmp_path, 10.0, featureless=True))
+    assert payload["tip"]["informative"] is False
+    assert not payload["apex_radius"]["determined"]
+
+
+def test_drift_recovers_a_known_velocity_from_frame_files(tmp_path: Path) -> None:
+    import numpy as np
+
+    from dobladillo.imaging.heightmap import HeightMap
+
+    rng = np.random.default_rng(1)
+    size, pixel, count = 128, 2.0, 80
+    cx, cy = rng.uniform(-50, 300, count), rng.uniform(-50, 300, count)
+    width, height = rng.uniform(5, 20, count), rng.uniform(1, 3, count)
+    y, x = np.mgrid[0:size, 0:size] * pixel
+    files = []
+    for k in range(8):
+        dx, dy = 0.3 * 10 * k, -0.2 * 10 * k  # 0.3 and -0.2 nm/s, frames 10 s apart
+        frame = sum(
+            height[i]
+            * np.exp(-((x - dx - cx[i]) ** 2 + (y - dy - cy[i]) ** 2) / (2 * width[i] ** 2))
+            for i in range(count)
+        )
+        frame = frame + np.random.default_rng(k).normal(0, 0.05, frame.shape)
+        files.append(str(write_gsf(HeightMap(frame, pixel, "synthetic"), tmp_path / f"f{k}.gsf")))
+    payload = _run("calibrate", "drift", *files, "--interval-s", "10")
+    v = payload["velocity_nm_s"]
+    assert abs(v["x"] - 0.3) <= max(3 * v["x_uncertainty"], 0.005)
+    assert abs(v["y"] + 0.2) <= max(3 * v["y_uncertainty"], 0.005)
+
+
+def test_drift_needs_exactly_one_way_of_giving_times(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["calibrate", "drift", "a.gsf", "b.gsf", "--json"])
+    assert result.exit_code != 0
+    assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters"

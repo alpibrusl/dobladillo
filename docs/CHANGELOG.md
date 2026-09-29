@@ -162,6 +162,22 @@
   lateral calibration against a traceable grating, tip reconstruction against
   the GATTA-AFM 3D staircase, preparation sensitivity, HS-AFM scale, drift and
   marker survival, kit format and shelf life, certification). Every gate is left
-  empty, with a proposal. `calibration-tile` and `dobladillo calibrate` are
-  named as being implemented. Indexed in `experiments/protocols/README.md` and
+  empty, with a proposal. Indexed in `experiments/protocols/README.md` and
   `experiments/ROADMAP.md`; not yet in `programme.py`.
+- `dobladillo/calibration/` and `dobladillo calibrate`: AFM calibration from
+  reference particles, each value with an uncertainty and a list of what that
+  uncertainty leaves out. `calibrate reference` writes the calibration tile's
+  nominal geometry; `calibrate lateral` fits the scanner's x/y scale and skew
+  together with the tile's own anisotropy from mark centroids (tip-insensitive:
+  5 vs 15 nm tips moved centroids 0.11 nm rms), refusing when landing angles
+  cannot separate the two; `calibrate tip` is Villarrubia's blind tip
+  reconstruction implemented from the 1997 paper (an outer bound; flags a scan
+  that cannot constrain the tip), with apex radius and the lateral resolution
+  it allows; `calibrate drift` measures drift between frames by sub-pixel
+  cross-correlation. Validated on synthetic scans with known truth, including
+  interval coverage (bootstrap reads ~15% low, stated). MCP tools
+  `calibrate_reference|lateral|tip|drift`, bounded to the experiments root.
+  Not built: a folder-level `calibrate report`; HS-AFM movie formats; grating
+  pitch analysis (use Gwyddion).
+- Part `calibration-tile`: E1's rectangle with 12 isolated, chiral hairpin
+  cells (48 marker staples), the ruler for `calibrate lateral`.

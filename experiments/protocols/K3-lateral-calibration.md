@@ -116,7 +116,7 @@ session:
 uv run dobladillo experiment new <YYYY-MM-DD>-k3-lateral --part calibration-tile --root experiments
 ```
 
-(`--part calibration-tile` is being implemented.) **Do not order**: K3 uses
+**Do not order**: K3 uses
 K2's aliquots. For the bundle arm, if E10 passed:
 
 ```bash
@@ -224,12 +224,12 @@ jumped or streaked.
 ```bash
 uv run dobladillo afm read experiments/<folder>/during/raw/liquid/pattern-01.<ext>
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>   # (being implemented)
-uv run dobladillo calibrate drift experiments/<folder>     # (being implemented)
-uv run dobladillo calibrate report experiments/<folder>    # (being implemented)
+uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
+uv run dobladillo calibrate drift experiments/<folder>/during/raw/frame-*.gsf --interval-s <s> --json > experiments/<folder>/post/drift.json
+uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
 
-From `calibrate` (being implemented), per medium and scan size: scale X,
+From `calibrate` (the grating's own scale by FFT pitch, ISO 11952, is not in `calibrate`: use Gwyddion for that arm), per medium and scan size: scale X,
 scale Y, skew, each with its uncertainty, from the tile and from the grating
 (declared with its certificate pitch); the tile/grating ratio at the overlap
 size; grating large/overlap; mark detection rate and false-mark rate; the

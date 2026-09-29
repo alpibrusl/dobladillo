@@ -45,7 +45,14 @@ from mcp.server.mcpserver import MCPServer
 from mcp_types import CallToolResult, TextContent
 
 #: Parts the tools accept by name.
-PARTS: tuple[str, ...] = ("rectangle", "bundle", "hinge", "twist-corrected", "twist-uncorrected")
+PARTS: tuple[str, ...] = (
+    "rectangle",
+    "bundle",
+    "hinge",
+    "twist-corrected",
+    "twist-uncorrected",
+    "calibration-tile",
+)
 
 #: Commands an agent must never reach through this server, and why. The test
 #: asserts no tool wraps any of them.
@@ -111,6 +118,23 @@ def create_server(experiments_root: Path) -> MCPServer:
         if not candidate.is_dir():
             return {"error": {"kind": "missing_folder", "message": f"no experiment {name!r}"}}
         return candidate
+
+    def scan_file(name: str) -> Path | dict[str, Any]:
+        candidate = (root / name).resolve()
+        if root not in candidate.parents:
+            return {"error": {"kind": "outside_root", "message": f"{name!r} is not under {root}"}}
+        if not candidate.is_file():
+            return {"error": {"kind": "missing_file", "message": f"no file {name!r}"}}
+        return candidate
+
+    def with_files(names: list[str], *command: str, after: tuple[str, ...] = ()) -> CallToolResult:
+        paths = []
+        for name in names:
+            found = scan_file(name)
+            if isinstance(found, dict):
+                return _answer(2, found)
+            paths.append(str(found))
+        return _answer(*_run(*command, *paths, *after))
 
     def with_folder(name: str, *command: str) -> CallToolResult:
         found = folder(name)
@@ -198,6 +222,39 @@ def create_server(experiments_root: Path) -> MCPServer:
         which: the key stays with the person who holds it.
         """
         return with_folder(name, "experiment", "compare-arms")
+
+    @server.tool()
+    def calibrate_reference() -> CallToolResult:
+        """The calibration tile's reference geometry: mark positions in nm with their
+        relative uncertainty. Nominal (design-derived), so not traceable."""
+        return _answer(*_run("calibrate", "reference"))
+
+    @server.tool()
+    def calibrate_lateral(scans: list[str], reference: str = "calibration-tile") -> CallToolResult:
+        """Scanner x/y scale and skew, with k=2 intervals, from scans of reference
+        particles at random angles. scans: paths under the experiments root, same scan
+        size and settings. reference: 'calibration-tile' or a reference JSON under the
+        root. Refuses (error.kind calibration_refused) when the particles cannot separate
+        scanner from sample."""
+        if reference != "calibration-tile":
+            found = scan_file(reference)
+            if isinstance(found, dict):
+                return _answer(2, found)
+            reference = str(found)
+        return with_files(scans, "calibrate", "lateral", after=("--reference", reference))
+
+    @server.tool()
+    def calibrate_tip(scan: str, size_px: int = 31) -> CallToolResult:
+        """Blind tip reconstruction (an outer bound), its apex radius and the lateral
+        resolution it allows. Says informative: false when the scan has no features
+        sharp enough to constrain the tip."""
+        return with_files([scan], "calibrate", "tip", after=("--size-px", str(size_px)))
+
+    @server.tool()
+    def calibrate_drift(frames: list[str], interval_s: float) -> CallToolResult:
+        """Drift between frames of the same field: per-frame displacement and a velocity
+        with its standard error. frames: paths under the root, in time order."""
+        return with_files(frames, "calibrate", "drift", after=("--interval-s", str(interval_s)))
 
     @server.tool()
     def experiment_pattern(name: str) -> CallToolResult:

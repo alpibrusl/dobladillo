@@ -1789,6 +1789,159 @@ def calibrate_lateral_command(
     emitter.result(payload, f"lateral calibration against {reference.name}\n" + _table(rows))
 
 
+@calibrate_app.command("tip")
+def calibrate_tip(
+    scan: Path = typer.Argument(..., help="A scan with sharp features taller than the tip's apex."),
+    size_px: int = typer.Option(31, "--size-px", help="Tip array size, odd, in pixels."),
+    threshold_sigma: float | None = typer.Option(
+        None,
+        "--threshold-sigma",
+        help="Noise tolerance in units of the image's pixel noise (default 5: below that, "
+        "noise made the estimate sharper than the true tip in the tests).",
+    ),
+    feature_height_nm: float = typer.Option(
+        2.0, "--feature-height", help="Height of the features the resolution is asked for, nm."
+    ),
+    out: Path | None = typer.Option(None, "--out", help="Write the full tip (heights) as JSON."),
+    channel: str | None = typer.Option(None, "--channel", help="Height channel, if not default."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """The tip, reconstructed blind from the scan, its apex radius, and the resolution it allows.
+
+    Villarrubia's blind reconstruction (J. Res. NIST 102, 425, 1997),
+    implemented from the paper. The estimate is an OUTER bound: never sharper
+    than the true tip, so widths corrected with it are corrected by at most
+    the right amount. A scan without sharp features -- including a staircase
+    of flat blocks -- cannot constrain the tip, and the result says so
+    (`informative: false`) instead of quoting a radius.
+
+    The noise threshold comes from the scan's own pixel noise, estimated from
+    neighbour differences. That assumes most of the scan is substrate: a
+    field crowded wall to wall with tall features overestimates the noise and
+    returns an uninformative tip. Scan a sparser field.
+    """
+    from dobladillo.calibration.resolution import lateral_resolution, pixel_noise
+    from dobladillo.calibration.tip import THRESHOLD_SIGMA, blind_tip
+    from dobladillo.imaging.flatten import flatten
+    from dobladillo.imaging.readers import UnreadableScan, read
+
+    emitter = Emitter(as_json)
+    try:
+        image = read(scan, channel=channel)
+    except (UnreadableScan, OSError) as e:
+        emitter.fail(f"{scan}: {e}", kind="unreadable_scan")
+        return
+    levelled, _ = flatten(image)
+    noise = pixel_noise(levelled.heights_nm)
+    sigma = THRESHOLD_SIGMA if threshold_sigma is None else threshold_sigma
+    try:
+        estimate = blind_tip(levelled, size_px, sigma * noise.sigma_nm)
+    except ValueError as e:
+        emitter.fail(str(e), kind="invalid_parameters")
+        return
+    radius = estimate.apex_radius()
+    resolution = lateral_resolution(
+        estimate.heights_nm,
+        estimate.pixel_nm,
+        noise.sigma_nm,
+        feature_height_nm=feature_height_nm,
+        noise_uncertainty_nm=noise.uncertainty_nm,
+    )
+    tip = estimate.as_dict()
+    heights = tip.pop("heights_nm")
+    payload = {
+        "scan": str(scan),
+        "noise": noise.as_dict(),
+        "tip": tip,
+        "apex_radius": radius.as_dict(),
+        "resolution": resolution.as_dict(),
+    }
+    if out is not None:
+        out.write_text(json.dumps({**payload, "tip": {**tip, "heights_nm": heights}}, indent=2))
+        payload["written"] = str(out)
+    rows = [
+        ("pixel noise, nm", f"{noise.sigma_nm:.3f}"),
+        ("threshold, nm", f"{estimate.threshold_nm:.3f} ({sigma:g} sigma)"),
+        (
+            "informative",
+            str(estimate.informative).lower() + (f" ({estimate.note})" if estimate.note else ""),
+        ),
+        (
+            "apex radius, nm",
+            f"{radius.radius_nm:.2f} +- {2 * radius.uncertainty_nm:.2f} (k=2), an upper bound"
+            if radius.determined
+            else f"not determined: {radius.reason}",
+        ),
+        (
+            f"resolution for {feature_height_nm:g} nm features",
+            f"{resolution.value_nm:.2f} +- {2 * resolution.uncertainty_nm:.2f} nm (k=2)"
+            if resolution.resolvable
+            else f"not determined: {resolution.reason}",
+        ),
+    ]
+    if out is not None:
+        rows.append(("written", str(out)))
+    emitter.result(payload, f"tip from {scan.name}\n" + _table(rows))
+
+
+@calibrate_app.command("drift")
+def calibrate_drift(
+    frames: list[Path] = typer.Argument(..., help="Frames of the same field, in time order."),
+    interval_s: float | None = typer.Option(
+        None, "--interval-s", help="Time between frames, s (evenly spaced frames)."
+    ),
+    times: str | None = typer.Option(
+        None, "--times", help="Comma-separated frame times in s, instead of --interval-s."
+    ),
+    channel: str | None = typer.Option(None, "--channel", help="Height channel, if not default."),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Drift between frames: displacement per frame and a velocity with its standard error.
+
+    Sub-pixel cross-correlation of each frame against the first. Only drift
+    BETWEEN frames is measured, not the shear within one. High-speed AFM
+    movies (.asd, .h5-jpk) are not read yet: export the frames as .gsf.
+    """
+    from dobladillo.calibration.drift import drift
+    from dobladillo.imaging.readers import UnreadableScan, read
+
+    emitter = Emitter(as_json)
+    if (interval_s is None) == (times is None):
+        emitter.fail("give exactly one of --interval-s or --times", kind="invalid_parameters")
+    if times is not None:
+        try:
+            times_s = [float(t) for t in times.split(",")]
+        except ValueError:
+            emitter.fail(f"could not read times from {times!r}", kind="invalid_parameters")
+            return
+    else:
+        assert interval_s is not None
+        times_s = [i * interval_s for i in range(len(frames))]
+    if len(times_s) != len(frames):
+        emitter.fail(f"{len(frames)} frames but {len(times_s)} times", kind="invalid_parameters")
+    images = []
+    for frame in frames:
+        try:
+            images.append(read(frame, channel=channel))
+        except (UnreadableScan, OSError) as e:
+            emitter.fail(f"{frame}: {e}", kind="unreadable_scan")
+    try:
+        result = drift(images, times_s)
+    except ValueError as e:
+        emitter.fail(str(e), kind="invalid_parameters")
+        return
+    payload = {**result.as_dict(), "frame_files": [str(f) for f in frames]}
+    v = payload["velocity_nm_s"]
+    rows = [
+        ("frames", str(len(frames))),
+        ("vx, nm/s", f"{v['x']:.4f} +- {2 * v['x_uncertainty']:.4f} (k=2)"),
+        ("vy, nm/s", f"{v['y']:.4f} +- {2 * v['y_uncertainty']:.4f} (k=2)"),
+        ("speed, nm/s", f"{v['speed']:.4f} +- {2 * v['speed_uncertainty']:.4f} (k=2)"),
+        ("residual rms, nm", f"{payload['residual_rms_nm']:.3f}"),
+    ]
+    emitter.result(payload, "drift\n" + _table(rows))
+
+
 experiment_app = typer.Typer(help="Experiment folders: pre, during, post.", no_args_is_help=True)
 app.add_typer(experiment_app, name="experiment")
 

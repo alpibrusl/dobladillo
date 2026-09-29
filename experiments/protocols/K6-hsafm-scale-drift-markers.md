@@ -9,7 +9,7 @@ and K1 (its drift rows passed). **Blocked** until three things exist:
    *Direction: high-speed AFM*). Arranging it is the maintainer's decision.
 2. **A reader for HS-AFM movies.** The current pipeline refuses `.asd` and
    `.h5-jpk` stacks on purpose (`imaging/readers.py`: "this measures single
-   images"). `calibrate drift` must read them. It is **being implemented**.
+   images"). `calibrate drift` exists, but reads frames exported as .gsf: the movie formats themselves are **not read yet**, which is K6's one software blocker.
 3. For arm B only: **a biotinylated variant of the tile.** The toolchain cannot
    order it today (MATERIALS §1). Arm A runs without it.
 
@@ -99,7 +99,7 @@ HS-AFM operator, before the session:
 uv run dobladillo experiment new <YYYY-MM-DD>-k6-hsafm --part calibration-tile --root experiments
 ```
 
-(`--part calibration-tile` is being implemented.) Arm A uses K2's or K5's
+Arm A uses K2's or K5's
 aliquots of one named batch. Write in `pre/plan.md` the frame count for the
 survival criterion, the two setpoints, and the operator's buffer. Commit `pre/`.
 
@@ -192,9 +192,9 @@ native file. A per-frame export loses the timestamps the drift analysis needs.
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate drift experiments/<folder>     # (being implemented; must read the movie format)
-uv run dobladillo calibrate lateral experiments/<folder>   # (being implemented)
-uv run dobladillo calibrate report experiments/<folder>    # (being implemented)
+uv run dobladillo calibrate drift experiments/<folder>/during/raw/frame-*.gsf --interval-s <s> --json > experiments/<folder>/post/drift.json   # frames exported as .gsf: HS-AFM movies (.asd) are not read yet
+uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
+uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
 ```
 
 From these: scale X, scale Y and skew with intervals; drift velocity against

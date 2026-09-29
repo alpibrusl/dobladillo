@@ -25,8 +25,10 @@ experimental counterparts.
 - `dobladillo build hinge` — A bistable hinge: two arms, a single-stranded joint, and a latch.
 - `dobladillo build pair` — Both arms of the twist pair, written side by side.
 - `dobladillo build rectangle` — A Rothemund-style rectangle on the square lattice.
+- `dobladillo calibrate drift` — Drift between frames: displacement per frame and a velocity with its standard error.
 - `dobladillo calibrate lateral` — The scanner's X and Y scale and skew, from reference particles at random angles.
 - `dobladillo calibrate reference` — Write the calibration tile's reference geometry: its marks, in nm, with uncertainty.
+- `dobladillo calibrate tip` — The tip, reconstructed blind from the scan, its apex radius, and the resolution it allows.
 - `dobladillo compare` — Design against simulation against measurement: the closed loop.
 - `dobladillo dashboard` — Generate the shareable board. Reads every figure from the toolchain.
 - `dobladillo describe` — Emit the command surface, for an agent to read instead of `--help`.

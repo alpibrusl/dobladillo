@@ -1,8 +1,9 @@
 # Project: an open DNA-origami calibration kit and method for AFM
 
-**Status:** planned 2026-09-29, after a literature review. No sample exists; the
-software (`dobladillo calibrate`, package `dobladillo/calibration/`) and the
-part (`calibration-tile`) are being implemented while this is written.
+**Status:** planned 2026-09-29, after a literature review. No sample exists. The
+software (`dobladillo calibrate reference|lateral|tip|drift`, package
+`dobladillo/calibration/`) and the part (`calibration-tile`) exist since
+2026-09-29 and are validated on synthetic scans only.
 **Experiments:** K1–K8, protocols in
 [`experiments/protocols/`](../../experiments/protocols/README.md#the-afm-calibration-kit-k-series).
 **Materials:** [`MATERIALS.md`](MATERIALS.md).
@@ -39,7 +40,7 @@ procedure anyone can repeat.
 
 ## What the kit is made of
 
-**The calibration tile** (`calibration-tile`, being implemented) is E8's
+**The calibration tile** (`calibration-tile`) is E8's
 patterned rectangle with a different pattern. E8 is E1's rectangle with a
 hairpin on the 3′ end of selected staples; the hairpins stand above the sheet
 and a marked **cell** (32 bp × 4 helices, about 10.5 × 12 nm at design values,
@@ -254,7 +255,7 @@ measurement, with a complete uncertainty budget. Whether to call anything
 | streptavidin comparator needs a biotin variant the toolchain cannot order | K6 arm B cannot run | K6 | design decision; K6 arm A runs alone |
 | public data licence forbids use | K1 loses its real-data arm | K1 | synthetic data and our own K2/K3 images |
 | no partner for traceable measurement | no certificate | K8 | the kit stays an uncertified, open reference, and says so |
-| `calibrate` or `calibration-tile` not ready | K1–K8 wait | now | protocols name the commands as being implemented |
+| HS-AFM movie formats unread | K6 needs exported frames | K6 | export frames as .gsf from Gwyddion |
 
 ## What partners would be asked for
 
@@ -276,9 +277,10 @@ and no outreach is drafted.
 
 ## Open
 
-- `calibration-tile` and `dobladillo calibrate lateral|tip|drift|report` are
-  being implemented. Every protocol names them as such, with the arguments it
-  assumes; the commands' own `--help` wins when they land.
+- `calibration-tile` and `dobladillo calibrate reference|lateral|tip|drift`
+  exist (2026-09-29). They take scan files; a folder-level `calibrate report`
+  that reads `during/raw/` and writes `post/` is not built yet. The commands'
+  own `--help` wins over any argument shown in a protocol.
 - The current pipeline refuses HS-AFM stacks (`.asd`, `.h5-jpk`;
   `imaging/readers.py`). K6 needs `calibrate drift` to read them.
 - `during/instrument.json` has no field for NiCl₂ or for scan angle; K5 and K3
