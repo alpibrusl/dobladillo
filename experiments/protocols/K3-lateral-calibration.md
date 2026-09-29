@@ -147,7 +147,8 @@ Write the gates and commit both `pre/` folders.
 ### 1. Grating, start of session (45 min)
 
 With the scanner in the configuration you will use all day (closed loop on or
-off: record which and keep it), image the grating:
+off: record which in `during/instrument.json`, `scan.closed_loop`, and keep
+it), image the grating:
 
 - **large** scan, at the size you chose: 2 images, scan angle 0°;
 - **overlap** scan, **2 × 2 µm, 1024 px**: 2 images at 0°, 2 at 90° if your
@@ -176,7 +177,8 @@ single-use. Discard what is left.
 Gentle setpoint. Separate areas. For each image, save **trace and retrace**,
 and take pairs with the slow scan **up and down** where the software allows:
 the pair gives drift. Files to `during/raw/liquid/`, named `pattern-01`, …
-(detail) and `overlap-01`, … (overlap).
+(detail) and `overlap-01`, … (overlap). `calibrate report` finds them by these
+names, and fits detail and overlap, and each scan angle, apart.
 
 ### 5. Tip, after (20 min), and grating, end of session (30 min)
 
@@ -200,20 +202,30 @@ rods** (E10, step 11). Files to that folder's `during/raw/`.
 
 ## What to record
 
-`during/instrument.json` as common-techniques §10, and a table with one row per
-image, `during/scans.csv`:
+`during/instrument.json` as common-techniques §10, including what
+`calibrate report` refuses without:
+
+- `scan.angle_deg`: the scan angle, per file where it varies, as a pattern
+  under `during/raw/` to degrees, first match wins:
+  `{"liquid/overlap-0[1-3]*": 0, "liquid/overlap-0[4-6]*": 90, "*": 0}`;
+- `scan.direction`: `"trace"` or `"retrace"`, the direction analysed. Both are
+  saved; the report analyses the one named here (and `scan.channel` names the
+  channel when it is the retrace of a multi-channel file);
+- `scan.closed_loop`: `true` or `false`;
+- `deposition.mgcl2_mm` and `deposition.nicl2_mm` (0 when none).
+
+And a table with one row per image, `during/scans.csv`, for what the record
+does not hold per image:
 
 ```
-file,sample,medium,scan_size_nm,pixels,scan_angle_deg,channel,slow_scan,closed_loop,rate_hz,time,tip
-liquid/pattern-01.spm,tile,liquid,1000,512,0,trace,up,on,1.0,10:42,liquid-A
+file,sample,medium,scan_size_nm,pixels,slow_scan,rate_hz,time,tip
+liquid/pattern-01.spm,tile,liquid,1000,512,up,1.0,10:42,liquid-A
 ...
 ```
 
-(the rows show the format only). `instrument.json` has no fields for scan
-angle, trace/retrace or closed loop, which is why this file exists. **Its
-format is this protocol's proposal. If `calibrate` defines an input format
-when it lands, that format wins, and this table is converted. The raw files
-are never touched.**
+(the rows show the format only; scan angle, trace/retrace and closed loop
+were columns here until `instrument.json` had fields for them). **Its format
+is this protocol's proposal. The raw files are never touched.**
 
 `during/log.md`: the grating certificate; warm-up time; room temperature at
 start and end; buffer and MgCl₂; deposition times; anything that drifted,
@@ -224,16 +236,17 @@ jumped or streaked.
 ```bash
 uv run dobladillo afm read experiments/<folder>/during/raw/liquid/pattern-01.<ext>
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
-uv run dobladillo calibrate drift experiments/<folder>/during/raw/frame-*.gsf --interval-s <s> --json > experiments/<folder>/post/drift.json
-uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
+uv run dobladillo calibrate report experiments/<folder>
 ```
 
-From `calibrate` (the grating's own scale by FFT pitch, ISO 11952, is not in `calibrate`: use Gwyddion for that arm), per medium and scan size: scale X,
-scale Y, skew, each with its uncertainty, from the tile and from the grating
-(declared with its certificate pitch); the tile/grating ratio at the overlap
-size; grating large/overlap; mark detection rate and false-mark rate; the
-smallest designed mark separation read correctly; drift from up/down pairs.
+`calibrate report` writes `post/calibration.json`: per medium, scan size and
+scan angle (`liquid/pattern`, `liquid/overlap @ 0 deg`, `air/pattern`, …),
+scale X, scale Y and skew from the tile, each with its uncertainty, with the
+conditions and the scans' hashes. Not in `calibrate`, and done by hand or in
+Gwyddion until it is: the grating's own scale by FFT pitch (ISO 11952); the
+tile/grating ratio at the overlap size; grating large/overlap; mark detection
+and false-mark rates; the smallest designed mark separation read correctly;
+drift from up/down pairs.
 
 Bundle arm, with a command that exists today:
 
@@ -263,6 +276,6 @@ it and without a measured tip.
 - both folders' `pre/`, committed first
 - `during/raw/grating/`, `liquid/`, `air/`, and the bundle folder's `raw/`, untouched
 - `during/instrument.json`, `during/scans.csv`, `during/log.md` with the certificate
-- `post/` from `calibrate` and `experiment rods`, with the interpretation
+- `post/` from `calibrate report` and `experiment rods`, with the interpretation
 - the settings that worked: medium, setpoint, scan size, which K5 fixes as
   its centre point

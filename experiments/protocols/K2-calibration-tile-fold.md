@@ -286,8 +286,10 @@ uv run dobladillo afm read experiments/<folder>/during/raw/pattern-01.<ext>
 ```
 
 The pixel size must be ≈ 2.0 nm. In `during/instrument.json`, fill in every
-field, the magnesium on the mica, both tip radii, and **E1's reference
-height** with where it came from (as E8, step 11):
+field, the magnesium and any nickel on the mica (`deposition.mgcl2_mm`,
+`deposition.nicl2_mm`, 0 if none), the scan angle, direction and closed loop
+(`scan.angle_deg`, `scan.direction`, `scan.closed_loop`), both tip radii, and
+**E1's reference height** with where it came from (as E8, step 11):
 
 ```json
 "reference": {"flat_height_nm": 1.4, "from": "E1 <folder> post/measurements.json median_height_nm"}
@@ -301,7 +303,7 @@ height** with where it came from (as E8, step 11):
 uv run dobladillo experiment check experiments/<folder>
 uv run dobladillo experiment report experiments/<folder> --scan experiments/<folder>/during/raw/pattern-01.<ext> --scan ...
 uv run dobladillo experiment pattern experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
+uv run dobladillo calibrate report experiments/<folder>
 ```
 
 - `experiment report` **with `--scan` for the tile files only.** Without it,
@@ -312,12 +314,18 @@ uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf -
   cells from `pre/prediction.json`, **if the tile part records them as E8's
   does**. Confirm this when the part lands. If it does not, skip this line
   and say so in the log.
-- `calibrate lateral`: the mark detection rate per
-  designed cell, the false-mark rate, the mark height above the sheet, and a
-  first scale. **The scale is not K2's result.** One instrument, no grating:
-  that is K3.
+- `calibrate report`: fits the ramp arm's `pattern-*` and the isothermal
+  arm's `iso/pattern-*` apart, never pooled, into `post/calibration.json`.
+  It refuses, with a reason, while the scan and deposition fields above are
+  empty. Per arm: a first scale, skew and tile anisotropy with their
+  intervals, and how many particles and marks were matched. The mark
+  detection rate per designed cell, the false-mark rate and the mark height
+  above the sheet are not computed by `calibrate` yet; `experiment pattern`'s
+  per-particle cells are the nearest thing. **The scale is not K2's result.**
+  One instrument, no grating: that is K3.
 
-Run the isothermal arm's files the same way, from `during/raw/iso/`.
+Run `experiment report` on the isothermal arm's files the same way, from
+`during/raw/iso/`.
 
 ### 15. Judge against the gate, and commit
 
@@ -359,5 +367,5 @@ Commit `during/` and `post/`.
 - `during/raw/`: gel TIFF; native files `pattern-*`, `control-*`, and `iso/`
 - `during/instrument.json`, `during/log.md`, `during/gel_quant.csv`
 - `post/` from `experiment report`, `experiment pattern` and `calibrate
-  lateral`, with your interpretation
+  report`, with your interpretation
 - the aliquots for K3, counted and labelled

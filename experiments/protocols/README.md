@@ -41,8 +41,9 @@ for its goal, scope, prior art and phases, and
 [`MATERIALS.md`](../../projects/afm-calibration-kit/MATERIALS.md) for what to
 buy. **K** is for *kit*. The K numbers are their own series and depend on E
 experiments where stated. The part `calibration-tile` and the commands
-`dobladillo calibrate lateral|tip|drift|report` are **being implemented**. Every
-K protocol names them as such.
+`dobladillo calibrate lateral|tip|drift|report` exist, validated on synthetic
+scans only; `calibrate report` finds a K folder's scans by the names the
+protocols give them and writes `post/calibration.json`.
 
 | protocol | experiment | status |
 |---|---|---|

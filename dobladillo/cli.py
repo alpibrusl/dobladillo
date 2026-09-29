@@ -1766,7 +1766,8 @@ def calibrate_lateral_command(
     alike to do so. Every value carries a k=2 interval; `traceable` stays
     false unless the reference is certified.
     """
-    from dobladillo.calibration.lateral import CalibrationRefused, calibrate_lateral
+    from dobladillo.calibration.lateral import CalibrationRefused
+    from dobladillo.calibration.payloads import lateral_payload
     from dobladillo.imaging.readers import UnreadableScan, read
 
     emitter = Emitter(as_json)
@@ -1778,7 +1779,7 @@ def calibrate_lateral_command(
         except (UnreadableScan, OSError) as e:
             emitter.fail(f"{scan}: {e}", kind="unreadable_scan")
     try:
-        result, _ = calibrate_lateral(
+        payload, _ = lateral_payload(
             images,
             reference,
             fit_anisotropy=False if fixed_anisotropy else None,
@@ -1787,22 +1788,29 @@ def calibrate_lateral_command(
     except CalibrationRefused as e:
         emitter.fail(str(e), kind="calibration_refused")
         return
-    payload = result.as_dict()
     payload["scans"] = [str(s) for s in scans]
+    emitter.result(
+        payload,
+        f"lateral calibration against {reference.name}\n" + _table(_lateral_rows(payload)),
+    )
+
+
+def _lateral_rows(payload: dict[str, Any]) -> list[tuple[str, str]]:
+    """`calibrate lateral`'s table, from its payload."""
     scanner, correction = payload["scanner"], payload["correction"]
-    rows = [
+    rejected = payload["rejected_particles"]
+    return [
         _quantity_line("scale x (reported/true)", scanner["scale_x"]),
         _quantity_line("scale y (reported/true)", scanner["scale_y"]),
         _quantity_line("skew, deg", scanner["skew_deg"], 3),
         _quantity_line("correction x", correction["x"]),
         _quantity_line("correction y", correction["y"]),
         _quantity_line("reference y / nominal", payload["object_anisotropy"]),
-        ("particles, features", f"{result.n_particles}, {result.n_features}"),
-        ("rejected", ", ".join(f"{k} {v}" for k, v in sorted(result.rejected.items())) or "none"),
-        ("traceable", str(result.traceable).lower()),
+        ("particles, features", f"{payload['n_particles']}, {payload['n_features']}"),
+        ("rejected", ", ".join(f"{k} {v}" for k, v in sorted(rejected.items())) or "none"),
+        ("traceable", str(payload["traceable"]).lower()),
+        *(("WARNING", w) for w in payload.get("warnings", [])),
     ]
-    rows.extend(("WARNING", w) for w in result.warnings)
-    emitter.result(payload, f"lateral calibration against {reference.name}\n" + _table(rows))
 
 
 @calibrate_app.command("tip")
@@ -1835,9 +1843,7 @@ def calibrate_tip(
     second differences along the fast axis, which cancel line offsets and the
     slopes of features, so a crowded field is measured too.
     """
-    from dobladillo.calibration.resolution import lateral_resolution, pixel_noise
-    from dobladillo.calibration.tip import THRESHOLD_SIGMA, blind_tip
-    from dobladillo.imaging.flatten import flatten
+    from dobladillo.calibration.payloads import tip_payload
     from dobladillo.imaging.readers import UnreadableScan, read
 
     emitter = Emitter(as_json)
@@ -1846,57 +1852,55 @@ def calibrate_tip(
     except (UnreadableScan, OSError) as e:
         emitter.fail(f"{scan}: {e}", kind="unreadable_scan")
         return
-    levelled, _ = flatten(image)
-    noise = pixel_noise(levelled.heights_nm)
-    sigma = THRESHOLD_SIGMA if threshold_sigma is None else threshold_sigma
     try:
-        estimate = blind_tip(levelled, size_px, sigma * noise.sigma_nm)
+        found = tip_payload(
+            image,
+            source=str(scan),
+            size_px=size_px,
+            threshold_sigma=threshold_sigma,
+            feature_height_nm=feature_height_nm,
+        )
     except ValueError as e:
         emitter.fail(str(e), kind="invalid_parameters")
         return
-    radius = estimate.apex_radius()
-    resolution = lateral_resolution(
-        estimate.heights_nm,
-        estimate.pixel_nm,
-        noise.sigma_nm,
-        feature_height_nm=feature_height_nm,
-        noise_uncertainty_nm=noise.uncertainty_nm,
-    )
-    tip = estimate.as_dict()
-    heights = tip.pop("heights_nm")
-    payload = {
-        "scan": str(scan),
-        "noise": noise.as_dict(),
-        "tip": tip,
-        "apex_radius": radius.as_dict(),
-        "resolution": resolution.as_dict(),
-    }
+    payload, tip = found.payload, found.payload["tip"]
     if out is not None:
-        out.write_text(json.dumps({**payload, "tip": {**tip, "heights_nm": heights}}, indent=2))
+        out.write_text(
+            json.dumps({**payload, "tip": {**tip, "heights_nm": found.heights_nm}}, indent=2)
+        )
         payload["written"] = str(out)
-    rows = [
-        ("pixel noise, nm", f"{noise.sigma_nm:.3f}"),
-        ("threshold, nm", f"{estimate.threshold_nm:.3f} ({sigma:g} sigma)"),
-        (
-            "informative",
-            str(estimate.informative).lower() + (f" ({estimate.note})" if estimate.note else ""),
-        ),
-        (
-            "apex radius, nm",
-            f"{radius.radius_nm:.2f} +- {2 * radius.uncertainty_nm:.2f} (k=2), an upper bound"
-            if radius.determined
-            else f"not determined: {radius.reason}",
-        ),
-        (
-            f"resolution for {feature_height_nm:g} nm features",
-            f"{resolution.value_nm:.2f} +- {2 * resolution.uncertainty_nm:.2f} nm (k=2)"
-            if resolution.resolvable
-            else f"not determined: {resolution.reason}",
-        ),
-    ]
+    rows = _tip_rows(payload, feature_height_nm, found.sigma)
     if out is not None:
         rows.append(("written", str(out)))
     emitter.result(payload, f"tip from {scan.name}\n" + _table(rows))
+
+
+def _tip_rows(
+    payload: dict[str, Any], feature_height_nm: float, sigma: float
+) -> list[tuple[str, str]]:
+    """`calibrate tip`'s table, from its payload and the noise multiple it used."""
+    noise, tip = payload["noise"], payload["tip"]
+    radius, resolution = payload["apex_radius"], payload["resolution"]
+    return [
+        ("pixel noise, nm", f"{noise['sigma_nm']:.3f}"),
+        ("threshold, nm", f"{tip['threshold_nm']:.3f} ({sigma:g} sigma)"),
+        (
+            "informative",
+            str(tip["informative"]).lower() + (f" ({tip['note']})" if tip["note"] else ""),
+        ),
+        (
+            "apex radius, nm",
+            f"{radius['radius_nm']:.2f} +- {2 * radius['uncertainty_nm']:.2f} (k=2), an upper bound"
+            if radius["determined"]
+            else f"not determined: {radius['reason']}",
+        ),
+        (
+            f"resolution for {feature_height_nm:g} nm features",
+            f"{resolution['value_nm']:.2f} +- {2 * resolution['uncertainty_nm']:.2f} nm (k=2)"
+            if resolution["resolvable"]
+            else f"not determined: {resolution['reason']}",
+        ),
+    ]
 
 
 @calibrate_app.command("drift")
@@ -1917,7 +1921,7 @@ def calibrate_drift(
     BETWEEN frames is measured, not the shear within one. High-speed AFM
     movies (.asd, .h5-jpk) are not read yet: export the frames as .gsf.
     """
-    from dobladillo.calibration.drift import drift
+    from dobladillo.calibration.payloads import drift_payload
     from dobladillo.imaging.readers import UnreadableScan, read
 
     emitter = Emitter(as_json)
@@ -1941,20 +1945,129 @@ def calibrate_drift(
         except (UnreadableScan, OSError) as e:
             emitter.fail(f"{frame}: {e}", kind="unreadable_scan")
     try:
-        result = drift(images, times_s)
+        payload = drift_payload(images, times_s)
     except ValueError as e:
         emitter.fail(str(e), kind="invalid_parameters")
         return
-    payload = {**result.as_dict(), "frame_files": [str(f) for f in frames]}
+    payload["frame_files"] = [str(f) for f in frames]
+    emitter.result(payload, "drift\n" + _table(_drift_rows(payload)))
+
+
+def _drift_rows(payload: dict[str, Any]) -> list[tuple[str, str]]:
+    """`calibrate drift`'s table, from its payload."""
     v = payload["velocity_nm_s"]
-    rows = [
-        ("frames", str(len(frames))),
+    return [
+        ("frames", str(payload["frames"])),
         ("vx, nm/s", f"{v['x']:.4f} +- {2 * v['x_uncertainty']:.4f} (k=2)"),
         ("vy, nm/s", f"{v['y']:.4f} +- {2 * v['y_uncertainty']:.4f} (k=2)"),
         ("speed, nm/s", f"{v['speed']:.4f} +- {2 * v['speed_uncertainty']:.4f} (k=2)"),
         ("residual rms, nm", f"{payload['residual_rms_nm']:.3f}"),
     ]
-    emitter.result(payload, "drift\n" + _table(rows))
+
+
+@calibrate_app.command("report")
+def calibrate_report(
+    directory: Path = typer.Argument(..., help="A calibration (K) experiment folder."),
+    bootstrap: int = typer.Option(200, "--bootstrap", help="Lateral: bootstrap resamples."),
+    size_px: int = typer.Option(31, "--size-px", help="Tip: array size, odd, in pixels."),
+    threshold_sigma: float | None = typer.Option(
+        None, "--threshold-sigma", help="Tip: noise tolerance in pixel-noise units (default 5)."
+    ),
+    feature_height_nm: float = typer.Option(
+        2.0, "--feature-height", help="Tip: height of the features the resolution is for, nm."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Every calibration the folder's scans support; writes `post/calibration.json`.
+
+    Finds the scans in `during/raw/` by name: `pattern-NN` and `overlap-NN`
+    (lateral; one fit per subfolder, prefix and scan angle, never pooled),
+    K4's `<block>-NN` such as `staircase/S1-01` (tip, each scan on its own),
+    and `frame-NN` (drift, one series per subfolder). The conditions come
+    from `during/instrument.json` -- scan angle, direction and closed loop,
+    the deposition cations, the tip's part number, frame times -- and each
+    analysis refuses, with its own `kind`, when one it depends on is not
+    recorded; the others still run. The reference is the folder's part
+    (`calibration-tile`) or the record's `calibration_reference`, never a
+    default. Per analysis the result is the file-level command's payload,
+    with the conditions and the scans' hashes. Exits 1 when any analysis was
+    refused. It does not evaluate the gate.
+    """
+    from dobladillo.experiments import check as run_check
+    from dobladillo.experiments.arms import RecordIncomplete
+    from dobladillo.experiments.calibration import Options, run
+
+    emitter = Emitter(as_json)
+    options = Options(
+        bootstrap=bootstrap,
+        size_px=size_px,
+        threshold_sigma=threshold_sigma,
+        feature_height_nm=feature_height_nm,
+    )
+    try:
+        out = run(directory, options)
+    except RecordIncomplete as e:
+        emitter.fail(str(e), kind=e.kind)
+        return
+    state = run_check(directory)
+    out["record"] = state.as_dict()
+    post = directory / "post"
+    post.mkdir(exist_ok=True)
+    written = post / "calibration.json"
+    written.write_text(json.dumps(out, indent=2) + "\n")
+
+    rows: list[tuple[str, str]] = []
+    for analysis, block in out["analyses"].items():
+        if block["status"] == "no_data":
+            rows.append((analysis, "no scans named for it"))
+            continue
+        for entry in block["results"]:
+            name = entry.get("set") or entry.get("scan") or entry.get("series")
+            label = f"{analysis} {name}"
+            if "refused" in entry:
+                rows.append((label, f"REFUSED {entry['refused']['kind']}"))
+                continue
+            result = entry["result"]
+            if analysis == "lateral":
+                s = result["scanner"]
+                rows.append(
+                    (
+                        label,
+                        f"scale x {s['scale_x']['value']:.4f} +- {s['scale_x']['U_k2']:.4f}, "
+                        f"y {s['scale_y']['value']:.4f} +- {s['scale_y']['U_k2']:.4f}, "
+                        f"skew {s['skew_deg']['value']:.3f} +- {s['skew_deg']['U_k2']:.3f} deg "
+                        f"(k=2; {result['n_particles']} particles)",
+                    )
+                )
+            elif analysis == "tip":
+                r = result["apex_radius"]
+                rows.append(
+                    (
+                        label,
+                        f"apex {r['radius_nm']:.2f} +- {2 * r['uncertainty_nm']:.2f} nm (k=2), "
+                        "an upper bound"
+                        if r["determined"]
+                        else f"apex not determined: {r['reason']}",
+                    )
+                )
+            else:
+                v = result["velocity_nm_s"]
+                rows.append(
+                    (
+                        label,
+                        f"{result['frames']} frames, speed {v['speed']:.4f} +- "
+                        f"{2 * v['speed_uncertainty']:.4f} nm/s (k=2)",
+                    )
+                )
+    rows.append(("wrote", str(written)))
+    rows += [
+        ("REFUSED", f"{r['analysis']} {r['of']}: {r['kind']}: {r['message']}")
+        for r in out["refusals"]
+    ]
+    rows += [("RECORD", p) for p in state.problems]
+    emitter.result({"directory": str(directory), **out}, f"{directory}\n" + _table(rows))
+    if out["refusals"]:
+        raise typer.Exit(1)
 
 
 experiment_app = typer.Typer(help="Experiment folders: pre, during, post.", no_args_is_help=True)

@@ -14,6 +14,7 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 pytest.importorskip("mcp")
@@ -182,5 +183,54 @@ def test_calibration_tools_refuse_files_outside_the_root(tmp_path: Path) -> None
     (tmp_path / "outside.gsf").write_text("not a scan")
     server = mcp_server.create_server(tmp_path / "root")
     result = _call(server, "calibrate_tip", scan="../outside.gsf")
+    assert result.is_error
+    assert _payload(result)["error"]["kind"] == "outside_root"
+
+
+def test_calibration_report_runs_through_the_tool_and_writes_post(tmp_path: Path) -> None:
+    """A K folder, by name: the tool writes post/calibration.json as
+    experiment_report writes post/, and never anything under during/raw/."""
+    from typer.testing import CliRunner
+
+    from dobladillo.calibration.tip import dilate, paraboloid_tip
+    from dobladillo.cli import app
+    from dobladillo.imaging.heightmap import HeightMap
+    from dobladillo.imaging.readers import write_gsf
+
+    result = CliRunner().invoke(
+        app, ["experiment", "new", "k4", "--part", "calibration-tile", "--root", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    directory = tmp_path / "k4"
+    surface = np.zeros((128, 128))
+    for i, j in ((30, 40), (90, 70), (60, 100)):
+        surface[i, j] = 30.0
+    image = dilate(surface, paraboloid_tip(10.0, 1.0, 31))
+    raw = directory / "during" / "raw" / "staircase"
+    raw.mkdir()
+    write_gsf(HeightMap(image, 1.0, "synthetic"), raw / "S1-01.gsf")
+    before = sorted(p.name for p in raw.iterdir())
+
+    server = mcp_server.create_server(tmp_path)
+    refused = _call(server, "calibrate_report", name="k4")
+    assert refused.is_error
+    assert _payload(refused)["error"]["kind"] == "no_scan_direction"
+
+    path = directory / "during" / "instrument.json"
+    instrument = json.loads(path.read_text())
+    instrument["scan"]["direction"] = "trace"
+    instrument["tip"]["part_number"] = "synthetic"
+    path.write_text(json.dumps(instrument))
+    result = _call(server, "calibrate_report", name="k4")
+    assert not result.is_error, result
+    written = json.loads((directory / "post" / "calibration.json").read_text())
+    assert written["analyses"]["tip"]["results"][0]["block"] == "S1"
+    assert sorted(p.name for p in raw.iterdir()) == before
+
+
+def test_calibration_report_refuses_a_folder_outside_the_root(tmp_path: Path) -> None:
+    (tmp_path / "root").mkdir()
+    server = mcp_server.create_server(tmp_path / "root")
+    result = _call(server, "calibrate_report", name="../")
     assert result.is_error
     assert _payload(result)["error"]["kind"] == "outside_root"

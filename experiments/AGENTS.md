@@ -53,7 +53,14 @@ dobladillo experiment check <folder>     # what is missing, and whether the reco
 dobladillo afm read <scan>               # did pixel size and height units come through?
 dobladillo experiment report <folder>    # measure, compare, write post/
 dobladillo experiment compare-arms <folder>  # E2: two blinded arms, verdict both ways
+dobladillo calibrate report <folder>     # K series: scale, tip, drift; writes post/calibration.json
 ```
+
+`calibrate report` refuses, per analysis, when `during/instrument.json` does
+not record the scan angle, direction, closed loop, deposition cations, the
+tip's part number or the frame times. Those are the fields most tempting to
+fill from the protocol's values; do not. K5's `"blinded"` is a recorded value,
+not a placeholder to replace.
 
 `experiment report` is the one to use. Do **not** hand-assemble the equivalent
 out of `afm measure` and `compare` — `compare` takes `--tip-radius` as a

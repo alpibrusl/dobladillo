@@ -151,10 +151,11 @@ everything else is compared with, so do not skip it.
 - `during/log.md`: per time point, the date, tip, grating result, room
   temperature, anything unusual.
 - `during/instrument.json`: as common-techniques §10; later time points' tip
-  radii go in `scans.csv` and the log.
+  radii go in `scans.csv` and the log. The scan and deposition fields
+  `calibrate report` needs, as K3; they are one per folder, so keep them the
+  same at every time point, and record any change as a deviation.
 
-The CSV formats are this protocol's proposal. `calibrate`'s own wins when it
-lands.
+The CSV formats are this protocol's proposal.
 
 ## Readout
 
@@ -162,18 +163,18 @@ After each time point:
 
 ```bash
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
+uv run dobladillo calibrate report experiments/<folder>
 uv run dobladillo experiment report experiments/<folder> --scan experiments/<folder>/during/raw/<tp>/<format>/pattern-01.<ext> --scan ...
 ```
 
-After 12 months, or whenever a format fails:
+`calibrate report` fits every `<tp>/<format>/pattern-*` apart, never pooled,
+and rewrites `post/calibration.json` with all time points so far.
 
-```bash
-uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
-```
-
-It reports, per format, the four quantities against time relative to t0,
-with K5's spread drawn in. `experiment report` gives the well-formed fraction
+After 12 months, or whenever a format fails: per format, the four quantities
+against time relative to t0, with K5's spread drawn in. **Not built:** no
+command draws this series yet; it is made from `post/calibration.json`'s
+per-set results and written into the interpretation, with how it was made.
+`experiment report` gives the well-formed fraction
 per format and time point, one `--scan` set at a time, so formats are never
 pooled.
 
@@ -192,5 +193,5 @@ pooled.
 - `pre/` committed before the batch
 - `during/raw/<tp>/…` for every time point, untouched
 - `during/scans.csv`, `during/storage.csv`, `during/log.md`
-- `post/` from `calibrate report`, with the interpretation: the shelf life per
+- `post/` from `calibrate report` and `experiment report`, with the interpretation: the shelf life per
   format and the freeze-thaw limit, which the kit's label states

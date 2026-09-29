@@ -188,7 +188,11 @@ the log and move on. Do not re-deposit out of order.
 - `during/log.md`: the second person's name; per day, the grating and tip
   records, room temperature, and anything unusual per code.
 - `during/instrument.json`: as common-techniques §10. Its tip record holds
-  day 1's tip. Every day's radii go in the log and `scans.csv`.
+  day 1's tip. Every day's radii go in the log and `scans.csv`. The scan
+  angle, direction and closed loop as K3. `deposition.mgcl2_mm` and
+  `deposition.nicl2_mm` are `"blinded"` while you analyse blind: that is a
+  recorded value, and `calibrate report` accepts it. Never a guess at a code's
+  condition.
 
 **After** `post/` is written and committed blind, the second person gives you
 the key. Transcribe it into `during/conditions.csv` and commit it on its own:
@@ -199,11 +203,10 @@ K-01,A,C,10,0,liquid,5,1,3
 ...
 ```
 
-(the rows show the format only). `instrument.json` has no NiCl₂ field, which
-is one reason this file exists. The format is this protocol's proposal. If
-`calibrate report` defines another when it lands, that one wins and this is
-converted. The two commits, blind and unblinded, show the analysis was done
-blind, as in E2.
+(the rows show the format only). `instrument.json` holds one deposition per
+session, and `"blinded"` in it until now; this file holds each code's. The
+format is this protocol's proposal; nothing reads it yet. The two commits,
+blind and unblinded, show the analysis was done blind, as in E2.
 
 ## Readout
 
@@ -212,23 +215,23 @@ Blind, per code:
 ```bash
 uv run dobladillo afm read experiments/<folder>/during/raw/K-01/pattern-01.<ext>
 uv run dobladillo experiment check experiments/<folder>
-uv run dobladillo calibrate lateral experiments/<folder>/during/raw/tile-*.gsf --json > experiments/<folder>/post/lateral.json
+uv run dobladillo calibrate report experiments/<folder>
 uv run dobladillo experiment report experiments/<folder> --scan experiments/<folder>/during/raw/K-01/pattern-01.<ext> --scan ...
 ```
 
-`experiment report` with `--scan`, **one code at a time**, gives each code's
-outline and well-formed fraction. It needs E1's reference height and a
+`calibrate report` fits each code's `<code>/pattern-*` (and `overlap-*`)
+apart, never pooled, into `post/calibration.json`: per code, scale X and Y
+against the along-helix design, skew, and the tile's across-helix scale
+relative to nominal, with intervals. `experiment report` with `--scan`,
+**one code at a time**, gives each code's outline and well-formed fraction. It needs E1's reference height and a
 measured tip in `instrument.json`, as in K2.
 
-After unblinding:
-
-```bash
-uv run dobladillo calibrate report experiments/<folder>   # NOT BUILT YET: the folder-level report; until then the three JSON files above are the record
-```
-
-It reads `conditions.csv` and reports the spread at C (between depositions,
-batches and days), each factor's shift from C, for along- and across-helix
-pitch and skew, with intervals. Nothing in `post/` is edited by hand.
+After unblinding: the spread at C (between depositions, batches and days)
+and each factor's shift from C, for along- and across-helix pitch and skew,
+with intervals. **Not built:** `calibrate report` does not read
+`conditions.csv`, so this summary is computed from the per-code results in
+`post/calibration.json` and the key, and the calculation is written into the
+interpretation. Nothing in `post/` is edited by hand.
 
 ## When it fails
 

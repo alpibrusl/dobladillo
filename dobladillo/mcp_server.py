@@ -258,6 +258,18 @@ def create_server(experiments_root: Path) -> MCPServer:
         return with_files(frames, "calibrate", "drift", after=("--interval-s", str(interval_s)))
 
     @server.tool()
+    def calibrate_report(name: str) -> CallToolResult:
+        """Every calibration a K folder's scans support: scale, tip and drift.
+
+        Finds pattern-*/overlap-* (lateral), K4's S1-01 blocks (tip) and
+        frame-* series (drift) in during/raw/, takes the conditions from
+        during/instrument.json, and writes post/calibration.json with the
+        scans' hashes, as experiment_report writes post/. Each analysis
+        refuses, with error.kind, when a condition it depends on is not
+        recorded. Never evaluates the gate."""
+        return with_folder(name, "calibrate", "report")
+
+    @server.tool()
     def experiment_pattern(name: str) -> CallToolResult:
         """E8: read the designed pattern off every well-formed particle, and which
         way round it lies. Refuses, with error.kind, when the record cannot

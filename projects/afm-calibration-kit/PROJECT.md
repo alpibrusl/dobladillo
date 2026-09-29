@@ -277,13 +277,18 @@ and no outreach is drafted.
 ## Open
 
 - `calibration-tile` and `dobladillo calibrate reference|lateral|tip|drift`
-  exist (2026-09-29). They take scan files; a folder-level `calibrate report`
-  that reads `during/raw/` and writes `post/` is not built yet. The commands'
-  own `--help` wins over any argument shown in a protocol.
+  exist (2026-09-29), and `calibrate report` runs them over a K folder: it
+  finds the scans in `during/raw/` by name (`pattern-`/`overlap-`, K4's
+  `S1-01` blocks, `frame-`), takes the conditions from `instrument.json`, and
+  writes `post/calibration.json`. Not built: summaries across codes, time
+  points or partners (K5, K7, K8). The commands' own `--help` wins over any
+  argument shown in a protocol.
 - The current pipeline refuses HS-AFM stacks (`.asd`, `.h5-jpk`;
   `imaging/readers.py`). K6 needs `calibrate drift` to read them.
-- `during/instrument.json` has no field for NiCl₂ or for scan angle; K5 and K3
-  record them in `during/log.md` and `during/conditions.csv` until it does.
+- `during/instrument.json` records the deposition cations (MgCl₂, NiCl₂),
+  scan angle, trace/retrace and closed loop since 2026-09-29, and
+  `experiment check` asks for them in calibration-tile folders. K5's
+  per-code key stays in `during/conditions.csv`, which nothing reads yet.
 - The K series is not yet in `dobladillo/programme.py`, so the dashboard does
   not show it. Scoring it (relevance, difficulty, P(success)) is a judgement
   for the maintainer.
