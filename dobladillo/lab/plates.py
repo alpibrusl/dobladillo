@@ -18,6 +18,7 @@ anything goes wrong.
 from __future__ import annotations
 
 import dataclasses
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -195,15 +196,28 @@ def name_and_assign_wells(
             plate.advance_to_next_plate()
 
     total_nt = sum(w.length_nt for w in wells)
+    modified = sum(
+        1
+        for s in ad.staples(design)
+        if s.modification_3p or s.modification_5p or s.modifications_int
+    )
+    assumptions = [
+        f"{DEFAULT_PRICE_PER_BASE} per base, plate format, {scale} scale, {purification}",
+        "list price, before any academic discount or territory difference",
+        "synthesis only: no shipping, tax or plate handling",
+    ]
+    if modified:
+        # No verified price per modification is held here, so it is left out
+        # and said so, rather than estimated.
+        assumptions.append(
+            f"EXCLUDES the surcharge for {modified} modified oligos (e.g. biotin): "
+            "priced per modification by the vendor, not included above"
+        )
     cost = CostEstimate(
         total_nt=total_nt,
         oligos=len(wells),
         price_per_base=DEFAULT_PRICE_PER_BASE,
-        assumptions=(
-            f"{DEFAULT_PRICE_PER_BASE} per base, plate format, {scale} scale, {purification}",
-            "list price, before any academic discount or territory difference",
-            "synthesis only: no shipping, tax or plate handling",
-        ),
+        assumptions=tuple(assumptions),
     )
     return PlateLayout(plate_type=plate_type, wells=tuple(wells), cost=cost)
 
@@ -348,6 +362,33 @@ PLATE_HEADERS = ("Well Position", "Name", "Sequence")
 
 _DNA = frozenset("ACGT")
 
+_MODIFICATION = re.compile(r"/[^/]+/")
+
+
+def _known_modifications() -> frozenset[str]:
+    """IDT codes of the modifications scadnano itself defines -- the only ones a
+    part here can carry, so the only ones an order may contain."""
+    return frozenset(
+        m.vendor_code
+        for m in (getattr(sc, n) for n in dir(sc))
+        if isinstance(m, sc.Modification) and m.vendor_code
+    )
+
+
+def sequence_problem(sequence: str) -> str | None:
+    """Why a vendor sequence is not orderable, or None: ACGT, plus known IDT
+    modification codes such as "/3Bio/" at either end or inside."""
+    codes = _MODIFICATION.findall(sequence)
+    unknown = sorted(set(codes) - _known_modifications())
+    if unknown:
+        return f"unknown modification code(s) {unknown}"
+    bases = _MODIFICATION.sub("", sequence).upper()
+    if not bases:
+        return "empty sequence"
+    if not set(bases) <= _DNA:
+        return f"non-DNA characters {sorted(set(bases) - _DNA)}"
+    return None
+
 
 @dataclass(frozen=True)
 class OrderProblem:
@@ -378,11 +419,9 @@ def validate_bulk_csv(rows: Sequence[str]) -> list[OrderProblem]:
         elif name in seen:
             problems.append(OrderProblem(f"row {i}", f"duplicate name {name!r}"))
         seen.add(name)
-        if not sequence:
-            problems.append(OrderProblem(f"row {i}", f"{name}: empty sequence"))
-        elif not set(sequence.upper()) <= _DNA:
-            bad = sorted(set(sequence.upper()) - _DNA)
-            problems.append(OrderProblem(f"row {i}", f"{name}: non-DNA characters {bad}"))
+        problem = sequence_problem(sequence)
+        if problem:
+            problems.append(OrderProblem(f"row {i}", f"{name}: {problem}"))
         if scale not in VALID_SCALES:
             problems.append(OrderProblem(f"row {i}", f"{name}: unknown scale {scale!r}"))
         if purification not in VALID_PURIFICATIONS:
@@ -429,6 +468,7 @@ def validate_plate_workbook(path: Path, *, plate_type: int = 96) -> list[OrderPr
             seen_wells.add(well)
             if not name:
                 problems.append(OrderProblem(f"{sheet_name}!{i}", "empty name"))
-            if not sequence or not set(str(sequence).upper()) <= _DNA:
-                problems.append(OrderProblem(f"{sheet_name}!{i}", f"{name}: bad sequence"))
+            problem = sequence_problem(str(sequence or ""))
+            if problem:
+                problems.append(OrderProblem(f"{sheet_name}!{i}", f"{name}: {problem}"))
     return problems

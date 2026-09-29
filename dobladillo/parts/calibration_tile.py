@@ -251,13 +251,18 @@ class CalibrationTile:
         }
 
 
-def calibration_tile(pattern: tuple[str, ...] = CALIBRATION_PATTERN) -> CalibrationTile:
+def calibration_tile(
+    pattern: tuple[str, ...] = CALIBRATION_PATTERN, *, marker: str = "hairpin"
+) -> CalibrationTile:
     """Build the tile and its ruler.
 
     Refuses a pattern whose marked cells touch (`isolated`), on top of
     everything `patterned_rectangle` refuses (ambiguous under the sheet's
     symmetries, too few staple ends facing the marked face, a hairpin that
     does not fold in time).
+
+    `marker` is `hairpin` (all-DNA marks) or `biotin` (a 3' biotin on the same
+    staple ends, for streptavidin-bound marks; K6). The ruler is the same.
     """
     pattern = tuple(pattern)
     if not isolated(pattern):
@@ -265,7 +270,7 @@ def calibration_tile(pattern: tuple[str, ...] = CALIBRATION_PATTERN) -> Calibrat
             "a calibration pattern needs every marked cell isolated, edges and corners: "
             "two touching cells image as one blob, and its centroid is neither's"
         )
-    patterned = patterned_rectangle(pattern)
+    patterned = patterned_rectangle(pattern, marker=marker)
     rectangle = patterned.rectangle
     helices, length = rectangle.helices, rectangle.length
     deletions = sorted(
@@ -280,10 +285,10 @@ def calibration_tile(pattern: tuple[str, ...] = CALIBRATION_PATTERN) -> Calibrat
     mid_helix = (helices - 1) / 2.0
 
     by_cell: dict[tuple[int, int], list[tuple[float, float]]] = {}
-    for marker in patterned.markers:
-        x = _x_nm(marker.offset, deletions, RISE_NM) + RISE_NM / 2.0 - half_x
-        y = (marker.helix - mid_helix) * SPACING_NM
-        by_cell.setdefault(marker.cell, []).append((x, y))
+    for mark in patterned.markers:
+        x = _x_nm(mark.offset, deletions, RISE_NM) + RISE_NM / 2.0 - half_x
+        y = (mark.helix - mid_helix) * SPACING_NM
+        by_cell.setdefault(mark.cell, []).append((x, y))
 
     features = []
     for (col, row), marks in sorted(by_cell.items(), key=lambda kv: (kv[0][1], kv[0][0])):

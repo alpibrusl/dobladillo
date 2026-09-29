@@ -52,6 +52,7 @@ PARTS: tuple[str, ...] = (
     "twist-corrected",
     "twist-uncorrected",
     "calibration-tile",
+    "calibration-tile-biotin",
 )
 
 #: Commands an agent must never reach through this server, and why. The test

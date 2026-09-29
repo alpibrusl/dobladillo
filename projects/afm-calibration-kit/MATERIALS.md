@@ -111,10 +111,14 @@ buffers and anneal only.
 
 K6 compares the tile's all-DNA hairpins with streptavidin markers (Kielar et
 al. 2020 report that the tip strips streptavidin). That needs biotinylated
-staples at the tile's marked cells. **The toolchain cannot generate that order
-today**: `lab order` has no modified-oligo variant of the tile. Ordering them by
-hand would be a deviation with no design record behind it. It is a design
-decision for the maintainer, and K6's arm A runs without it.
+staples at the tile's marked cells: part `calibration-tile-biotin`, the same 48
+staple ends as the hairpin tile with a TT spacer and a 3' biotin (IDT `/3Bio/`),
+ordered with `uv run dobladillo lab order calibration-tile-biotin --out <dir>`
+(pool E1's plates except the same 48 wells, as for the hairpin tile). The cost
+estimate excludes the vendor's per-modification surcharge and says so. IDT also
+sells a TEG-spaced biotin that may bind streptavidin more readily; choosing it is
+a one-line change in `parts/pattern.py` and the experimentalist's call. K6's
+arm A runs without any of this.
 
 ---
 

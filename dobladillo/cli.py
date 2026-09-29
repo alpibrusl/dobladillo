@@ -482,7 +482,7 @@ app.add_typer(lab_app, name="lab")
 PART_ARGUMENT = typer.Argument(
     ...,
     help="Which part: rectangle, bundle, hinge, hinge-locked-open, hinge-locked-latched, "
-    "twist-corrected, twist-uncorrected, pattern or calibration-tile.",
+    "twist-corrected, twist-uncorrected, pattern, calibration-tile or calibration-tile-biotin.",
 )
 PLATE_OPTION = typer.Option(96, "--plate", help="Well plate format: 96 or 384.")
 
@@ -759,10 +759,10 @@ def _make_part(which: str, out: Emitter) -> Any:
         from dobladillo.parts.pattern import patterned_rectangle
 
         return patterned_rectangle()
-    if which == "calibration-tile":
+    if which in ("calibration-tile", "calibration-tile-biotin"):
         from dobladillo.parts.calibration_tile import calibration_tile
 
-        return calibration_tile()
+        return calibration_tile(marker="biotin" if which.endswith("biotin") else "hairpin")
     if which in ("hinge-locked-open", "hinge-locked-latched"):
         # E4's two FRET references: the same hinge, locked in one state.
         from dobladillo.hamiltonian.bracket import locked_references

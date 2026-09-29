@@ -252,7 +252,6 @@ measurement, with a complete uncertainty budget. Whether to call anything
 | across-helix spacing unknown | no across-helix scale without K8 | already known | use along-helix, anisotropy and skew until certified |
 | blind reconstruction limited to 2–3 nm depth on the tile | cannot characterise the tip's sides | K4 | the 6HB and the staircase reach higher; say which depth each covers |
 | HS-AFM access; stacks unreadable today | K6 cannot run | K6 | the maintainer's decision; reader in `calibrate drift` |
-| streptavidin comparator needs a biotin variant the toolchain cannot order | K6 arm B cannot run | K6 | design decision; K6 arm A runs alone |
 | public data licence forbids use | K1 loses its real-data arm | K1 | synthetic data and our own K2/K3 images |
 | no partner for traceable measurement | no certificate | K8 | the kit stays an uncertified, open reference, and says so |
 | HS-AFM movie formats unread | K6 needs exported frames | K6 | export frames as .gsf from Gwyddion |

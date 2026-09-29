@@ -125,6 +125,18 @@ MARKER_STEM: Final = "GAGAGATG"
 MARKER_LOOP: Final = "TTTT"
 MARKER_HAIRPIN: Final = MARKER_SPACER + MARKER_STEM + MARKER_LOOP + reverse_complement(MARKER_STEM)
 
+#: What a marked staple carries. `hairpin` is E8's all-DNA mark, seen by AFM
+#: as a bump on the sheet. `biotin` is a 3' biotin behind a short spacer on the
+#: SAME staple ends, for marks made visible by binding streptavidin (K6 compares
+#: the two under a high-speed AFM tip; Kielar et al. 2020 saw streptavidin
+#: stripped by the tip). Same ends, same face, same cells: the tile's geometry
+#: does not depend on the choice.
+MARKERS: Final = ("hairpin", "biotin")
+
+#: Unpaired bases between the staple's last paired base and the biotin, the
+#: same TT that lifts E8's hairpin off the sheet. Chosen, not derived.
+BIOTIN_SPACER: Final = "TT"
+
 #: One cell of the pattern. 32 bp is two of the rectangle's 16 bp columns,
 #: which holds exactly one staple end per helix; 4 helices is about 12 nm.
 CELL_BP: Final = 32
@@ -166,6 +178,8 @@ class Marker:
     face_cos: float
     unmarked_sequence: str
     sequence: str
+    #: The vendor code of a 3' modification, e.g. IDT's "/3Bio/"; None for a hairpin.
+    modification_3p: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -175,6 +189,7 @@ class Marker:
             "face_cos": round(self.face_cos, 3),
             "unmarked_sequence": self.unmarked_sequence,
             "sequence": self.sequence,
+            "modification_3p": self.modification_3p,
         }
 
 
@@ -459,7 +474,9 @@ class PatternedRectangle:
     pattern: tuple[str, ...]
     grid: PatternGrid
     markers: tuple[Marker, ...]
-    hairpin: HairpinCheck
+    #: primer3's check of the hairpin; None when the marks are not hairpins.
+    hairpin: HairpinCheck | None
+    marker: str = "hairpin"
 
     @property
     def scaffold(self) -> ad.ScaffoldAccounting:
@@ -517,7 +534,8 @@ class PatternedRectangle:
                 "y across them, helix index increasing",
                 "grid": self.grid.as_dict(),
             },
-            "hairpin": self.hairpin.as_dict(),
+            "marker": self.marker,
+            "hairpin": self.hairpin.as_dict() if self.hairpin else None,
             "markers": [m.as_dict() for m in self.markers],
         }
 
@@ -528,7 +546,10 @@ def _x_nm(offset: int, deletions: list[int], rise: float) -> float:
 
 
 def patterned_rectangle(
-    pattern: tuple[str, ...] = DEFAULT_PATTERN, *, hairpin: str = MARKER_HAIRPIN
+    pattern: tuple[str, ...] = DEFAULT_PATTERN,
+    *,
+    hairpin: str = MARKER_HAIRPIN,
+    marker: str = "hairpin",
 ) -> PatternedRectangle:
     """Build E1's rectangle and mark the staples whose 3' ends fall in marked cells.
 
@@ -537,6 +558,8 @@ def patterned_rectangle(
     marked face, and a hairpin that primer3 says is not folded by the time
     the staples bind.
     """
+    if marker not in MARKERS:
+        raise ValueError(f"marker must be one of {MARKERS}, got {marker!r}")
     rectangle = rothemund_rectangle()  # E1's defaults, deliberately not exposed
     design = rectangle.design
     helices, length = rectangle.helices, rectangle.length
@@ -623,27 +646,40 @@ def patterned_rectangle(
         )
 
     staples_by_index = ad.staples(design)
+    extension = hairpin if marker == "hairpin" else BIOTIN_SPACER
     for k, _, _, _ in marks:
-        ad.add_extension_3p(design, staples_by_index[k], num_bases=len(hairpin))
-    placed = ad.assign_extension_sequence(design, min_offset=0, max_offset=length, sequence=hairpin)
+        ad.add_extension_3p(design, staples_by_index[k], num_bases=len(extension))
+    placed = ad.assign_extension_sequence(
+        design, min_offset=0, max_offset=length, sequence=extension
+    )
     if placed != len(marks):
         raise AssertionError(
             f"expected {len(marks)} marker extensions, placed {placed}; the design would be "
             "ordered with marks missing"
         )
 
-    check = check_hairpin(
-        hairpin,
-        scaffold=circular_scaffold(rectangle.scaffold.variant),
-        staples={names[k]: s for k, s in unmarked.items()},
-        copies=len(marks),
-    )
-    if not check.folds_before_staples_bind:
-        raise ValueError(
-            f"primer3 puts the hairpin {hairpin} at Tm {check.hairpin.tm_c:.1f} C at "
-            f"{MGCL2_SCREEN_MM[0]:g} mM MgCl2, below the {ANNEAL_RAMP_FROM_C:g} C start of the "
-            "anneal ramp: it would still be single-stranded while the staples bind"
+    check: HairpinCheck | None = None
+    if marker == "hairpin":
+        check = check_hairpin(
+            hairpin,
+            scaffold=circular_scaffold(rectangle.scaffold.variant),
+            staples={names[k]: s for k, s in unmarked.items()},
+            copies=len(marks),
         )
+        if not check.folds_before_staples_bind:
+            raise ValueError(
+                f"primer3 puts the hairpin {hairpin} at Tm {check.hairpin.tm_c:.1f} C at "
+                f"{MGCL2_SCREEN_MM[0]:g} mM MgCl2, below the {ANNEAL_RAMP_FROM_C:g} C start of "
+                "the anneal ramp: it would still be single-stranded while the staples bind"
+            )
+    else:
+        # scadnano's own 3' biotin, IDT code /3Bio/. IDT also sells a TEG-spaced
+        # biotin that may bind streptavidin more readily; that is the
+        # experimentalist's call, and swapping it is one line here.
+        from scadnano import biotin_3p
+
+        for k, _, _, _ in marks:
+            staples_by_index[k].set_modification_3p(biotin_3p)
 
     after = ad.staples(design)
     markers = tuple(
@@ -654,6 +690,9 @@ def patterned_rectangle(
             face_cos=face,
             unmarked_sequence=unmarked[k],
             sequence=after[k].dna_sequence or "",
+            modification_3p=(
+                after[k].modification_3p.vendor_code if after[k].modification_3p else None
+            ),
         )
         for k, helix, offset, face in marks
     )
@@ -664,4 +703,5 @@ def patterned_rectangle(
         grid=grid,
         markers=markers,
         hairpin=check,
+        marker=marker,
     )

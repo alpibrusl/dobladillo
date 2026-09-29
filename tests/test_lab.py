@@ -107,6 +107,8 @@ def test_real_order_files_validate(tmp_path) -> None:
         ("n,ACGT,7nm,STD", "unknown scale"),
         ("n,ACGT,25nm,SPARKLE", "unknown purification"),
         ("n,,25nm,STD", "empty sequence"),
+        ("n,ACGT/3NotAMod/,25nm,STD", "unknown modification"),
+        ("n,/3Bio/,25nm,STD", "empty sequence"),
     ],
 )
 def test_bulk_validator_catches_each_way_a_row_can_be_wrong(row: str, expected: str) -> None:
@@ -198,3 +200,31 @@ def test_a_design_with_latch_extensions_can_be_ordered() -> None:
     sequences = [w.sequence for w in layout.wells]
     assert any(s.endswith(DEFAULT_LATCH) for s in sequences)
     assert any(s.endswith(reverse_complement(DEFAULT_LATCH)) for s in sequences)
+
+
+def test_bulk_validator_accepts_the_modifications_scadnano_defines() -> None:
+    rows = ["a,ACGTTT/3Bio/,25nm,STD", "b,/5Biosg/ACGT,25nm,STD", "c,AC/iBiodT/GT,25nm,STD"]
+    assert lab.validate_bulk_csv(rows) == []
+
+
+def test_a_biotin_tile_orders_validly_and_says_what_its_cost_leaves_out(tmp_path) -> None:
+    """K6's streptavidin arm: the same staple ends as the hairpin tile, each
+    with a TT spacer and a 3' biotin, in files a vendor would accept."""
+    from dobladillo.parts.calibration_tile import calibration_tile
+
+    biotin = calibration_tile(marker="biotin")
+    hairpin = calibration_tile()
+    assert [m.cell for m in biotin.patterned.markers] == [m.cell for m in hairpin.patterned.markers]
+    assert all(m.modification_3p == "/3Bio/" for m in biotin.patterned.markers)
+    assert all(m.sequence.endswith("TT") for m in biotin.patterned.markers)
+    assert biotin.patterned.hairpin is None
+    assert [f.x_nm for f in biotin.features] == [f.x_nm for f in hairpin.features]
+
+    design = biotin.order_design()
+    layout = lab.name_and_assign_wells(design, plate_type=96)
+    written = lab.write_order_files(design, directory=tmp_path, name="t", plate_type=96)
+    rows = lab.bulk_csv_rows(design)
+    assert all("/3Bio/" in row for row in rows)
+    assert lab.validate_bulk_csv(rows) == []
+    assert lab.validate_plate_workbook(written["idt_plate_xlsx"], plate_type=96) == []
+    assert any("EXCLUDES the surcharge for 48" in a for a in layout.cost.assumptions)

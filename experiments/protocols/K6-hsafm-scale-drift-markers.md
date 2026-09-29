@@ -10,11 +10,16 @@ and K1 (its drift rows passed). **Blocked** until three things exist:
 2. **A reader for HS-AFM movies.** The current pipeline refuses `.asd` and
    `.h5-jpk` stacks on purpose (`imaging/readers.py`: "this measures single
    images"). `calibrate drift` exists, but reads frames exported as .gsf: the movie formats themselves are **not read yet**, which is K6's one software blocker.
-3. For arm B only: **a biotinylated variant of the tile.** The toolchain cannot
-   order it today (MATERIALS §1). Arm A runs without it.
+3. For arm B only: **a biotinylated variant of the tile**, part
+   `calibration-tile-biotin`: the same 48 staple ends as the hairpin tile, each
+   with a TT spacer and a 3' biotin (IDT `/3Bio/`), ordered with
+   `uv run dobladillo lab order calibration-tile-biotin --out <dir>`. Plus
+   streptavidin (MATERIALS §1). Arm A runs without it.
 
 **Time:** one or two HS-AFM days, plus a day of analysis
-**Cost:** no new oligos for arm A. Arm B: not decided
+**Cost:** no new oligos for arm A. Arm B: 48 biotinylated staples (1,601
+bases; the modification surcharge is the vendor's and is not in the estimate)
+plus streptavidin
 **Read first:** [K3](K3-lateral-calibration.md), [PROJECT.md](../../projects/afm-calibration-kit/PROJECT.md),
 and the HS-AFM operator's own protocol for DNA origami, which wins wherever it
 differs from this one. Materials: [`MATERIALS.md`](../../projects/afm-calibration-kit/MATERIALS.md) §2, §5

@@ -187,3 +187,10 @@
   running server, and the commands no tool may wrap. Prose outside the
   `<!-- generated:NAME -->` markers stays hand-written. `tests/test_readme.py`
   fails on drift, and checks the README's install line is the one CI runs.
+- Biotin marks (#32): `patterned_rectangle(marker="biotin")` and
+  `calibration_tile(marker="biotin")` put a TT spacer and a 3' biotin (IDT
+  `/3Bio/`, scadnano's own) on the same staple ends the hairpins use, so the
+  ruler is identical. Part `calibration-tile-biotin` orders K6's streptavidin
+  arm. Order validators accept the IDT codes of scadnano's built-in
+  modifications and reject any other; the cost estimate states that it
+  excludes the vendor's modification surcharge.
