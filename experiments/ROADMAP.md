@@ -144,7 +144,7 @@ what partners would be asked for.
 | **K3** | lateral calibration, air and liquid, against a traceable grating | K1, K2 (E10 for the bundle arm) | after K2 |
 | **K4** | tip reconstruction: tile and bundle against the GATTA-AFM 3D staircase; wear | K1, K2, E10 | after K2 and E10 |
 | **K5** | preparation sensitivity (Mg, Ni, dry, deposition time) → the uncertainty | K3 | after K3 |
-| **K6** | HS-AFM: scale, drift, hairpin against streptavidin marks | K3, HS-AFM access, a movie reader | blocked |
+| **K6** | HS-AFM: scale, drift, hairpin against streptavidin marks | K3, HS-AFM access (the movie reader exists, untested on a real file) | blocked |
 | **K7** | kit format and shelf life, 12 months | K3, K5 | after K5 |
 | **K8** | certification against a traceable reference | K5, K7, a partner | the maintainer's decision |
 

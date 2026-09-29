@@ -132,3 +132,81 @@ def test_drift_needs_exactly_one_way_of_giving_times(tmp_path: Path) -> None:
     result = runner.invoke(app, ["calibrate", "drift", "a.gsf", "b.gsf", "--json"])
     assert result.exit_code != 0
     assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters"
+
+
+def test_drift_reads_one_movie_with_the_times_in_the_file(tmp_path: Path) -> None:
+    """The HS-AFM route, end to end: one synthetic .asd, written in the layout
+    AFMReader parses (tests/hsafm_files.py), with a drift of 3 and -2 nm/s at
+    0.5 s a frame imposed. Proves consistency with AFMReader's parser, not
+    that a real instrument's file is read right: there is none to test on."""
+    import pytest
+
+    pytest.importorskip("AFMReader")
+    from hsafm_files import drifting_field, write_asd
+
+    movie = tmp_path / "movie.asd"
+    write_asd(movie, drifting_field(10, step_nm=(1.5, -1.0)), x_nm=256, y_nm=256, frame_time=500.0)
+    payload = _run("calibrate", "drift", str(movie))
+    assert payload["times_source"] == "file"
+    assert payload["file_frame_interval_s"] == 0.5
+    assert payload["times_s"][:3] == [0.0, 0.5, 1.0]
+    assert payload["movie"] == str(movie) and payload["channel"] == "TP"
+    v = payload["velocity_nm_s"]
+    assert abs(v["x"] - 3.0) <= max(3 * v["x_uncertainty"], 0.02)
+    assert abs(v["y"] + 2.0) <= max(3 * v["y_uncertainty"], 0.02)
+
+    # --interval-s replaces the file's times, and says so: twice the interval, half the speed
+    payload = _run("calibrate", "drift", str(movie), "--interval-s", "1.0")
+    assert payload["times_source"] == "--interval-s"
+    assert payload["file_frame_interval_s"] == 0.5
+    assert abs(payload["velocity_nm_s"]["x"] - 1.5) <= 0.02
+
+
+def test_drift_reads_an_h5jpk_movie(tmp_path: Path) -> None:
+    import pytest
+
+    pytest.importorskip("AFMReader")
+    from hsafm_files import drifting_field, write_h5jpk
+
+    movie = tmp_path / "movie.h5-jpk"
+    # 128 lines a frame at 256 lines/s: 0.5 s a frame, as AFMReader computes it
+    write_h5jpk(movie, drifting_field(8, step_nm=(1.5, -1.0)), pixel_nm=2.0, line_rate_hz=256.0)
+    payload = _run(
+        "calibrate", "drift", str(movie), "--times", ",".join(str(0.5 * k) for k in range(8))
+    )
+    assert payload["times_source"] == "--times"
+    file_payload = _run("calibrate", "drift", str(movie))
+    assert file_payload["times_source"] == "file"
+    assert file_payload["times_s"] == payload["times_s"]
+    # The writer stores rows the way AFMReader's flip undoes, so the drift comes
+    # back as imposed. Which way up a REAL .h5-jpk is, is AFMReader's call
+    # (it flips .jpk images the same way), and not checked here.
+    v = file_payload["velocity_nm_s"]
+    assert abs(v["y"] + 2.0) <= max(3 * v["y_uncertainty"], 0.02)
+    assert abs(v["x"] - 3.0) <= max(3 * v["x_uncertainty"], 0.02)
+
+
+def test_drift_refuses_a_movie_it_would_have_to_invent_times_for(tmp_path: Path) -> None:
+    import pytest
+
+    pytest.importorskip("AFMReader")
+    from hsafm_files import drifting_field, write_asd
+
+    movie = tmp_path / "movie.asd"
+    write_asd(movie, drifting_field(4, step_nm=(1.0, 0.0)), x_nm=256, y_nm=256, frame_time=0.0)
+    result = runner.invoke(app, ["calibrate", "drift", str(movie), "--json"])
+    assert result.exit_code != 0
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "unreadable_scan"
+    assert "--interval-s" in error["message"]
+
+
+def test_drift_takes_one_movie_or_image_files_not_both(tmp_path: Path) -> None:
+    for args in (
+        ["m.asd", "f.gsf", "--interval-s", "1"],
+        ["m.asd", "n.asd"],
+        ["m.asd", "--interval-s", "1", "--times", "0,1"],
+    ):
+        result = runner.invoke(app, ["calibrate", "drift", *args, "--json"])
+        assert result.exit_code != 0, args
+        assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters", args

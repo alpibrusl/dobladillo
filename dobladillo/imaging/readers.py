@@ -25,6 +25,12 @@ The adapter is thin on purpose, and strict where AFMReader is permissive:
   AFMReader 0.0.7 rescales WSXM `.top` heights to the *integer part* of the
   header's Z amplitude -- 4.53 nm becomes 4 -- found by reading the `.stp` of the
   same acquisition next to it. See `NOT_READ`.
+- **High-speed movies are stacks, read by `read_stack`, never by `read`.**
+  `.asd` and `.h5-jpk` hold a series of frames of one field, and what they
+  are for is how the field changes with time -- drift, above all. `read`,
+  which every single-image command goes through, refuses them and says where
+  they are read instead. `read_stack` returns the frames with their times,
+  and refuses a movie whose times it would have to guess (see `MOVIES`).
 
 GSF stays. `afm synthetic` writes it, it is fully specified, the reader for it
 is tested exactly by writing files and reading them back, and it is still the
@@ -43,7 +49,9 @@ native file is read, so the GSF path works without it.
 from __future__ import annotations
 
 import importlib
+import math
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
@@ -266,14 +274,6 @@ NOT_READ: Final = {
         "12% low. Read the .stp of the same image instead: WSXM saves both, and the .stp "
         "carries the heights themselves."
     ),
-    ".asd": (
-        "this is a high-speed AFM movie, a stack of frames. This pipeline measures single "
-        "images; export the frame to measure as .gsf from Gwyddion."
-    ),
-    ".h5-jpk": (
-        "this is a JPK high-speed stack, a series of frames. This pipeline measures single "
-        "images; export the frame to measure as .gsf from Gwyddion."
-    ),
 }
 
 
@@ -442,6 +442,13 @@ def read(path: Path, *, channel: str | None = None) -> HeightMap:
         return read_native(path, suffix=suffix, channel=channel)
     if suffix in NOT_READ:
         raise UnreadableScan(f"{path.name}: {NOT_READ[suffix]}")
+    if suffix in MOVIES:
+        raise UnreadableScan(
+            f"{path.name}: this is a high-speed AFM movie, a stack of frames, and this "
+            "measures single images. `dobladillo calibrate drift` reads the movie whole, "
+            "with its frame times (`read_stack` in code). To measure one frame on its "
+            "own, export it as .gsf from Gwyddion."
+        )
     reader = READERS.get(suffix)
     if reader is None:
         readable = sorted({*READERS, *NATIVE, ".001"})
@@ -454,3 +461,319 @@ def read(path: Path, *, channel: str | None = None) -> HeightMap:
     if suffix == ".gsf":
         raise UnreadableScan(f"{path.name}: a .gsf holds one image; it has no channels")
     return read_jpk_force_map(path, channel=channel)
+
+
+# --- High-speed movies -------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MovieFormat:
+    """One high-speed movie format, as AFMReader reads it."""
+
+    module: str
+    loader: str
+    #: The channel read when none is asked for: the topography, as AFMReader's
+    #: own README advises for each format.
+    channel: str
+    instrument: str
+
+
+#: Suffix to movie format. Read by `read_stack`, and refused by `read`.
+MOVIES: Final = {
+    ".asd": MovieFormat("asd", "load_asd", "TP", "high-speed AFM .asd"),
+    ".h5-jpk": MovieFormat("h5_jpk", "load_h5jpk", "height_trace", "JPK high-speed .h5-jpk"),
+}
+
+#: The .asd bit depth AFMReader's height conversion is right for. AFMReader
+#: 0.0.7 builds its level-to-height converter with `resolution=4096` whatever
+#: the header says (`load_asd` never passes the header's bit depth to
+#: `create_analogue_digital_converter`), and the header's own
+#: `analogue_digital_resolution` is computed as `2 ^ bits` -- XOR in Python, 14
+#: for 12 bits -- and not used. A file of any other depth would come back with
+#: every height off by 2**(bits - 12), so it is refused.
+ASD_ADC_BITS: Final = 12
+
+#: Seconds per unit of the .asd header's `frame_time`. AFMReader 0.0.7 reads
+#: the field (a float32) and states no unit for it. It is read as
+#: milliseconds, the unit HS-AFM software reports frame times in. That is an
+#: assumption, not something AFMReader or a test here establishes: every time
+#: taken from it says so, and the operator's own frame rate is the check.
+ASD_FRAME_TIME_S: Final = 1e-3
+
+#: A frame interval outside this range, in seconds, is refused as more likely
+#: a misread unit than a real movie: faster than a millisecond a frame, or
+#: slower than an hour.
+FRAME_INTERVAL_RANGE_S: Final = (1e-3, 3600.0)
+
+TIMES_INSTRUCTION: Final = (
+    "No time is invented here. Give the frame times instead: `calibrate drift` "
+    "takes --interval-s (evenly spaced frames) or --times."
+)
+
+
+@dataclass(frozen=True)
+class Stack:
+    """A high-speed movie: its frames in order, and when each was taken."""
+
+    frames: tuple[HeightMap, ...]
+    times_s: tuple[float, ...]
+    source: str
+    channel: str
+    instrument: str
+    #: "file" when the times are the file's, "given" when the caller's.
+    times_source: str
+    #: The frame interval the file states or implies, in seconds -- kept when
+    #: the caller's times replace it, so the two can be compared. None when
+    #: the file gives none that is usable.
+    file_interval_s: float | None
+    #: How the file's times are made, and what they are not.
+    times_note: str
+    #: The .asd header's scan-direction code, as stored. AFMReader does not
+    #: say what its values mean, so it is reported and not interpreted. None
+    #: for a format that has none.
+    scan_direction: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.frames:
+            raise ValueError("a stack needs at least one frame")
+        if len(self.frames) != len(self.times_s):
+            raise ValueError(f"{len(self.frames)} frames but {len(self.times_s)} times")
+        first = self.frames[0]
+        if any(f.shape != first.shape or f.pixel_nm != first.pixel_nm for f in self.frames):
+            raise ValueError("every frame of a stack must share one shape and pixel size")
+
+    @property
+    def pixel_nm(self) -> float:
+        return self.frames[0].pixel_nm
+
+    def describe(self) -> dict[str, Any]:
+        """Everything but the heights, as plain JSON types."""
+        rows, cols = self.frames[0].shape
+        return {
+            "source": self.source,
+            "instrument": self.instrument,
+            "channel": self.channel,
+            "frames": len(self.frames),
+            "pixels": {"rows": rows, "cols": cols},
+            "pixel_nm": self.pixel_nm,
+            "times_source": self.times_source,
+            "file_frame_interval_s": self.file_interval_s,
+            "times_note": self.times_note,
+            "scan_direction": self.scan_direction,
+        }
+
+
+def _asd_times(path: Path, header: dict[str, Any]) -> tuple[float | None, str | None]:
+    """The .asd frame interval in seconds, or why the file's cannot be used."""
+    frame_time = header.get("frame_time")
+    if frame_time is None or not math.isfinite(frame_time) or frame_time <= 0:
+        return None, f"{path.name} gives no usable frame time ({frame_time!r}). {TIMES_INSTRUCTION}"
+    interval = float(frame_time) * ASD_FRAME_TIME_S
+    low, high = FRAME_INTERVAL_RANGE_S
+    if not low <= interval <= high:
+        return None, (
+            f"{path.name} gives a frame time of {frame_time!r}, which read as milliseconds is "
+            f"{interval:g} s a frame, outside {low:g} to {high:g} s: the unit is more likely "
+            f"wrong than the movie. {TIMES_INSTRUCTION}"
+        )
+    recorded, kept = header.get("initial_frames"), header.get("num_frames")
+    if recorded != kept:
+        return interval, (
+            f"{path.name} was recorded with {recorded} frames and keeps {kept}: frames were "
+            "removed after recording, so a frame's place in the file is no longer its time, "
+            "and no time is invented here. Give the recorded times with --times."
+        )
+    return interval, None
+
+
+def _check_asd(path: Path, header: dict[str, Any]) -> None:
+    """What AFMReader reads from an .asd header without checking it."""
+    bits = header.get("analogue_digital_data_bits_size")
+    if bits != ASD_ADC_BITS:
+        raise UnreadableScan(
+            f"{path.name} stores {bits}-bit heights. AFMReader 0.0.7 converts .asd heights "
+            f"as {ASD_ADC_BITS}-bit whatever the file says, so every height would be off by "
+            f"a factor of 2**({bits} - {ASD_ADC_BITS})."
+        )
+    try:
+        pitch_x = header["x_nm"] / header["x_pixels"]
+        pitch_y = header["y_nm"] / header["y_pixels"]
+    except (KeyError, TypeError, ZeroDivisionError) as exc:
+        raise UnreadableScan(f"{path.name} does not state its scan size in pixels and nm") from exc
+    if not np.isclose(pitch_x, pitch_y, rtol=1e-6):
+        # AFMReader logs this at WARNING and returns the x pitch; here it is refused.
+        raise UnreadableScan(
+            f"pixels are {pitch_x:.4f} by {pitch_y:.4f} nm; this pipeline assumes square "
+            "pixels and would put the difference into every reported dimension"
+        )
+
+
+def _check_h5jpk(path: Path, channel: str, module: Any) -> float:
+    """Refuse what AFMReader's .h5-jpk loader would get wrong; the nominal frame interval.
+
+    AFMReader 0.0.7 reshapes every frame as ilength x ilength, takes the pixel
+    pitch from the fast axis alone, and computes the frame times from the line
+    rate inside the loader, failing the whole read when it is missing. All of
+    that is checked here, from the same attributes, before it is handed over.
+    """
+    try:
+        h5py = importlib.import_module("h5py")  # AFMReader's own dependency
+        with h5py.File(path, "r") as f:
+            # AFMReader's channel discovery, so the two cannot disagree about
+            # which measurement a channel belongs to.
+            channels = module._available_channels(f)
+            if channel not in channels:
+                raise UnreadableScan(
+                    f"no channel {channel!r} in {path.name}; it has {sorted(channels)}"
+                )
+            attrs = dict(f[channels[channel].split("/")[0]].attrs)
+    except UnreadableScan:
+        raise
+    except Exception as exc:
+        raise UnreadableScan(f"{path.name} is not a readable .h5-jpk (HDF5) file: {exc}") from exc
+
+    def number(key: str) -> float | None:
+        value = attrs.get(key)
+        return None if value is None else float(value)
+
+    u, i = number("position-pattern.grid.ulength"), number("position-pattern.grid.ilength")
+    v, j = number("position-pattern.grid.vlength"), number("position-pattern.grid.jlength")
+    if not u or not i:
+        raise UnreadableScan(
+            f"{path.name} does not state its fast-axis scan size, so its pixel pitch is unknown"
+        )
+    if not v or not j:
+        raise UnreadableScan(
+            f"{path.name} does not state its slow-axis scan size, so square pixels cannot be "
+            "checked"
+        )
+    if int(i) != int(j):
+        raise UnreadableScan(
+            f"{path.name} has {int(i)} x {int(j)} pixel frames; AFMReader 0.0.7 reshapes every "
+            "frame as a square and would scramble them"
+        )
+    fast, slow = u / i * M_TO_NM, v / j * M_TO_NM
+    if not np.isclose(fast, slow, rtol=1e-6):
+        raise UnreadableScan(
+            f"pixels are {fast:.4f} by {slow:.4f} nm; this pipeline assumes square "
+            "pixels and would put the difference into every reported dimension"
+        )
+    rate = number("timing-settings.scanRate")
+    if rate is None or not math.isfinite(rate) or rate <= 0:
+        raise UnreadableScan(
+            f"{path.name} does not state its line rate (timing-settings.scanRate), and "
+            "AFMReader 0.0.7 cannot load an .h5-jpk without it, so --interval-s or --times "
+            "cannot stand in. Export the frames as .gsf from Gwyddion and give the times."
+        )
+    return i / rate
+
+
+def read_stack(
+    path: Path,
+    *,
+    channel: str | None = None,
+    interval_s: float | None = None,
+    times_s: Sequence[float] | None = None,
+) -> Stack:
+    """A high-speed AFM movie as frames with their times, through AFMReader.
+
+    The times are the file's unless `interval_s` or `times_s` is given, which
+    replace them (`times_source` then says "given", and the file's own
+    interval is kept beside them for comparison). When the file's times
+    cannot be used -- none stated, a unit that cannot be right, frames removed
+    after recording -- this refuses rather than invent any.
+
+    Neither format keeps a timestamp per frame. An .asd states one frame time
+    and a frame's time is its place in the file times that; an .h5-jpk's
+    times are AFMReader's, lines per frame over the line rate, nominal. Both
+    are the START of each frame, and neither includes any pause between
+    frames. `times_note` says which.
+    """
+    path = Path(path)
+    if interval_s is not None and times_s is not None:
+        raise ValueError("give interval_s or times_s, not both")
+    if interval_s is not None and not (math.isfinite(interval_s) and interval_s > 0):
+        raise ValueError(f"the frame interval must be a positive time in s, got {interval_s}")
+    if not path.exists():
+        raise UnreadableScan(f"no such file: {path}")
+    suffix = suffix_of(path)
+    fmt = MOVIES.get(suffix)
+    if fmt is None:
+        raise UnreadableScan(
+            f"{path.name} is not a movie format this reads ({', '.join(MOVIES)}). A series "
+            "of single images is read one file at a time."
+        )
+    wanted = channel or fmt.channel
+    module = _afmreader(fmt.module)
+    nominal = _check_h5jpk(path, wanted, module) if suffix == ".h5-jpk" else None
+    try:
+        heights, pixel_nm, extra = getattr(module, fmt.loader)(path, wanted)
+    except FileNotFoundError as exc:
+        raise UnreadableScan(f"no such file: {path}") from exc
+    except Exception as exc:
+        raise UnreadableScan(
+            f"AFMReader could not read {path.name} as {fmt.instrument}: {exc}"
+        ) from exc
+
+    frames = np.asarray(heights, dtype=float)
+    if frames.ndim != 3 or frames.shape[0] == 0:
+        raise UnreadableScan(f"{path.name} gave an array of shape {frames.shape}, not frames")
+    if pixel_nm is None or not np.isfinite(pixel_nm) or pixel_nm <= 0:
+        raise UnreadableScan(
+            f"{path.name} does not give a usable pixel size ({pixel_nm!r}), so every "
+            "dimension measured from it would be arbitrary"
+        )
+    if not np.isfinite(frames).all():
+        raise UnreadableScan(
+            f"{path.name} has {int((~np.isfinite(frames)).sum())} missing or infinite heights"
+        )
+    count = frames.shape[0]
+
+    scan_direction: int | None = None
+    if suffix == ".asd":
+        _check_asd(path, extra)
+        file_interval, problem = _asd_times(path, extra)
+        file_times = tuple(k * file_interval for k in range(count)) if file_interval else ()
+        note = (
+            "frame index x the header's frame_time, read as milliseconds (AFMReader states "
+            "no unit); the file keeps no per-frame timestamp"
+        )
+        direction = extra.get("scan_direction")
+        scan_direction = None if direction is None else int(direction)
+    else:
+        file_interval, problem = nominal, None
+        file_times = tuple(float(extra[f"frame {k}"]) for k in range(count))
+        note = (
+            "AFMReader's nominal times: frame index x lines per frame / line rate "
+            "(timing-settings.scanRate); not recorded per frame, no pause between frames"
+        )
+
+    if times_s is not None:
+        times = tuple(float(t) for t in times_s)
+        if len(times) != count:
+            raise ValueError(f"{path.name} has {count} frames but {len(times)} times were given")
+        times_source = "given"
+    elif interval_s is not None:
+        times = tuple(k * interval_s for k in range(count))
+        times_source = "given"
+    elif problem is not None or not file_times:
+        raise UnreadableScan(problem or f"{path.name} gives no frame times. {TIMES_INSTRUCTION}")
+    else:
+        times, times_source = file_times, "file"
+
+    return Stack(
+        frames=tuple(
+            HeightMap(
+                heights_nm=frame, pixel_nm=float(pixel_nm), source=f"{path.name}:{wanted}#{k}"
+            )
+            for k, frame in enumerate(frames)
+        ),
+        times_s=times,
+        source=f"{path.name}:{wanted}",
+        channel=wanted,
+        instrument=fmt.instrument,
+        times_source=times_source,
+        file_interval_s=file_interval,
+        times_note=note,
+        scan_direction=scan_direction,
+    )

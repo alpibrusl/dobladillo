@@ -101,6 +101,12 @@ passes `sim check`.
   partner file, with an independently known pixel size, committed as a
   fixture. Square pixels are assumed, not checked, for `.spm`, `.ibw` and
   `.gwy`.
+- **High-speed movies (#26):** `.asd` and `.h5-jpk` are read as stacks with
+  their frame times (`readers.read_stack`), and `calibrate drift` takes one
+  movie directly. Tested only on synthetic files written in the layout
+  AFMReader parses: no real movie has been read. The `.asd` frame time is
+  taken as milliseconds, which AFMReader does not state; K6's checklist
+  checks it against the operator's frame rate.
 - **#8 is blocked at the dependency:** TopoStats ≥ 2.3 needs topoly,
   TensorFlow and Python < 3.12. Re-check when topoly becomes optional
   upstream.

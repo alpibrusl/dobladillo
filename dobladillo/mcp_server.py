@@ -251,10 +251,13 @@ def create_server(experiments_root: Path) -> MCPServer:
         return with_files([scan], "calibrate", "tip", after=("--size-px", str(size_px)))
 
     @server.tool()
-    def calibrate_drift(frames: list[str], interval_s: float) -> CallToolResult:
+    def calibrate_drift(frames: list[str], interval_s: float | None = None) -> CallToolResult:
         """Drift between frames of the same field: per-frame displacement and a velocity
-        with its standard error. frames: paths under the root, in time order."""
-        return with_files(frames, "calibrate", "drift", after=("--interval-s", str(interval_s)))
+        with its standard error. frames: paths under the root, in time order, with
+        interval_s; or ONE high-speed movie (.asd, .h5-jpk), whose frame times come from
+        the file unless interval_s is given (times_source says which)."""
+        after = () if interval_s is None else ("--interval-s", str(interval_s))
+        return with_files(frames, "calibrate", "drift", after=after)
 
     @server.tool()
     def experiment_pattern(name: str) -> CallToolResult:

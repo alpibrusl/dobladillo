@@ -187,3 +187,16 @@
   running server, and the commands no tool may wrap. Prose outside the
   `<!-- generated:NAME -->` markers stays hand-written. `tests/test_readme.py`
   fails on drift, and checks the README's install line is the one CI runs.
+- High-speed AFM movies (#26): `imaging.readers.read_stack` reads `.asd` and
+  `.h5-jpk` through AFMReader as a `Stack` of `HeightMap`s with per-frame
+  times, and `calibrate drift` takes one movie directly, with the file's times
+  unless `--interval-s`/`--times` replaces them (`times_source` says which;
+  the MCP tool's `interval_s` is now optional). Refused rather than guessed:
+  a movie with no usable frame time, frames removed after recording, non-square
+  pixels, an `.asd` bit depth other than 12 (AFMReader 0.0.7 converts every
+  `.asd` as 12-bit), and `.h5-jpk` frames AFMReader would reshape wrongly.
+  The `.asd` frame time is taken as milliseconds, which AFMReader does not
+  state. Tested on synthetic movies written in the layout AFMReader parses
+  (`tests/hsafm_files.py`), recovering an imposed drift end to end; no real
+  instrument file has been read. `read` still refuses movies, and says where
+  they are read. K6's readout uses the real command.
