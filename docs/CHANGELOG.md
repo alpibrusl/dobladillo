@@ -181,3 +181,9 @@
   pitch analysis (use Gwyddion).
 - Part `calibration-tile`: E1's rectangle with 12 isolated, chiral hairpin
   cells (48 marker staples), the ruler for `calibrate lateral`.
+- README facts generated from the code (`dobladillo readme`, module
+  `dobladillo.readme`): every command with its usage from its declared
+  arguments, the install extras from `pyproject.toml`, the MCP tools from the
+  running server, and the commands no tool may wrap. Prose outside the
+  `<!-- generated:NAME -->` markers stays hand-written. `tests/test_readme.py`
+  fails on drift, and checks the README's install line is the one CI runs.

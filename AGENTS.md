@@ -40,9 +40,12 @@ in the README, *For agents*. When you change the tool:
   stdout. A failure is `{"error": {"kind": ..., "message": ...}}` with a
   non-zero exit. A new command follows the same contract (`Emitter` in
   `cli.py`). Never let a traceback or a banner reach stdout.
-- **Regenerate `SKILL.md`** after any change to the command surface:
-  `uv run dobladillo skill > SKILL.md`. A test fails when the committed copy
-  is stale.
+- **Regenerate `SKILL.md` and the README's generated sections** after any
+  change to the command surface, the extras or the MCP tools:
+  `uv run dobladillo skill > SKILL.md` and `uv run dobladillo readme`. Tests
+  fail when either committed copy is stale. In the README, only text between
+  `<!-- generated:... -->` markers is generated; write prose outside them,
+  and never edit inside them by hand.
 - **Expose an analysis command over MCP** when an agent would call it: add a
   tool to `dobladillo/mcp_server.py` that runs the CLI command with `--json`
   and returns its payload. Never reimplement the command's logic there. Take

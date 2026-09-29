@@ -18,46 +18,117 @@ Working rules for coding agents: `AGENTS.md`.
 uv sync --extra dev --extra design --extra imaging --extra mcp
 ```
 
-The extras, if you want less: `design` (scadnano: build, lint, order,
-simulate), `imaging` (read and measure AFM scans, `calibrate`), `mcp` (the
-MCP server), `dev` (tests and checks). CI installs all four. oxDNA is not a
-Python dependency: point `$OXDNA` at a CPU build, and on Apple Silicon
-`$OXDNA_METAL` at the pinned Metal fork (see `AGENTS.md`, rule 4).
+The extras, if you want less (generated from `pyproject.toml`):
+
+<!-- generated:extras -->
+| extra | for | installs |
+|---|---|---|
+| `design` | scadnano, the design data model: build, lint, order, simulate | `scadnano==0.21.1` |
+| `imaging` | read and measure AFM scans; `calibrate` | `scipy>=1.11`, `afmreader==0.0.7`, `scikit-image>=0.22` |
+| `mechanics` | indentation mechanics; declares a private dependency it cannot install | nothing (see pyproject.toml) |
+| `dev` | tests, lint, format and type checks | `pytest>=8.0`, `ruff>=0.6`, `mypy>=1.11`, `scipy>=1.11` |
+| `mcp` | the MCP server (`dobladillo mcp`) | `mcp>=2.2,<3` |
+<!-- /generated:extras -->
+
+oxDNA is not a Python dependency: point `$OXDNA` at a CPU build, and on
+Apple Silicon `$OXDNA_METAL` at the pinned Metal fork (see `AGENTS.md`,
+rule 4).
 
 ## Use
 
-A selection; `uv run dobladillo --help` and [`SKILL.md`](SKILL.md) list every
-command.
+Every command, generated from the code by `uv run dobladillo readme` (a test
+fails if this list drifts from what the tool accepts). Each takes `--help` and
+`--json`; arguments in CAPITALS are required, `[BRACKETED]` ones optional.
 
-```bash
-# design, check, order
-uv run dobladillo build rectangle            # a Rothemund-style rectangle on the square lattice
-uv run dobladillo build bundle               # a six-helix bundle on the honeycomb lattice
-uv run dobladillo lint design.sc            # check a design against the rules; non-zero on a hard violation
-uv run dobladillo predict bundle             # beam-model shape prediction (bend, twist) in seconds
-uv run dobladillo lab order calibration-tile # plates, pooling map and cost for a part's staples
-uv run dobladillo lab protocol rectangle     # the folding protocol sheet, with the magnesium screen
+<!-- generated:commands -->
+**(top level)**
 
-# simulate
-uv run dobladillo sim bundle rectangle --out runs/rect   # a self-contained oxDNA job bundle; runs nothing
-uv run dobladillo sim check runs/rect        # is this run a result? non-zero if not
-uv run dobladillo analyse runs/rect          # observables, and whether any is still settling
+| command | what it does |
+|---|---|
+| `dobladillo analyse RUN_DIR` | Turn a finished run into observables with experimental counterparts. |
+| `dobladillo benchmark` | Score routing and shape prediction against known answers. Exits non-zero on a miss. |
+| `dobladillo bracket` | The latch ladder that guarantees Stage 0 lands in its measurement window. |
+| `dobladillo compare PART` | Design against simulation against measurement: the closed loop. |
+| `dobladillo dashboard` | Generate the shareable board. Reads every figure from the toolchain. |
+| `dobladillo describe` | Emit the command surface, for an agent to read instead of `--help`. |
+| `dobladillo export PART` | Write a local archive of a part in Nanobase's layout. Never uploads. |
+| `dobladillo export-check ARCHIVE` | Validate an export archive against its layout. Exits non-zero if it departs. |
+| `dobladillo folding-window PART` | Where this design should fold: staple melting temperatures, weak staples, a screen. |
+| `dobladillo geometry` | Show the geometry constants, and where this project disagrees. |
+| `dobladillo lint DESIGN_FILE` | Check a design against the rules. Exits non-zero on a hard violation. |
+| `dobladillo mcp` | Serve the parts, rules, queue and experiments to an agent over MCP (stdio). |
+| `dobladillo predict TARGET` | Predict a design's equilibrium bend and twist in seconds (beam model). |
+| `dobladillo readme` | Rewrite the README's generated sections (commands, extras, MCP tools) from the code. |
+| `dobladillo rules` | List the design rules, and what is knowingly not checked. |
+| `dobladillo scaffolds` | List the scaffold strands available, asked of scadnano directly. |
+| `dobladillo skill` | Print a SKILL.md for this tool, generated from its own commands. |
+| `dobladillo twist-pair` | The matched pair that tests whether the twist correction does anything. |
+| `dobladillo version` | Print the version. |
 
-# experiments and AFM
-uv run dobladillo experiment new <slug> --part rectangle   # pre-registration folder: pre/, during/, post/
-uv run dobladillo experiment check experiments/<folder>    # what is recorded, what is missing
-uv run dobladillo afm measure scan.gsf --tip-radius 10     # flatten, segment, measure, classify
+**afm**
 
-# AFM calibration (projects/afm-calibration-kit/)
-uv run dobladillo calibrate lateral tile-*.gsf # scanner x/y scale and skew, with k=2 intervals
-uv run dobladillo calibrate tip scan.gsf       # blind tip reconstruction, apex radius, resolution
-uv run dobladillo calibrate drift f*.gsf --interval-s 2   # drift between frames
-```
+| command | what it does |
+|---|---|
+| `dobladillo afm measure SCAN` | Flatten, segment, measure and classify a scan, and report the yield. |
+| `dobladillo afm read SCAN` | Read a scan and report what it is. Measures nothing. |
+| `dobladillo afm synthetic` | Write a synthetic scan of known contents, as a .gsf. |
+
+**build**
+
+| command | what it does |
+|---|---|
+| `dobladillo build bundle` | A six-helix bundle on the honeycomb lattice. |
+| `dobladillo build hinge` | A bistable hinge: two arms, a single-stranded joint, and a latch. |
+| `dobladillo build pair` | Both arms of the twist pair, written side by side. |
+| `dobladillo build rectangle` | A Rothemund-style rectangle on the square lattice. |
+
+**calibrate**
+
+| command | what it does |
+|---|---|
+| `dobladillo calibrate drift FRAMES...` | Drift between frames: displacement per frame and a velocity with its standard error. |
+| `dobladillo calibrate lateral SCANS...` | The scanner's X and Y scale and skew, from reference particles at random angles. |
+| `dobladillo calibrate reference` | Write the calibration tile's reference geometry: its marks, in nm, with uncertainty. |
+| `dobladillo calibrate tip SCAN` | The tip, reconstructed blind from the scan, its apex radius, and the resolution it allows. |
+
+**experiment**
+
+| command | what it does |
+|---|---|
+| `dobladillo experiment assembly DIRECTORY` | Count assembly states per sample, against the controls. Writes post/assembly.json. |
+| `dobladillo experiment check DIRECTORY` | What is missing, and whether the results can be believed. |
+| `dobladillo experiment compare-arms DIRECTORY` | Compare two blinded arms by flat fraction, and state the verdict both ways. |
+| `dobladillo experiment folding-screen DIRECTORY` | E11: yield against temperature and time, from gel band intensities. |
+| `dobladillo experiment new SLUG` | Scaffold an experiment, with its predictions recorded up front. |
+| `dobladillo experiment pattern DIRECTORY` | Read the designed pattern off every well-formed particle, and say which way round. |
+| `dobladillo experiment report DIRECTORY` | Measure the scans and compare them against what was predicted. |
+| `dobladillo experiment rods DIRECTORY` | Trace every rod, check its length, and ask whether the population is straight. |
+
+**lab**
+
+| command | what it does |
+|---|---|
+| `dobladillo lab order PART` | Plates, pooling map and cost for ordering a part's staples. |
+| `dobladillo lab protocol PART` | The folding protocol sheet, with the magnesium screen laid out. |
+
+**sim**
+
+| command | what it does |
+|---|---|
+| `dobladillo sim bundle PART` | Write a self-contained oxDNA job bundle. Runs nothing. |
+| `dobladillo sim check RUN_DIR` | Is this run something whose numbers mean anything? Exits non-zero if not. |
+| `dobladillo sim enqueue BUNDLES...` | Add bundles to the queue. Starts nothing; `sim run` does that. |
+| `dobladillo sim run` | Run queued bundles, several at a time. Blocks; launch it with nohup. |
+| `dobladillo sim status` | What the queue is doing. |
+| `dobladillo sim sweep` | Build one hinge bundle per joint length, and queue them. |
+<!-- /generated:commands -->
 
 ### For agents
 
 There are three ways in, and they say the same thing: the skill and the MCP
 server are both generated from, or run, the CLI below.
+
+The lists below are generated from the code; the prose around them is not.
 
 **1. The CLI with `--json`.** Every command takes `--json`, and with it
 stdout carries exactly one JSON object: no banners, no colour, no progress.
@@ -101,18 +172,44 @@ other MCP client takes the same command:
   "args": ["--directory", "/path/to/dobladillo", "run", "dobladillo", "mcp", "--root", "experiments"]}}}
 ```
 
-The tools: `describe`, `rules`, `build_part`, `lint_part`, `predict_shape`,
-`queue_status`; `experiment_list`, `experiment_check`, `experiment_report`,
-`experiment_compare_arms`, `experiment_pattern`, `experiment_assembly`,
-`experiment_rods`, `experiment_folding_screen`; `calibrate_reference`,
-`calibrate_lateral`, `calibrate_tip`, `calibrate_drift`. Experiment folders
-and scan files are addressed relative to `--root`, and anything that resolves
-outside it is refused.
+The tools (generated from the running server). Experiment folders and scan
+files are addressed relative to `--root`, and anything that resolves outside
+it is refused.
 
-**What no route will do.** No tool orders oligos, creates an experiment
-(pre-registration), writes a gate, or touches `during/raw/`: those are the
-experimentalist's acts (`experiments/AGENTS.md`), and a test checks the MCP
-server exposes none of them. An agent may analyse, check and report.
+<!-- generated:mcp-tools -->
+| tool | what it returns |
+|---|---|
+| `build_part` | A part's accounting: helices, scaffold, staples, dimensions. |
+| `calibrate_drift` | Drift between frames of the same field: per-frame displacement and a velocity with its standard error. |
+| `calibrate_lateral` | Scanner x/y scale and skew, with k=2 intervals, from scans of reference particles at random angles. |
+| `calibrate_reference` | The calibration tile's reference geometry: mark positions in nm with their relative uncertainty. |
+| `calibrate_tip` | Blind tip reconstruction (an outer bound), its apex radius and the lateral resolution it allows. |
+| `describe` | Every CLI command, its options and the conventions of its JSON output. |
+| `experiment_assembly` | E9: monomer, dimer and larger fractions per sample, against the A-alone and B-alone controls. |
+| `experiment_check` | What an experiment folder is missing, and whether its record holds. |
+| `experiment_compare_arms` | E2's blinded two-arm comparison: fraction flat per arm, verdict both ways. |
+| `experiment_folding_screen` | E11: folded yield against constant temperature and time, from the gel quantification, beside the predicted folding window. |
+| `experiment_list` | Experiment folders under the root, by name. |
+| `experiment_pattern` | E8: read the designed pattern off every well-formed particle, and which way round it lies. |
+| `experiment_report` | Measure every raw scan, compare against the recorded prediction, write post/. |
+| `experiment_rods` | E10: trace every rod, check its tip-corrected length, and tell a straight but flexible bundle from a systematically curved one. |
+| `lint_part` | Check a part against every design rule, crossover phasing included. |
+| `predict_shape` | Predicted bend and twist from the beam model, in seconds. |
+| `queue_status` | What the oxDNA queue is doing: each job's state, stage and progress. |
+| `rules` | The design rules, and what is knowingly not checked. |
+<!-- /generated:mcp-tools -->
+
+**What no route will do.** An agent may analyse, check and report. No tool
+orders oligos, creates an experiment (pre-registration), writes a gate, or
+touches `during/raw/`: those are the experimentalist's acts
+(`experiments/AGENTS.md`). These commands exist in the CLI and are kept out of
+the MCP server on purpose (generated from `mcp_server.FORBIDDEN_COMMANDS`; a
+test checks no tool wraps them):
+
+<!-- generated:mcp-forbidden -->
+- `lab order`: an oligo order is a purchase, a human gate.
+- `experiment new`: creating an experiment is pre-registration, the experimentalist's act.
+<!-- /generated:mcp-forbidden -->
 
 ## Principles
 

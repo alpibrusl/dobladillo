@@ -3464,6 +3464,47 @@ def mcp_serve(root: Path = EXPERIMENTS_ROOT) -> None:
     main(root)
 
 
+@app.command("readme")
+def readme(
+    path: Path = typer.Option(Path("README.md"), "--path", help="The README to update."),
+    check: bool = typer.Option(
+        False, "--check", help="Change nothing; exit non-zero if a generated section is stale."
+    ),
+    as_json: bool = JSON_OPTION,
+) -> None:
+    """Rewrite the README's generated sections (commands, extras, MCP tools) from the code.
+
+    Only text between `<!-- generated:NAME -->` markers is touched; the rest
+    is prose. A test runs `--check`, so a README that drifts from the code
+    fails CI. See `dobladillo.readme`.
+    """
+    from dobladillo import readme as generated
+
+    emitter = Emitter(as_json)
+    if not path.is_file():
+        emitter.fail(f"no README at {path}", kind="missing_file")
+    text = path.read_text()
+    try:
+        stale = generated.stale_sections(text)
+        fresh = generated.render(text)
+    except (ValueError, ImportError) as e:
+        emitter.fail(str(e), kind="cannot_generate")
+        return
+    if check:
+        payload = {"path": str(path), "stale": stale, "current": not stale}
+        human = "README is current" if not stale else f"stale sections: {', '.join(stale)}"
+        emitter.result(payload, human)
+        if stale:
+            raise typer.Exit(1)
+        return
+    if fresh != text:
+        path.write_text(fresh)
+    emitter.result(
+        {"path": str(path), "updated": stale},
+        f"updated: {', '.join(stale)}" if stale else "README already current",
+    )
+
+
 @app.command("skill")
 def skill() -> None:
     """Print a SKILL.md for this tool, generated from its own commands."""

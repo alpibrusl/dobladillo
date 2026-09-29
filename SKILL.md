@@ -49,6 +49,7 @@ experimental counterparts.
 - `dobladillo lint` — Check a design against the rules. Exits non-zero on a hard violation.
 - `dobladillo mcp` — Serve the parts, rules, queue and experiments to an agent over MCP (stdio).
 - `dobladillo predict` — Predict a design's equilibrium bend and twist in seconds (beam model).
+- `dobladillo readme` — Rewrite the README's generated sections (commands, extras, MCP tools) from the code.
 - `dobladillo rules` — List the design rules, and what is knowingly not checked.
 - `dobladillo scaffolds` — List the scaffold strands available, asked of scadnano directly.
 - `dobladillo sim bundle` — Write a self-contained oxDNA job bundle. Runs nothing.
