@@ -132,3 +132,23 @@ def test_drift_needs_exactly_one_way_of_giving_times(tmp_path: Path) -> None:
     result = runner.invoke(app, ["calibrate", "drift", "a.gsf", "b.gsf", "--json"])
     assert result.exit_code != 0
     assert json.loads(result.stdout)["error"]["kind"] == "invalid_parameters"
+
+
+def test_tip_is_informative_on_a_crowded_field_too(tmp_path: Path) -> None:
+    """Until #31 the noise estimate read 8x high on a field this crowded, and the
+    tip came back uninformative."""
+    import numpy as np
+
+    from dobladillo.calibration.tip import dilate, paraboloid_tip
+    from dobladillo.imaging.heightmap import HeightMap
+
+    rng = np.random.default_rng(3)
+    surface = np.zeros((160, 160))
+    for _ in range(40):
+        i, j = rng.integers(0, 160, 2)
+        surface[i, j] = rng.uniform(25, 40)
+    image = dilate(surface, paraboloid_tip(10.0, 1.0, 31)) + rng.normal(0, 0.05, surface.shape)
+    scan = str(write_gsf(HeightMap(image, 1.0, "synthetic"), tmp_path / "crowded.gsf"))
+    payload = _run("calibrate", "tip", scan)
+    assert payload["tip"]["informative"] is True
+    assert payload["noise"]["sigma_nm"] < 0.07

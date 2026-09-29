@@ -195,3 +195,19 @@ def test_bustamante_keller_reproduces_the_articles_worked_example() -> None:
     assert bustamante_keller_nm(
         tip_radius_nm=10.0, dip_nm=0.5, height_step_nm=2.0
     ) == pytest.approx(10.23, abs=0.01)
+
+
+def test_pixel_noise_survives_a_field_crowded_with_sloped_features() -> None:
+    """#31: first differences read 0.42 nm here for a true 0.05 nm, because
+    most neighbour pairs sit on a flank. Second differences cancel the slope."""
+    from dobladillo.calibration.tip import dilate, paraboloid_tip
+
+    rng = np.random.default_rng(3)
+    surface = np.zeros((160, 160))
+    for _ in range(40):
+        i, j = rng.integers(0, 160, 2)
+        surface[i, j] = rng.uniform(25, 40)
+    image = dilate(surface, paraboloid_tip(10.0, 1.0, 31)) + rng.normal(0, 0.05, surface.shape)
+    image += np.outer(rng.normal(0, 0.5, 160), np.ones(160))  # line offsets
+    sigma = pixel_noise(image).sigma_nm
+    assert 0.045 <= sigma <= 0.07  # a small overestimate: the safe side for a threshold

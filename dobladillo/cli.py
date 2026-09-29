@@ -1831,9 +1831,8 @@ def calibrate_tip(
     (`informative: false`) instead of quoting a radius.
 
     The noise threshold comes from the scan's own pixel noise, estimated from
-    neighbour differences. That assumes most of the scan is substrate: a
-    field crowded wall to wall with tall features overestimates the noise and
-    returns an uninformative tip. Scan a sparser field.
+    second differences along the fast axis, which cancel line offsets and the
+    slopes of features, so a crowded field is measured too.
     """
     from dobladillo.calibration.resolution import lateral_resolution, pixel_noise
     from dobladillo.calibration.tip import THRESHOLD_SIGMA, blind_tip

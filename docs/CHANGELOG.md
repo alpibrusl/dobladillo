@@ -194,3 +194,6 @@
   arm. Order validators accept the IDT codes of scadnano's built-in
   modifications and reject any other; the cost estimate states that it
   excludes the vendor's modification surcharge.
+- Pixel noise from second differences (#31): cancels line offsets and feature
+  slopes, so a crowded scan no longer reads 8x noisier than it is (0.42 ->
+  0.06 nm for a true 0.05) and `calibrate tip` stays informative on it.

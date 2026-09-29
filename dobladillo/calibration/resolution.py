@@ -382,28 +382,35 @@ class Noise:
             "sigma_nm": round(self.sigma_nm, 4),
             "uncertainty_nm": round(self.uncertainty_nm, 4),
             "n": self.n,
-            "method": "MAD of fast-axis neighbour differences / (0.6745 sqrt 2)",
+            "method": "MAD of fast-axis second differences / (0.6745 sqrt 6)",
         }
 
 
 def pixel_noise(heights: np.ndarray) -> Noise:
-    """White pixel noise, robust to the features and to line offsets.
+    """White pixel noise, robust to the features, their slopes and line offsets.
 
-    Differences of neighbours along the fast axis cancel every line's own
-    offset and every slowly varying height, and leave sqrt(2) times the
-    pixel noise; the median absolute deviation ignores the few differences
-    that cross a feature's edge. 0.6745 converts a MAD to a standard
-    deviation for a normal distribution. The uncertainty is approximate: the
-    normal standard error of a standard deviation, sigma / sqrt(2 (n - 1)),
-    times 1.65 for the MAD's lower efficiency (37% of the standard
-    deviation's for normal data, so 2.7 times the variance), and it ignores
-    that neighbouring differences share a pixel.
+    Second differences along the fast axis, h[x+1] - 2 h[x] + h[x-1], cancel
+    every line's own offset AND any locally linear slope, and leave sqrt(6)
+    times the pixel noise. First differences, used until #31, cancel offsets
+    but not slopes: on a scan crowded with tall features most neighbour pairs
+    lie on a flank, and the estimate read 0.42 nm for a true 0.05 nm, which
+    set the tip threshold eight times too high. A tip-shaped flank is curved,
+    not straight, but its curvature is nearly constant, and the median
+    absolute deviation ignores a constant: measured, 0.052-0.060 nm for a true
+    0.05 on sparse to very crowded fields, 0.205-0.218 for 0.20. The residual
+    is an OVERestimate, which only blunts the reconstructed tip -- the safe
+    side for an outer bound.
+
+    0.6745 converts a MAD to a standard deviation for a normal distribution.
+    The uncertainty is approximate: the normal standard error of a standard
+    deviation, sigma / sqrt(2 (n - 1)), times 1.65 for the MAD's lower
+    efficiency, ignoring that neighbouring second differences share pixels.
     """
     values = np.asarray(heights, dtype=float)
-    if values.ndim != 2 or values.shape[1] < 2:
-        raise ValueError("expected a 2D image at least two pixels wide")
-    diffs = np.diff(values, axis=1).ravel()
-    mad = float(np.median(np.abs(diffs - np.median(diffs))))
-    sigma = mad / 0.6745 / math.sqrt(2.0)
-    n = len(diffs)
+    if values.ndim != 2 or values.shape[1] < 3:
+        raise ValueError("expected a 2D image at least three pixels wide")
+    second = (values[:, 2:] - 2.0 * values[:, 1:-1] + values[:, :-2]).ravel()
+    mad = float(np.median(np.abs(second - np.median(second))))
+    sigma = mad / 0.6745 / math.sqrt(6.0)
+    n = len(second)
     return Noise(sigma_nm=sigma, uncertainty_nm=1.65 * sigma / math.sqrt(2 * (n - 1)), n=n)
