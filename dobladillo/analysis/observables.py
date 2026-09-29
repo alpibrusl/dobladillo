@@ -21,7 +21,7 @@ and the guard on how many frames they rest on.
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
@@ -145,6 +145,8 @@ class Report:
     bend_nm: Spread
     rmsf_nm: np.ndarray
     potential_energy: Spread
+    #: Per observable, whether it was still moving over the frames analysed.
+    settling: dict[str, Settling | None] = field(default_factory=dict)
     #: oat's mean structure, centred, nm. None for a single frame, where there
     #: is nothing to average and the frame is the structure.
     mean_structure_nm: np.ndarray | None = None
@@ -178,7 +180,14 @@ class Report:
                 "computed_by": _oat.provenance() if self.mean_structure_nm is not None else None,
             },
             "potential_energy_per_nucleotide": self.potential_energy.as_dict(),
+            "settling": {k: (v.as_dict() if v else None) for k, v in self.settling.items()},
+            "still_settling": self.still_settling,
         }
+
+    @property
+    def still_settling(self) -> list[str]:
+        """Observables whose mean over these frames is not yet a steady value."""
+        return [k for k, v in self.settling.items() if v is not None and v.drifting]
 
 
 def _spread(values: Sequence[float]) -> Spread:
@@ -278,6 +287,92 @@ def reach(frames: Sequence[Frame], a: Sequence[int], b: Sequence[int], *, bases:
     )
 
 
+#: Blocks a per-frame series is cut into to test whether it is still moving.
+#: Block means are far less correlated than neighbouring frames, which is why
+#: the trend is fitted through them rather than through every frame.
+SETTLING_BLOCKS: Final = 8
+
+#: t value, on SETTLING_BLOCKS - 2 = 6 degrees of freedom, above which either
+#: test in `_trend` calls a series drifting: the two-sided 5% point (2.447).
+#: With two tests, about one stationary series in ten is flagged (measured:
+#: 9.4% of 1000 correlated AR(1) series). A false flag costs a rerun with
+#: --skip; a missed one reports a transient as a steady value.
+SETTLING_T: Final = 2.447
+
+
+@dataclass(frozen=True)
+class Settling:
+    """Whether a per-frame observable is still moving, and where it stops.
+
+    Found on 2026-09-29: a deletion-bent bundle on Metal bent DURING
+    production (end-to-end 355, 342, 323, 316 nm by quarter). Averaged over
+    the whole run it reads 334 nm; over the settled half 320, the CPU
+    reference's value. Nothing else in the report showed it.
+    """
+
+    drifting: bool
+    #: Change across the frames kept, in the observable's unit: the line's, or
+    #: from the first block to the rest when that test is the stronger.
+    change: float
+    t: float
+    suggested_skip_fraction: float | None  # of the frames analysed; None: never settles
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "drifting": self.drifting,
+            "change_across_run": round(self.change, 4),
+            "t": round(self.t, 2),
+            "suggested_skip_fraction": self.suggested_skip_fraction,
+        }
+
+
+def _trend(values: np.ndarray) -> tuple[float, float]:
+    """Change across the series and its t value, from block means.
+
+    Two tests, and the larger t wins. A straight line through the block means
+    catches a slow drift over the whole run. It misses a transient confined to
+    the start -- a run that settles in its first 15% is mostly flat, and the
+    line through it is too -- so the first block is also compared with the
+    mean of the rest, against the scatter of the rest (t on
+    SETTLING_BLOCKS - 2 degrees of freedom).
+    """
+    blocks = np.array([b.mean() for b in np.array_split(values, SETTLING_BLOCKS)])
+    x = np.arange(SETTLING_BLOCKS, dtype=float)
+    slope, intercept = np.polyfit(x, blocks, 1)
+    residual = blocks - (slope * x + intercept)
+    dof = SETTLING_BLOCKS - 2
+    se = np.sqrt((residual**2).sum() / dof / ((x - x.mean()) ** 2).sum())
+    change = float(slope * (SETTLING_BLOCKS - 1))
+    t_line = float(abs(slope) / se) if se > 0 else (float("inf") if slope else 0.0)
+
+    rest = blocks[1:]
+    step = float(blocks[0] - rest.mean())
+    se_step = float(rest.std(ddof=1) * np.sqrt(1 + 1 / rest.size))
+    t_step = abs(step) / se_step if se_step > 0 else (float("inf") if step else 0.0)
+    if t_step > t_line:
+        return -step, t_step
+    return change, t_line
+
+
+def settling(values: Sequence[float]) -> Settling | None:
+    """Trend test on one observable; None when there are too few frames to cut."""
+    array = np.asarray(values, dtype=float)
+    if array.size < 4 * SETTLING_BLOCKS:
+        return None
+    change, t = _trend(array)
+    suggested: float | None = 0.0
+    if t > SETTLING_T:
+        suggested = None
+        # Drop the first eighth, quarter, ... up to half, and take the first
+        # remainder that no longer drifts.
+        for k in range(1, SETTLING_BLOCKS // 2 + 1):
+            rest = array[k * array.size // SETTLING_BLOCKS :]
+            if rest.size >= 4 * SETTLING_BLOCKS and _trend(rest)[1] <= SETTLING_T:
+                suggested = k / SETTLING_BLOCKS
+                break
+    return Settling(t > SETTLING_T, change, t, suggested)
+
+
 def analyse(frames: Sequence[Frame], *, trajectory: Path, skip: int = 0) -> Report:
     """Every observable, from a list of frames and the file they were read from.
 
@@ -330,6 +425,11 @@ def analyse(frames: Sequence[Frame], *, trajectory: Path, skip: int = 0) -> Repo
         bend_nm=_spread(bends),
         rmsf_nm=fluctuation,
         potential_energy=_spread(energies),
+        settling={
+            "longest_nm": settling(longest),
+            "bend_nm": settling(bends),
+            "potential_energy": settling(energies),
+        },
         mean_structure_nm=mean_structure,
     )
 

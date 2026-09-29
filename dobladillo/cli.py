@@ -1088,6 +1088,21 @@ def analyse_run(
         ("salt", f"{payload['conditions'].get('salt_concentration_m')} M Na+ (Mg2+ proxy)"),
     ]
     rows.extend((f"wrote {k}", v) for k, v in payload.get("files", {}).items())
+    for name in report.still_settling:
+        verdict = report.settling[name]
+        assert verdict is not None
+        skip_hint = (
+            f"rerun with --skip {int(verdict.suggested_skip_fraction * report.frames) + skip}"
+            if verdict.suggested_skip_fraction
+            else "it never settles in this run: run longer"
+        )
+        rows.append(
+            (
+                "STILL SETTLING",
+                f"{name} changed by {verdict.change:.3g} across these frames "
+                f"(t = {verdict.t:.1f}); its mean is not a steady value. {skip_hint}",
+            )
+        )
     # The JSON carries `undersampled`; a person reading the table would not see
     # it, and the table is the half that gets pasted into a message.
     if payload["undersampled"]:

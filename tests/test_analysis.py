@@ -430,3 +430,54 @@ def test_a_missed_latch_is_no_verdict_unless_closing_was_sampled() -> None:
     assert far.verdict(sampled_closed=True) == "cannot_reach"
     near = Reach(separation=_spread([8.0, 9.0]), closest_nm=7.0, span_nm=10.0)
     assert near.verdict(sampled_closed=False) == "within_reach"
+
+
+def test_settling_flags_a_series_that_is_still_moving() -> None:
+    """The deletion-bent bundle bent DURING production on Metal; its mean over
+    the whole run was not a steady value, and nothing in the report said so."""
+    import numpy as np
+
+    from dobladillo.analysis.observables import settling
+
+    rng = np.random.default_rng(0)
+    ramp = np.linspace(355, 316, 400) + rng.normal(0, 3, 400)
+    verdict = settling(ramp)
+    assert verdict is not None and verdict.drifting
+    assert verdict.change < -30
+
+
+def test_settling_suggests_where_a_run_settles() -> None:
+    import numpy as np
+
+    from dobladillo.analysis.observables import settling
+
+    rng = np.random.default_rng(1)
+    series = np.concatenate([np.linspace(380, 376, 60), np.full(340, 376.0)])
+    verdict = settling(series + rng.normal(0, 2, series.size))
+    assert verdict is not None and verdict.drifting
+    assert verdict.suggested_skip_fraction is not None
+    assert 0 < verdict.suggested_skip_fraction <= 0.5
+
+
+def test_settling_rarely_flags_a_stationary_series() -> None:
+    """A 5% test: over many stationary, correlated series, about one in twenty."""
+    import numpy as np
+
+    from dobladillo.analysis.observables import settling
+
+    rng = np.random.default_rng(2)
+    flagged = 0
+    for _ in range(200):
+        x = np.zeros(400)
+        for i in range(1, 400):  # AR(1): neighbouring frames correlated, as in MD
+            x[i] = 0.8 * x[i - 1] + rng.normal()
+        verdict = settling(x)
+        assert verdict is not None
+        flagged += verdict.drifting
+    assert flagged <= 30  # expected ~10 at the 5% level
+
+
+def test_settling_needs_enough_frames_to_cut() -> None:
+    from dobladillo.analysis.observables import settling
+
+    assert settling([1.0, 2.0, 3.0]) is None
