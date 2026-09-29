@@ -26,6 +26,17 @@ from typing import Final
 #: is noticed rather than absorbed.
 RISE_PER_BP_NM: Final = 0.34
 
+#: The rise per base pair as a RANGE, nm: the two B-DNA values this
+#: repository already carries, scadnano's Geometry default (0.332, what its
+#: drawings and oxDNA exports use; pinned against the library in
+#: tests/test_calibration_lateral.py) and RISE_PER_BP_NM above (DESIGN.md s3,
+#: Table 1). Used where a length along the helix is a REFERENCE rather than a
+#: prediction -- `parts.calibration_tile`, which takes RISE_PER_BP_NM as the
+#: nominal and the width of this range as its uncertainty. It is the spread
+#: between two defensible values, not a measured variation of origami on
+#: mica; see `calibration.lateral` for what that leaves out.
+RISE_PER_BP_RANGE_NM: Final = (0.332, RISE_PER_BP_NM)
+
 #: Helical repeat of relaxed B-DNA, bp per turn.
 HELICAL_REPEAT_BP: Final = 10.5
 
