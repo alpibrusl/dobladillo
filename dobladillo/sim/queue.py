@@ -310,11 +310,11 @@ def run(
                 continue
             job.stage = STAGES[index]
             _write(root, job)
-            process = _start(root, job, index, oxdna=oxdna)
-            if process is None:
+            started = _start(root, job, index, oxdna=oxdna)
+            if started is None:
                 finished += 1
                 continue
-            running[job_id] = (job, index, process)
+            running[job_id] = (job, index, started)
 
         queued = [j for j in load(root) if j.state == "queued"]
         while queued and len(running) < workers:
@@ -332,11 +332,11 @@ def run(
             job.state = "running"
             job.stage = STAGES[index]
             _write(root, job)
-            process = _start(root, job, index, oxdna=oxdna)
-            if process is None:
+            started = _start(root, job, index, oxdna=oxdna)
+            if started is None:
                 finished += 1
                 continue
-            running[job.id] = (job, index, process)
+            running[job.id] = (job, index, started)
 
         if not running and not queued:
             break
