@@ -88,6 +88,11 @@ REVIEWED = {
     "pytest": "MIT",
     "ruff": "MIT",
     "mypy": "MIT",
+    # hypothesis (dev only, property-based tests): its wheel's LICENSE.txt, read 2026-09-29,
+    # is the MPL-2.0 text ("All code in this repository ... is released under the Mozilla
+    # Public License v 2.0"); MPL 2 is on EUPL-1.2's list. Its one dependency on Python
+    # >= 3.11, sortedcontainers, ships the Apache-2.0 text.
+    "hypothesis": "MPL-2.0",
     # The official MCP Python SDK, modelcontextprotocol/python-sdk. Used over
     # stdio only; the package itself still opens no connection.
     "mcp": "MIT",

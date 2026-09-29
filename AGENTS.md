@@ -11,7 +11,10 @@ file is the short form, not a replacement.
    every call goes through an adapter in `dobladillo/_scadnano.py` so the drift
    has one place to be absorbed.
 3. **Every module ships with tests.** Every design script is deterministic
-   (fixed seeds) and its key outputs are pinned in tests.
+   (fixed seeds) and its key outputs are pinned in tests. Where code promises
+   something for every input -- a bound, an invariance, a round trip -- state
+   it as a property test (Hypothesis, `tests/test_properties.py`) and check
+   the test can fail by breaking the code once.
 4. **Never fabricate simulation or experimental results.** If `data/` lacks
    what an item needs, produce the job bundle or request sheet and stop with a
    clear note of what the human must provide. Folding and imaging happen in a

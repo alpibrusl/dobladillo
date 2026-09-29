@@ -26,7 +26,7 @@ The extras, if you want less (generated from `pyproject.toml`):
 | `design` | scadnano, the design data model: build, lint, order, simulate | `scadnano==0.21.1` |
 | `imaging` | read and measure AFM scans; `calibrate` | `scipy>=1.11`, `afmreader==0.0.7`, `scikit-image>=0.22` |
 | `mechanics` | indentation mechanics; declares a private dependency it cannot install | nothing (see pyproject.toml) |
-| `dev` | tests, lint, format and type checks | `pytest>=8.0`, `ruff>=0.6`, `mypy>=1.11`, `scipy>=1.11` |
+| `dev` | tests, lint, format and type checks | `pytest>=8.0`, `ruff>=0.6`, `mypy>=1.11`, `scipy>=1.11`, `hypothesis>=6.100` |
 | `mcp` | the MCP server (`dobladillo mcp`) | `mcp>=2.2,<3` |
 <!-- /generated:extras -->
 

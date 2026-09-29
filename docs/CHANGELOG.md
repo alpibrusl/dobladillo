@@ -246,3 +246,10 @@
   `best_hinge_fold`. Eight closed-start bundles (joints 4/8/16/32, latching and
   locked-open) built and relaxed through MC; GPU stages not yet run, so no
   verdict. See docs/HINGE.md.
+- Property-based tests (`tests/test_properties.py`, Hypothesis, MPL-2.0, dev
+  extra; licence read and recorded in `tests/test_licences.py`): erosion never
+  below the surface, opening never raises an image, a blind tip never sharper
+  than the true one, noise estimate scale-equivariant and blind to slopes and
+  line offsets, rigid folding keeps shape, reference JSON round-trips, order
+  sequences accepted/refused correctly, settling verdict unit-independent.
+  Each was shown to fail on a deliberately broken implementation.
