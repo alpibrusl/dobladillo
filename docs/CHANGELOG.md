@@ -187,3 +187,12 @@
   running server, and the commands no tool may wrap. Prose outside the
   `<!-- generated:NAME -->` markers stays hand-written. `tests/test_readme.py`
   fails on drift, and checks the README's install line is the one CI runs.
+- Hinge closed-start test (#17), 2026-09-29. `Hinge.particles()` maps oxDNA
+  indices to arm A, arm B, joint, edge bands, latch extensions, anchors and
+  designed latch pairs from the design. `observables.hinge_opening_deg`,
+  `latch_pairs_formed` and `CLOSED_OPENING_DEG`. `sim.fold`: read/write an
+  oxDNA configuration, rigid rotation of particles (positions and a1/a3/v/L),
+  `fold_hinge` (arm B onto arm A at a gap found against a 1 nm clearance) and
+  `best_hinge_fold`. Eight closed-start bundles (joints 4/8/16/32, latching and
+  locked-open) built and relaxed through MC; GPU stages not yet run, so no
+  verdict. See docs/HINGE.md.

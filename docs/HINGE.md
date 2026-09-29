@@ -99,3 +99,81 @@ centre the sweep on; ordering both at once throws that away.
 A run where no rung reads informatively is not a failed measurement. It says
 the offset is outside the reachable range, and the **joint length**, not the
 latch, is what has to change.
+
+## Closed-start runs (#17), 2026-09-29: prepared, not yet run
+
+The joint sweep started open and never came near closing in ~9 ns, so it
+could not say whether the latch reaches (`Reach.verdict` → `not_sampled`).
+The next test starts the hinge **closed** and asks whether it stays closed,
+with a locked-open control (`hinge-locked-open`, the latch extensions removed)
+started from the identical configuration.
+
+**Status: bundles built and relaxed through the Monte Carlo stage only. The
+GPU stages have not run (the GPU was reserved for benchmarks), so there is no
+verdict yet.** Everything is in
+`~/Workspace/bio/dobladillo-runs/hinge-closed-start/`; `run_gpu.sh` there runs
+the rest in one go and then `analyse.py`.
+
+How the closed start is made, all in the package and tested
+(`tests/test_fold.py`):
+
+- `Hinge.particles()` maps every oxDNA index to arm A, arm B or the joint by
+  its helix offset in the design, with each arm's 16 bp joint-side edge band,
+  the latch extensions, their anchor bases, and the designed latch pairs.
+- `observables.hinge_opening_deg`: the angle between the arms, each pointing
+  from its edge band to its centroid (180 flat, 0 folded). On the sweep's open
+  runs it gives 171.6 / 167.0 / 169.6 / 163.8° for joints 4 / 8 / 16 / 32,
+  the sweep's recorded 172 / 168 / 171 / 165° to within 2°. It also shows the
+  open 16 and 32 nt runs were still drifting.
+- `sim.fold.fold_hinge` turns arm B rigidly about the joint axis — positions
+  about the axis, and a1, a3, velocity and angular velocity as vectors — onto
+  arm A, one gap above it; the joint's strands turn by their fraction along
+  the joint. `best_hinge_fold` searches 20 production frames of the open run,
+  both faces and openings of 0/5/10°, for the smallest gap with no arm-arm
+  contact under 1 nm and the latch anchors within the 10.1 nm reach span.
+  No force acts between latch partners at any stage.
+
+What building it found: **the relaxed arms are not flat.** They twist and
+ripple by several nm corner to corner, so two stacked rigidly need a 4-6 nm
+gap at the joint, not the ~2.5 nm of ideal sheets:
+
+| joint | gap | opening after fold | latch anchors after fold | after MC: broken designed pairs, opening |
+|---|---|---|---|---|
+| 4 nt | 5.75 nm | 10.2° | 7.4 nm | 0.3%, 10.5° |
+| 8 nt | 4.25 nm | 10.0° | 5.2 nm | 0.1%, 10.1° |
+| 16 nt | 5.5 nm | 3.4° | 9.4 nm | 0.1%, 3.5° |
+| 32 nt | 5.75 nm | 5.0° | 9.7 nm | 0.3%, 5.0° |
+
+The closed start survives Monte Carlo in all eight bundles (latching and
+control identical within 0.1°). At 4 nt the joint is still stretched after
+MC (a 2.2-2.4 nm bond against ~1.5 nm elsewhere): four bases per helix
+bridging a 5.75 nm gap. Stage 2 continues the repair with force caps on; if
+it cannot, the 4 nt runs are not a result.
+
+How the runs will be read (fixed before running them):
+
+- latching hinge stays closed with the latch formed, and the control opens:
+  the latch holds the closed state at that joint, in this model;
+- both stay closed: the joint or arm-arm contact holds it; the latch is not
+  tested;
+- both open: the latch cannot hold at that joint length in this model;
+- latching hinge closed but no latch pair formed: closed for another reason.
+
+Limits that apply to any answer: oxDNA2 at a 0.5 M monovalent proxy for the
+magnesium buffer; ~60 ns of oxDNA time per production (1e7 steps); one start
+per design and joint; the `john` thermostat at diff_coeff 25, which on the
+bundles slowed shape changes; a closed state held for 60 ns is not a measured
+free energy.
+
+Proposed, not applied (for the maintainer): once the runs are in, E3 and E4's
+P(success) in `experiments/ROADMAP.md` should move with the verdict at the
+joint E4 will use (8 nt by default):
+
+- latch holds, control opens → E4 0.60 → 0.65, and pin E4's joint to a length
+  where it held; E3 unchanged (0.70), its "closed" class now expected to be
+  populated;
+- both closed → E4 0.60 → 0.45 (FRET would read closed on every rung, so the
+  ladder measures nothing until the joint is lengthened); E3 unchanged;
+- both open → E4 0.60 → 0.40 unless some joint length holds, in which case
+  move E4 to it and leave 0.60; E3 0.70 → 0.65 (fewer closed particles to
+  score).

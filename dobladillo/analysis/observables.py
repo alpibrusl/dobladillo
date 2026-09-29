@@ -287,6 +287,64 @@ def reach(frames: Sequence[Frame], a: Sequence[int], b: Sequence[int], *, bases:
     )
 
 
+def _arm_direction(positions: np.ndarray, arm: Sequence[int], edge: Sequence[int]) -> np.ndarray:
+    """Unit vector from an arm's joint-side edge to its centroid."""
+    direction = positions[list(arm)].mean(axis=0) - positions[list(edge)].mean(axis=0)
+    norm = float(np.linalg.norm(direction))
+    if norm == 0:
+        raise ValueError("an arm's centroid sits on its own edge: not an arm")
+    return np.asarray(direction / norm)
+
+
+def hinge_opening_deg(
+    positions: np.ndarray,
+    *,
+    arm_a: Sequence[int],
+    edge_a: Sequence[int],
+    arm_b: Sequence[int],
+    edge_b: Sequence[int],
+) -> float:
+    """The angle between a hinge's two arms: 180 flat open, 0 folded shut.
+
+    Each arm points from its joint-side edge band to its own centroid, and the
+    angle is between those two directions. Nothing here uses the joint's
+    position or a fitted axis, so a long joint's wandering single strands and
+    the gap between folded arms do not enter it. Indices come from
+    `parts.hinge.Hinge.particles`.
+    """
+    a = _arm_direction(positions, arm_a, edge_a)
+    b = _arm_direction(positions, arm_b, edge_b)
+    return float(np.degrees(np.arccos(np.clip(a @ b, -1.0, 1.0))))
+
+
+#: Opening angle at or below which a frame counts as a closed shape, for
+#: `Reach.verdict(sampled_closed=...)`. Geometry, not a fit: the arms'
+#: centroids sit ~33 nm from the joint, so at 15 deg their outer edges
+#: (~65 nm out) are within ~17 nm of each other -- the neighbourhood in which
+#: a 2 x 8 nt latch (10 nm contour) is being tested at all.
+CLOSED_OPENING_DEG: Final = 15.0
+
+
+def latch_pairs_formed(
+    positions_nm: np.ndarray, pairs: Sequence[tuple[int, int]], *, within_nm: float | None = None
+) -> int:
+    """How many designed latch base pairs are formed in one frame.
+
+    Formed means the two nucleotides sit within `within_nm`, by default the
+    same `analysis.runs.BROKEN_PAIR_NM` that counts a designed pair as broken,
+    so a latch pair and a lattice pair are judged by one rule.
+    """
+    if not pairs:
+        return 0
+    if within_nm is None:
+        from dobladillo.analysis.runs import BROKEN_PAIR_NM
+
+        within_nm = BROKEN_PAIR_NM
+    index = np.asarray(pairs)
+    gaps = np.linalg.norm(positions_nm[index[:, 0]] - positions_nm[index[:, 1]], axis=1)
+    return int((gaps <= within_nm).sum())
+
+
 #: Blocks a per-frame series is cut into to test whether it is still moving.
 #: Block means are far less correlated than neighbouring frames, which is why
 #: the trend is fitted through them rather than through every frame.

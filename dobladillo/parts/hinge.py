@@ -81,6 +81,64 @@ DEFAULT_LATCH = "GCATGCAT"
 _FIRST_PARITY = {"a": 1, "b": 0}
 
 
+#: Depth, in bp, of the band along each arm's joint-side edge. An arm's
+#: direction is measured from this band's centroid to the arm's, so it needs
+#: no joint position (a long joint's single strands wander) and no fit. One
+#: staple column.
+EDGE_BP = DOMAIN_NT
+
+
+@dataclass(frozen=True)
+class HingeParticles:
+    """Which oxDNA particles are which part of a hinge, read off the design.
+
+    Indices follow `_scadnano.nucleotide_indices` -- strands in design order,
+    domains in strand order, 5' to 3', deletions skipped, extensions counted --
+    so they address the topology `write_oxdna_files` writes. Arm, joint and
+    latch come from each nucleotide's helix offset, never from index ranges:
+    the scaffold rasters through both arms and the joint on every helix, so
+    no contiguous range is one arm.
+    """
+
+    #: Every particle of each arm, its staples' extensions included.
+    arm_a: tuple[int, ...]
+    arm_b: tuple[int, ...]
+    #: The EDGE_BP-deep band of each arm along the joint.
+    edge_a: tuple[int, ...]
+    edge_b: tuple[int, ...]
+    #: The joint's unpaired scaffold, and where along the joint each sits:
+    #: 0 at arm A's end, 1 at arm B's.
+    joint: tuple[int, ...]
+    joint_fraction: tuple[float, ...]
+    #: The 3'-terminal paired base of the first latch's carrier staple on each
+    #: arm: where the latch hangs from. Present on a locked-open hinge too,
+    #: which has the same staples without the extensions.
+    anchor_a: int
+    anchor_b: int
+    #: The first latch's two extensions, 5' to 3'; empty on a locked-open hinge.
+    latch_a: tuple[int, ...]
+    latch_b: tuple[int, ...]
+
+    @property
+    def latch_pairs(self) -> tuple[tuple[int, int], ...]:
+        """The designed latch base pairs. The halves are reverse complements
+        and pair antiparallel: the first base of one with the last of the other."""
+        return tuple(zip(self.latch_a, reversed(self.latch_b), strict=True))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "arm_a": len(self.arm_a),
+            "arm_b": len(self.arm_b),
+            "edge_a": len(self.edge_a),
+            "edge_b": len(self.edge_b),
+            "joint": len(self.joint),
+            "anchor_a": self.anchor_a,
+            "anchor_b": self.anchor_b,
+            "latch_a": list(self.latch_a),
+            "latch_b": list(self.latch_b),
+        }
+
+
 @dataclass(frozen=True)
 class Hinge:
     """A built hinge, its accounting, and the bias it is predicted to have."""
@@ -153,6 +211,109 @@ class Hinge:
                     channel=channel,
                 ),
             ),
+        )
+
+    def particles(self) -> HingeParticles:
+        """Arm, joint and latch particles, for a trajectory of this design."""
+        arm_b_start = self.arm_length + self.joint_nt
+
+        def arm_of(offset: int) -> str | None:
+            if offset < self.arm_length:
+                return "a"
+            return "b" if offset >= arm_b_start else None
+
+        arms: dict[str, list[int]] = {"a": [], "b": []}
+        edges: dict[str, list[int]] = {"a": [], "b": []}
+        joint: list[int] = []
+        fraction: list[float] = []
+        extension_of: dict[int, tuple[int, ...]] = {}
+        n = 0
+        for s, strand in enumerate(self.design.strands):
+            bound = [d for d in strand.domains if hasattr(d, "helix")]
+            homes = {arm_of(o) for d in bound for o in range(d.start, d.end)} - {None}
+            for domain in strand.domains:
+                if not hasattr(domain, "helix"):
+                    # The same count `nucleotide_indices` advances by.
+                    length = len(getattr(domain, "dna_sequence", "") or "")
+                    if len(homes) != 1:
+                        raise ValueError(f"strand {s} carries an extension but spans both arms")
+                    (home,) = homes
+                    indices = tuple(range(n, n + length))
+                    arms[str(home)] += indices
+                    extension_of[s] = indices
+                    n += length
+                    continue
+                offsets = list(range(domain.start, domain.end))
+                if not domain.forward:
+                    offsets.reverse()
+                for offset in offsets:
+                    if offset in domain.deletions:
+                        continue
+                    which = arm_of(offset)
+                    if which is None:
+                        joint.append(n)
+                        fraction.append((offset - self.arm_length + 0.5) / self.joint_nt)
+                    else:
+                        arms[which].append(n)
+                        inner = (
+                            offset >= self.arm_length - EDGE_BP
+                            if which == "a"
+                            else offset < arm_b_start + EDGE_BP
+                        )
+                        if inner:
+                            edges[which].append(n)
+                    n += 1
+
+        index = ad.nucleotide_indices(self.design)
+        anchors: dict[str, int] = {}
+        latches: dict[str, tuple[int, ...]] = {}
+        for which, (low, high) in (("a", (0, self.arm_length)), ("b", (arm_b_start, None))):
+            helix, column = _latch_anchor(
+                arm_length=self.arm_length,
+                latch_helix=self.latch_helix,
+                arm_helices=self.arm_helices,
+                arm=which,
+            )
+            start = column if which == "a" else arm_b_start + column
+            carriers = [
+                (s, strand)
+                for s, strand in enumerate(self.design.strands)
+                if not strand.is_scaffold
+                and any(
+                    getattr(d, "helix", None) == helix and d.start == start for d in strand.domains
+                )
+                and all(
+                    low <= d.start and (high is None or d.end <= high)
+                    for d in strand.domains
+                    if hasattr(d, "helix")
+                )
+            ]
+            if len(carriers) != 1:
+                raise ValueError(
+                    f"expected one latch carrier on arm {which.upper()}, found {len(carriers)}"
+                )
+            s, strand = carriers[0]
+            last = [d for d in strand.domains if hasattr(d, "helix")][-1]
+            ends = (
+                range(last.end - 1, last.start - 1, -1)
+                if last.forward
+                else range(last.start, last.end)
+            )
+            end = next(o for o in ends if o not in last.deletions)
+            anchors[which] = index[(last.helix, end, last.forward)]
+            latches[which] = extension_of.get(s, ())
+
+        return HingeParticles(
+            arm_a=tuple(arms["a"]),
+            arm_b=tuple(arms["b"]),
+            edge_a=tuple(edges["a"]),
+            edge_b=tuple(edges["b"]),
+            joint=tuple(joint),
+            joint_fraction=tuple(fraction),
+            anchor_a=anchors["a"],
+            anchor_b=anchors["b"],
+            latch_a=latches["a"],
+            latch_b=latches["b"],
         )
 
     def as_dict(self) -> dict[str, Any]:
