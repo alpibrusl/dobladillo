@@ -237,3 +237,12 @@
   (`tests/hsafm_files.py`), recovering an imposed drift end to end; no real
   instrument file has been read. `read` still refuses movies, and says where
   they are read. K6's readout uses the real command.
+- Hinge closed-start test (#17), 2026-09-29. `Hinge.particles()` maps oxDNA
+  indices to arm A, arm B, joint, edge bands, latch extensions, anchors and
+  designed latch pairs from the design. `observables.hinge_opening_deg`,
+  `latch_pairs_formed` and `CLOSED_OPENING_DEG`. `sim.fold`: read/write an
+  oxDNA configuration, rigid rotation of particles (positions and a1/a3/v/L),
+  `fold_hinge` (arm B onto arm A at a gap found against a 1 nm clearance) and
+  `best_hinge_fold`. Eight closed-start bundles (joints 4/8/16/32, latching and
+  locked-open) built and relaxed through MC; GPU stages not yet run, so no
+  verdict. See docs/HINGE.md.
