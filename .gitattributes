@@ -1,0 +1,2 @@
+# scadnano designs are JSON; GitHub reads the .sc extension as Scala.
+*.sc linguist-language=JSON
