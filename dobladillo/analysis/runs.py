@@ -63,6 +63,51 @@ class RunCheck:
 #: anything outside this range is a structure that has come apart.
 PHYSICAL_ENERGY_RANGE: tuple[float, float] = (-3.0, 1.0)
 
+#: A designed pair counts as broken when its two nucleotides sit further apart
+#: than this. Paired, they sit ~1.02 nm apart (the traps' r0 = 1.2 oxDNA units;
+#: measured medians 1.02-1.03 nm in every bundle run).
+BROKEN_PAIR_NM: float = 1.5
+
+#: Fraction of designed pairs that may be broken at the end of production.
+#: Chosen from three runs, not derived: the straight 6HB loses under 0.1%, the
+#: deletion-strained 6HB on the CPU 6.7%, and the same design on Metal with
+#: light damping 31% -- a structure a third unzipped whose energy still looked
+#: physical. So the energy check alone cannot see this failure.
+MAX_BROKEN_PAIR_FRACTION: float = 0.10
+
+
+def designed_pairs(traps: Path) -> list[tuple[int, int]]:
+    """The designed base pairs, read back from the stage-2 trap file."""
+    pairs: set[tuple[int, int]] = set()
+    particle: int | None = None
+    for line in traps.read_text().splitlines():
+        key, _, value = (part.strip() for part in line.partition("="))
+        if key == "particle":
+            particle = int(value)
+        elif key == "ref_particle" and particle is not None:
+            ref = int(value)
+            pairs.add((min(particle, ref), max(particle, ref)))
+            particle = None
+    return sorted(pairs)
+
+
+def broken_pair_fraction(configuration: Path, traps: Path) -> float | None:
+    """Fraction of designed pairs pulled apart in one configuration file, or
+    None when the file holds no configuration."""
+    import numpy as np
+
+    from dobladillo.analysis.trajectory import read_frames
+
+    pairs = np.array(designed_pairs(traps))
+    if not len(pairs):
+        return 0.0
+    frame = next(iter(read_frames(configuration)), None)
+    if frame is None:
+        return None
+    positions = frame.positions_nm
+    gaps = np.linalg.norm(positions[pairs[:, 0]] - positions[pairs[:, 1]], axis=1)
+    return float((gaps > BROKEN_PAIR_NM).mean())
+
 
 def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
     """Is this directory a finished run whose numbers mean something?
@@ -80,7 +125,10 @@ def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
       on bonded distances: a run that breaks the structure keeps integrating
       and exits as a success, with energies near 1e18. The CPU backend aborts
       in the same situation. So a run is refused if any recorded potential
-      energy is non-finite or outside PHYSICAL_ENERGY_RANGE.
+      energy is non-finite or outside PHYSICAL_ENERGY_RANGE;
+    - the structure is still paired. A run can come a third unzipped with a
+      physical-looking energy, so the final configuration's designed pairs
+      (from the trap file) are measured against MAX_BROKEN_PAIR_FRACTION.
     """
     problems: list[str] = []
 
@@ -123,6 +171,17 @@ def check_run(directory: Path, *, allow_test_mode: bool = False) -> RunCheck:
                     "nothing after that point is a structure"
                 )
                 break
+
+    final = directory / "conf_04_production.dat"
+    traps = directory / "traps.txt"
+    if final.is_file() and traps.is_file():
+        broken = broken_pair_fraction(final, traps)
+        if broken is not None and broken > MAX_BROKEN_PAIR_FRACTION:
+            problems.append(
+                f"{broken:.0%} of the designed base pairs are broken at the end of production "
+                f"(limit {MAX_BROKEN_PAIR_FRACTION:.0%}): the structure has partly come apart, "
+                "and its shape is not the design's"
+            )
 
     topology = directory / f"{metadata.get('design_name', '')}.top"
     if not topology.is_file():

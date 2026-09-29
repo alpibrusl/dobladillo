@@ -364,3 +364,27 @@ def test_a_run_that_blew_up_is_not_a_result(tmp_path) -> None:
     assert any("blew up" in p for p in check_run(tmp_path / "b").problems)
     energy.write_text("0.0 -1.52 0.29 -1.23\n30.0 -1.50 0.29 -1.21\n")
     assert not any("blew up" in p for p in check_run(tmp_path / "b").problems)
+
+
+def test_a_run_that_came_unzipped_is_not_a_result(tmp_path) -> None:
+    """A third of a strained bundle unzipped on Metal with a physical-looking
+    energy. The check measures the designed pairs in the final configuration."""
+    from dobladillo.analysis.runs import MAX_BROKEN_PAIR_FRACTION, check_run, designed_pairs
+    from dobladillo.parts.bundle import six_helix_bundle
+
+    write_job_bundle(six_helix_bundle().design, directory=tmp_path / "b", name="b", part="bundle")
+    run = tmp_path / "b"
+    pairs = designed_pairs(run / "traps.txt")
+    assert len(pairs) == 7056
+    lines = (run / "b.dat").read_text().splitlines()
+    (run / "conf_04_production.dat").write_text("\n".join(lines) + "\n")
+    assert not any("base pairs are broken" in p for p in check_run(run).problems)
+
+    # pull one partner of every fifth pair 10 oxDNA units away
+    for _, partner in pairs[::5]:
+        fields = lines[3 + partner].split()
+        fields[0] = str(float(fields[0]) + 10.0)
+        lines[3 + partner] = " ".join(fields)
+    (run / "conf_04_production.dat").write_text("\n".join(lines) + "\n")
+    assert MAX_BROKEN_PAIR_FRACTION < 0.2
+    assert any("base pairs are broken" in p for p in check_run(run).problems)
