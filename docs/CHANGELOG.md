@@ -312,3 +312,10 @@
   while the no-latch control opens; 4 nt holds partly (the latch frays); at
   16 nt the latch was lost on release (it had formed 7 of 8 pairs). Proposed,
   not applied: E4 0.60 -> 0.65 at its 8 nt joint. `docs/HINGE.md`.
+- Automatic analysis in the web UI, optional and off by default. Each
+  experiment's Analyse section has a switch; when it is on, saving the lab
+  record or uploading a raw file runs that experiment's analyses straight
+  away, and the page shows what ran or why it could not run yet. The switch is
+  a preference on this computer (`~/.config/dobladillo/web.json`, or
+  `$DOBLADILLO_CONFIG_DIR`), never part of the experiment folder, so turning it
+  on or off changes nothing in the record.

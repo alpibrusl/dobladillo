@@ -12,3 +12,14 @@ import os
 
 os.environ["_TYPER_FORCE_DISABLE_TERMINAL"] = "1"
 os.environ["TERMINAL_WIDTH"] = "200"
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _private_web_settings(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The web UI's preferences go to a temporary folder, never ~/.config."""
+    monkeypatch.setenv("DOBLADILLO_CONFIG_DIR", str(tmp_path_factory.mktemp("dobladillo-config")))

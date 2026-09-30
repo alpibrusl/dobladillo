@@ -73,6 +73,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dobladillo._invoke import run_json
+from dobladillo.web.settings import WebSettings
 
 HERE: Final = Path(__file__).resolve().parent
 
@@ -156,6 +157,8 @@ class Site:
     #: True when listening beyond loopback, behind an access token.
     exposed: bool = False
     flashes: OrderedDict[str, dict[str, Any]] = field(default_factory=OrderedDict)
+    #: This machine's UI preferences (automatic analysis); never the record.
+    settings: WebSettings = field(default_factory=WebSettings)
     protocols: dict[str, tuple[int, dict[str, Any]]] = field(default_factory=dict)
     guard: threading.Lock = field(default_factory=threading.Lock)
 
@@ -384,12 +387,59 @@ def _text(form: FormData, key: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-async def _act(request: Request, name: str, command: list[str], anchor: str) -> RedirectResponse:
+async def _act(
+    request: Request, name: str, command: list[str], anchor: str, *, then_analyse: bool = False
+) -> RedirectResponse:
     site: Site = request.app.state.site
     code, payload = await run_in_threadpool(run_json, *command)
     shown = [c if c != str(site.folder(name)) else name for c in command]
-    key = site.remember(_outcome(shown, code, payload))
+    outcome = _outcome(shown, code, payload)
+    if then_analyse and code == 0:
+        outcome["followups"] = await _auto_analyse(site, name)
+    key = site.remember(outcome)
     return RedirectResponse(f"/e/{name}?done={key}#{anchor}", status_code=303)
+
+
+async def _auto_analyse(site: Site, name: str) -> list[dict[str, Any]]:
+    """The folder's analyses, run after an upload or a record save -- only when
+    this experiment's automatic analysis is switched on and raw data exists.
+    The same commands as the Run buttons, so the results are the same; a
+    refusal is shown as what is still missing, and nothing judges the result."""
+    folder = site.folder(name)
+    if not site.settings.auto_analyse(folder):
+        return []
+    _, status = await run_in_threadpool(run_json, "experiment", "status", str(folder))
+    if not status.get("raw"):
+        return []
+    outcomes = []
+    for analysis in status.get("analyses", []):
+        command = [*analysis["command"].split(), str(folder)]
+        code, payload = await run_in_threadpool(run_json, *command)
+        outcomes.append(_outcome([*analysis["command"].split(), name], code, payload))
+    return outcomes
+
+
+async def auto(request: Request) -> Response:
+    """Switch this experiment's automatic analysis on or off (a UI preference)."""
+    site: Site = request.app.state.site
+    name = request.path_params["name"]
+    folder = site.folder(name)
+    form = await _form(request)
+    on = _text(form, "auto") == "on"
+    site.settings.set_auto_analyse(folder, on)
+    outcome = _outcome(["web", "automatic-analysis", name], 0, {})
+    outcome["command"] = "automatic analysis " + ("on" if on else "off")
+    outcome["rows"] = [
+        (
+            "automatic analysis",
+            "on: the analyses run after each upload or record save"
+            if on
+            else "off: run the analyses with their buttons",
+        ),
+        ("stored in", str(site.settings.path)),
+    ]
+    key = site.remember(outcome)
+    return RedirectResponse(f"/e/{name}?done={key}#analyse", status_code=303)
 
 
 def _prediction_rows(folder: Path) -> list[tuple[str, str]]:
@@ -608,6 +658,7 @@ def experiment(request: Request) -> HTMLResponse:
         record=record,
         fields=fields,
         analyses=_results_on_disk(folder, status.get("analyses", [])),
+        auto_analyse=site.settings.auto_analyse(folder),
         max_upload=site.max_upload,
     )
 
@@ -657,7 +708,7 @@ async def record(request: Request) -> Response:
         outcome["rows"] = [("nothing changed", "no field differs from the record")]
         key = site.remember(outcome)
         return RedirectResponse(f"/e/{name}?done={key}#instrument", status_code=303)
-    return await _act(request, name, command, "instrument")
+    return await _act(request, name, command, "instrument", then_analyse=True)
 
 
 def _upload_name(filename: str) -> str:
@@ -686,7 +737,10 @@ async def upload(request: Request) -> Response:
     finally:
         await form.close()
     shown = ["experiment", "upload", name, item.filename, "--as", target]
-    key = site.remember(_outcome(shown, code, payload))
+    outcome = _outcome(shown, code, payload)
+    if code == 0:
+        outcome["followups"] = await _auto_analyse(site, name)
+    key = site.remember(outcome)
     return RedirectResponse(f"/e/{name}?done={key}#raw", status_code=303)
 
 
@@ -867,6 +921,7 @@ def create_app(
             Route(folder + "/upload", upload, methods=["POST"]),
             Route(folder + "/commit", commit, methods=["POST"]),
             Route(folder + "/analyse", analyse, methods=["POST"]),
+            Route(folder + "/auto", auto, methods=["POST"]),
             Route(folder + "/files/{path:path}", download),
             Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
         ],

@@ -29,6 +29,17 @@
     {{ rows_table(o.rows) }}
   {% endif %}
   <details><summary>Full JSON payload</summary><pre>{{ o.payload | pretty }}</pre></details>
+  {% if o.followups %}
+  <h3>Automatic analysis</h3>
+  {% for f in o.followups %}
+  <div class="followup {{ 'refused' if f.refused else 'ok' }}">
+    <p><code>{{ f.command }}</code>:
+    {% if f.refused %}<strong>not yet</strong>. <span class="kind">{{ f.kind }}</span>: {{ f.message }}
+      {% if f.hint %}<br><span class="muted">{{ f.hint }}</span>{% endif %}
+    {% else %}<strong>done</strong>. Results in section 5.{% endif %}</p>
+  </div>
+  {% endfor %}
+  {% endif %}
 </section>
 {% endif %}
 {%- endmacro %}

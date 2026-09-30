@@ -441,3 +441,68 @@ def test_a_new_experiment_that_exists_is_refused_on_the_form(root: Path) -> None
     client.post("/new", data={"slug": "e1", "part": "rectangle", "csrf": token})
     again = client.post("/new", data={"slug": "e1", "part": "rectangle", "csrf": token})
     assert again.status_code == 400 and "already_exists" in again.text
+
+
+def _locked_e1(root: Path, client: TestClient, token: str, tmp_path: Path) -> tuple[Path, Path]:
+    """A rectangle experiment with its gate locked and a measured tip recorded."""
+    for path, data in (
+        ("/new", {"slug": "e1", "part": "rectangle"}),
+        ("/e/e1/criterion", {"text": "Fails if the width is more than 10% from 66 nm"}),
+        ("/e/e1/lock", {}),
+        (
+            "/e/e1/record",
+            {"f:tip.measured_radius_before_nm": "10", "f:tip.measured_radius_after_nm": "10"},
+        ),
+    ):
+        assert client.post(path, data={**data, "csrf": token}).status_code == 200
+    raw = tmp_path / "instrument" / "scan-01.gsf"
+    raw.parent.mkdir(exist_ok=True)
+    _synthetic_scan(raw)
+    return root / "e1", raw
+
+
+def _upload(client: TestClient, token: str, raw: Path) -> Any:
+    return client.post(
+        "/e/e1/upload",
+        data={"csrf": token, "as": ""},
+        files={"file": ("scan-01.gsf", raw.read_bytes(), "application/octet-stream")},
+    )
+
+
+def test_automatic_analysis_is_off_by_default(root: Path, tmp_path: Path) -> None:
+    client = _client(root)
+    token = _token(client)
+    folder, raw = _locked_e1(root, client, token, tmp_path)
+    response = _upload(client, token, raw)
+    assert "Automatic analysis: off" in response.text
+    assert not (folder / "post" / "report.md").exists()
+
+
+def test_switched_on_the_analysis_runs_after_an_upload(root: Path, tmp_path: Path) -> None:
+    import os
+
+    client = _client(root)
+    token = _token(client)
+    folder, raw = _locked_e1(root, client, token, tmp_path)
+
+    before = _tree(root)
+    on = client.post("/e/e1/auto", data={"csrf": token, "auto": "on"})
+    assert on.status_code == 200 and "Automatic analysis: on" in on.text
+    assert _changed(before, _tree(root)) == set()  # a preference, not the record
+    settings = json.loads((Path(os.environ["DOBLADILLO_CONFIG_DIR"]) / "web.json").read_text())
+    assert settings["experiments"][str(folder.resolve())]["auto_analyse"] is True
+
+    response = _upload(client, token, raw)
+    assert response.status_code == 200
+    assert "Automatic analysis" in response.text and "experiment report" in response.text
+    assert (folder / "post" / "report.md").is_file()
+
+    off = client.post("/e/e1/auto", data={"csrf": token, "auto": "off"})
+    assert "Automatic analysis: off" in off.text
+
+
+def test_the_switch_needs_the_csrf_token(root: Path) -> None:
+    client = _client(root)
+    token = _token(client)
+    client.post("/new", data={"slug": "e1", "part": "rectangle", "csrf": token})
+    assert client.post("/e/e1/auto", data={"auto": "on"}).status_code == 403

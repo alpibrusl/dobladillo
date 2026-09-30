@@ -322,3 +322,14 @@ details.legend dd { margin: 0; color: var(--muted); max-width: 62ch; }
   table.record th { min-width: 13.5rem; }
   table.record th code { white-space: nowrap; }
 }
+
+/* The automatic-analysis switch, and the results it adds to an action's outcome. */
+form.auto {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 8px; padding: .5rem .9rem; margin: .75rem 0; background: var(--ground);
+}
+form.auto p { margin: 0; flex: 1 1 22rem; }
+button.secondary { background: var(--card); color: var(--accent); border-color: var(--accent); }
+button.secondary:hover { background: var(--accent-soft); color: var(--accent-hover); }
+.followup { border-left: 3px solid var(--ok); padding: .1rem .75rem; margin: .35rem 0; background: var(--card); border-radius: 0 6px 6px 0; }
+.followup.refused { border-left-color: var(--warn); }

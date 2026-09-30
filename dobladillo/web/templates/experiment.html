@@ -229,6 +229,19 @@
     <p>Whether the result passes is your judgement. Nothing here evaluates the criterion.</p>
   </div>
   {{ m.blocked_reason(steps.analyse, "analyse-why") }}
+  {% if analyses %}
+  <form method="post" action="/e/{{ name | urlencode }}/auto" class="auto">
+    {{ m.csrf_field() }}
+    <p><strong>Automatic analysis: {{ "on" if auto_analyse else "off" }}.</strong>
+    {% if auto_analyse %}The analyses below run by themselves after each upload or record
+    save, and the result (or what is still missing) shows at the top of the page.
+    {% else %}Run the analyses with their buttons, or switch on to run them after each upload
+    or record save.{% endif %}
+    <span class="muted">A preference on this computer, not part of the record.</span></p>
+    <input type="hidden" name="auto" value="{{ 'off' if auto_analyse else 'on' }}">
+    <button type="submit" class="secondary">{{ "Turn off" if auto_analyse else "Turn on" }}</button>
+  </form>
+  {% endif %}
   {% for a in analyses %}
   <article class="analysis">
     <h3><code>dobladillo {{ a.command }}</code> <span class="muted">{{ a.experiment }},
