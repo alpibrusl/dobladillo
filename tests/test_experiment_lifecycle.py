@@ -436,3 +436,48 @@ def test_every_analysis_named_is_a_real_command() -> None:
             group, name = analysis.command
             assert name in cli.commands[group].commands, analysis.command  # type: ignore[attr-defined]
             assert (Path(__file__).resolve().parent.parent / analysis.protocol).is_file()
+
+
+def test_staple_source_and_purification_are_recorded(folder: Path) -> None:
+    """Recycled staples (a pool recovered from an earlier fold's purification)
+    are recorded with their pool, cycle and top-up; the purification records
+    whether the excess was kept, and under which label."""
+    code, out = _run(
+        "experiment", "record", str(folder),
+        "--set", "staples.source=recycled",
+        "--set", "staples.pool=E1-PEG-2026-10-01",
+        "--set", "staples.reuse_cycle=1",
+        "--set", "staples.topped_up=1x of the consumed staples, fresh",
+        "--set", "purification.method=PEG precipitation",
+        "--set", "purification.excess_kept=true",
+        "--set", "purification.kept_as=E2-PEG-2026-10-08",
+    )  # fmt: skip
+    assert code == 0, out
+    data = json.loads((folder / "during" / "instrument.json").read_text())
+    assert data["staples"]["source"] == "recycled" and data["staples"]["reuse_cycle"] == 1
+    assert data["purification"]["excess_kept"] is True
+
+    from dobladillo.experiments.layout import staples_summary
+
+    summary = staples_summary(folder)
+    assert summary is not None and "RECYCLED" in summary and "E1-PEG-2026-10-01" in summary
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    ["staples.source=reused", "staples.reuse_cycle=0", "purification.method=magic"],
+)
+def test_staple_fields_refuse_what_they_do_not_accept(folder: Path, assignment: str) -> None:
+    code, out = _run("experiment", "record", str(folder), "--set", assignment)
+    assert code != 0 and _kind(out) == "invalid_value", out
+
+
+def test_recycled_staples_without_a_pool_are_a_record_problem(folder: Path) -> None:
+    from dobladillo.experiments.layout import check
+
+    _run("experiment", "record", str(folder), "--set", "staples.source=recycled")
+    assert any("no pool is named" in p for p in check(folder).problems)
+    _run("experiment", "record", str(folder), "--set", "staples.pool=E1-PEG-2026-10-01")
+    assert not any("no pool is named" in p for p in check(folder).problems)
+    _run("experiment", "record", str(folder), "--set", "staples.source=fresh")
+    assert not any("no pool is named" in p for p in check(folder).problems)

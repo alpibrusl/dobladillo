@@ -449,6 +449,16 @@ def _boolean(raw: str) -> bool:
     return lowered == "true"
 
 
+def _one_of(name: str, options: tuple[str, ...]) -> Callable[[str], str]:
+    def parse(raw: str) -> str:
+        text = raw.strip()
+        if text not in options:
+            raise ValueError(f"{name} is one of {', '.join(options)}; got {raw!r}")
+        return text
+
+    return parse
+
+
 def _imaging_order(raw: str) -> list[str]:
     text = raw.strip()
     try:
@@ -569,6 +579,23 @@ def _fields() -> tuple[RecordField, ...]:
          "from file dates", above_0, _positive),
         ("frames.times_s", "drift: each frame's time per series, s, keyed by its folder "
          "under during/raw", '{"<folder>": [t0, t1, ...]}', _frame_times),
+        ("staples.source", "where this fold's staples came from: fresh (as delivered) or "
+         "recycled (recovered from an earlier fold's purification)", "fresh or recycled",
+         _one_of("staples.source", ("fresh", "recycled"))),
+        ("staples.pool", "recycled only: the label on the recovered pool's tube (an earlier "
+         "fold's purification.kept_as)", "text", _text),
+        ("staples.reuse_cycle", "recycled only: how many folds the pool has already been "
+         "through; 1 = recovered once", "a whole number greater than 0", _count),
+        ("staples.topped_up", "recycled only: which fresh staples were added back, and how "
+         "much", "text", _text),
+        ("purification.method", "how the fold was purified (common-techniques section 5)",
+         "PEG precipitation, 100 kDa spin filter or other",
+         _one_of("purification.method", ("PEG precipitation", "100 kDa spin filter", "other"))),
+        ("purification.excess_kept", "were the excess staples kept for reuse (the PEG "
+         "supernatant or the filter's flow-through) rather than discarded", "true or false",
+         _boolean),
+        ("purification.kept_as", "the label written on the kept tube: the pool name a later "
+         "fold records in staples.pool", "text", _text),
         ("calibration_reference", "what was scanned for a calibration when the folder's part "
          "does not say: calibration-tile, or a reference JSON's path relative to the folder. "
          "Empty in a calibration-tile folder", "text", _text),
@@ -590,6 +617,9 @@ CHOICES: Final[dict[str, tuple[str, ...]]] = {
     "scan.direction": ("trace", "retrace"),
     "scan.closed_loop": ("true", "false"),
     "imaging_order": ("X,Y", "Y,X"),
+    "staples.source": ("fresh", "recycled"),
+    "purification.method": ("PEG precipitation", "100 kDa spin filter", "other"),
+    "purification.excess_kept": ("true", "false"),
 }
 
 #: Fields whose value is itself an object, not a group of fields.

@@ -92,8 +92,11 @@ def _post_report(
             else ""
         ),
         f"- median height {measurements['median_height_nm']:.2f} nm",
-        "",
     ]
+    from dobladillo.experiments.layout import staples_summary
+
+    staples = staples_summary(directory)
+    lines += [f"- {staples}" if staples else "- staples: source not recorded", ""]
     for result in results.values():
         lines += ["```", result.summary(), "```", ""]
     if state.problems:

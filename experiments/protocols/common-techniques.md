@@ -191,6 +191,9 @@ After Stahl et al., 2014.
    original volume.
 5. Shake gently at 30 °C for at least 1 hour (overnight is fine).
 
+**The supernatant from step 3 holds the excess staples. Keep it** (see
+*Keeping the excess staples* below): label, freeze at −20 °C, record the label.
+
 ### 100 kDa spin filter (fallback)
 
 Amicon Ultra-0.5, 100 kDa. Rinse the filter with buffer first. Load the sample,
@@ -198,6 +201,43 @@ spin at a moderate speed (for example 5,000 × g for 3–5 min — **use your la
 validated setting**), refill with buffer at the chosen magnesium, and repeat
 four to five times. Recover by inverting the filter into a clean tube and
 spinning briefly.
+
+**The flow-through holds the excess staples. Keep it**, pooled from every spin,
+as for the PEG supernatant.
+
+### Keeping the excess staples
+
+Folds use staples in excess (5× here), so most of every staple leaves the
+purification unused, and they are the most expensive thing in a fold. Two
+published methods recover and reuse them:
+
+- the PEG supernatant, recovered by ethanol precipitation, then topped up with
+  the strands the fold consumed and folded again: with a 10× excess, one cycle
+  nearly halves staple cost, and repeated cycles save up to 80%; structures from
+  recycled strands matched fresh ones (Nucleic Acids Research 53, gkaf527, 2025,
+  doi:10.1093/nar/gkaf527) **[literature]**;
+- the 100 kDa filter's flow-through, recovered by ultrafiltration, including
+  biotinylated and dye-labelled staples: about 33% saved over five cycles
+  (Nanoscale 17, 17265, 2025, doi:10.1039/d5nr01435b) **[literature]**.
+
+The rules here:
+
+1. **Keep every excess**: label the tube `<experiment>-<method>-<date>`, freeze it
+   at −20 °C, and record it (`purification.excess_kept=true`,
+   `purification.kept_as=<label>`). Keeping costs nothing and changes nothing
+   about the fold it came from.
+2. **Do not reuse a pool until reuse has been checked on this design**: recovered
+   pools are enriched in truncated strands, because folding incorporates the
+   full-length ones first. The check is one fold with fresh staples beside one
+   with the recovered pool, same scaffold, same gel. Follow the papers' own
+   recovery procedure for it.
+3. **A fold from a recovered pool says so**: `staples.source=recycled`,
+   `staples.pool=<label>`, `staples.reuse_cycle`, and `staples.topped_up`.
+   `dobladillo experiment check` flags a recycled fold that names no pool, and
+   the report states where the staples came from.
+4. A pool only feeds a design that uses the same staples. The calibration tile
+   and the patterned rectangle reuse most of the rectangle's (`lab order`
+   reports which); the marked staples are theirs alone.
 
 ### Gel extraction (cleanest, lowest yield)
 

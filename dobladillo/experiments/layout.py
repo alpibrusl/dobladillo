@@ -254,6 +254,33 @@ def _calibration_conditions_missing(root: Path) -> list[str]:
     ]
 
 
+def _staples(root: Path) -> dict[str, Any]:
+    """The `staples` group of during/instrument.json, or {} when absent or unreadable."""
+    path = root / "during" / "instrument.json"
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    group = data.get("staples") if isinstance(data, dict) else None
+    return group if isinstance(group, dict) else {}
+
+
+def staples_summary(root: Path) -> str | None:
+    """One line on where a fold's staples came from, or None when unrecorded."""
+    staples = _staples(root)
+    source = str(staples.get("source") or "").strip()
+    if not source:
+        return None
+    if source != "recycled":
+        return "staples: fresh"
+    parts = [f"pool {staples.get('pool') or 'UNNAMED'}"]
+    if staples.get("reuse_cycle"):
+        parts.append(f"reuse cycle {staples['reuse_cycle']}")
+    if str(staples.get("topped_up") or "").strip():
+        parts.append(f"topped up with {staples['topped_up']}")
+    return "staples: RECYCLED (" + ", ".join(parts) + ")"
+
+
 def check(root: Path) -> Check:
     """Inspect an experiment folder.
 
@@ -308,6 +335,16 @@ def check(root: Path) -> Check:
                 "comes from the filesystem rather than from git, and a clone resets those. "
                 "Commit pre/ before taking data and this becomes evidence"
             )
+
+    # Staples: a fold from a recycled pool that does not name the pool cannot
+    # be traced to where its strands came from, and recovered pools are
+    # enriched in truncated strands, so that is a problem with the record.
+    staples = _staples(root)
+    if staples.get("source") == "recycled" and not str(staples.get("pool") or "").strip():
+        problems.append(
+            "the staples are recorded as recycled but no pool is named (staples.pool in "
+            "during/instrument.json): the fold cannot be traced to the pool it came from"
+        )
 
     # The gate. `experiment new` leaves a `> criterion:` line to fill in, and
     # an empty one is the most important thing in the folder still missing.
@@ -474,4 +511,25 @@ INSTRUMENT_TEMPLATE: Final[dict[str, Any]] = {
         "file dates.",
     },
     "calibration_reference": "",
+    "staples": {
+        "source": "",
+        "pool": "",
+        "reuse_cycle": None,
+        "topped_up": "",
+        "note": 'Where this fold\'s staples came from. source: "fresh" (as delivered) or '
+        '"recycled" (recovered from an earlier fold\'s purification). For recycled '
+        "staples: pool, the label on the tube; reuse_cycle, how many folds the pool has "
+        "already been through (1 = recovered once); topped_up, what fresh staples were "
+        "added back and how much. Recovered pools are enriched in truncated strands, so a "
+        "result from recycled staples must say so (common-techniques section 5).",
+    },
+    "purification": {
+        "method": "",
+        "excess_kept": None,
+        "kept_as": "",
+        "note": "How the fold was purified, and whether the excess staples were kept for "
+        "reuse instead of discarded: the PEG supernatant, or the spin filter's flow-through "
+        "(common-techniques section 5). kept_as: the label written on that tube, which is "
+        "the pool name a later fold records in staples.pool.",
+    },
 }

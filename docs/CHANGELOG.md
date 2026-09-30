@@ -300,3 +300,10 @@
   formed latch (nucleation is beyond ~60 ns). Pre-registered reading reported
   literally and explained, not applied; next test (latch pre-formed) proposed.
   `docs/HINGE.md`.
+- Staple recycling, recorded: the instrument record gains `staples` (source
+  fresh/recycled, pool, reuse cycle, top-up) and `purification` (method,
+  excess kept, tube label). `experiment check` flags a recycled fold that names
+  no pool; the report states where the staples came from. Protocols: keep the
+  PEG supernatant or filter flow-through (label, freeze, record); reuse only
+  after a fresh-vs-recycled check on the design (NAR 2025 gkaf527; Nanoscale
+  2025 d5nr01435b).

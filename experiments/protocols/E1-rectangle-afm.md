@@ -189,6 +189,13 @@ PEG precipitation (common-techniques §5). Redissolve in 1× folding buffer
 **with the magnesium of the tube you picked**. Let it redissolve at least 1 h
 at 30 °C.
 
+**Keep the supernatant; do not discard it.** It holds the excess staples, about
+four fifths of what was ordered, since the fold uses a 5× excess. Label the tube
+(for example `E1-PEG-<date>`), freeze it at −20 °C, and record the label as
+`purification.kept_as` (step 13). It changes nothing about E1: E1 itself is
+folded with fresh staples only, and the kept pool is for later folds once reuse
+has been checked (common-techniques §5, *Keeping the excess staples*).
+
 ### 7. Quantify (10 min)
 
 A260 on the NanoDrop. For the rectangle, **1 A260 ≈ 11 nM**. Write the reading
@@ -250,7 +257,10 @@ instrument's format is not read (the command says so), export a `.gsf` of the
 ### 13. Fill in the record
 
 - `during/instrument.json`: every field, **including `buffer.mgcl2_mm`** — the
-  magnesium of the tube that went on the mica.
+  magnesium of the tube that went on the mica — and the staple record:
+  `staples.source=fresh`, `purification.method=PEG precipitation`,
+  `purification.excess_kept=true` and `purification.kept_as=<the tube's label>`
+  (through `dobladillo experiment record`, or the web UI's instrument form).
 - `during/log.md`: complete.
 
 ### 14. Run the report
