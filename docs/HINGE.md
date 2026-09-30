@@ -210,7 +210,7 @@ The reading guide above, taken literally, gives "both open: the latch cannot
 hold at any joint length in this model". **The runs do not support that
 reading, and it is not applied.** The guide assumed the latch could engage;
 it covered "closed with no latch pair formed" but not this case, open with no
-latch pair ever formed. Nucleating a 12-base duplex takes far longer than
+latch pair ever formed. Nucleating the 8 bp latch duplex (GCATGCAT) takes far longer than
 ~60 ns in oxDNA, so these runs test whether the fold holds WITHOUT a latch
 (it does not, at any joint length), not whether a formed latch holds.
 
