@@ -307,3 +307,8 @@
   PEG supernatant or filter flow-through (label, freeze, record); reuse only
   after a fresh-vs-recycled check on the design (NAR 2025 gkaf527; Nanoscale
   2025 d5nr01435b).
+- Hinge, latch formed first (#17): with the 8 bp latch formed in the trapped
+  stage and then released, it holds the hinge closed at 8 and 32 nt joints
+  while the no-latch control opens; 4 nt holds partly (the latch frays); at
+  16 nt the latch was lost on release (it had formed 7 of 8 pairs). Proposed,
+  not applied: E4 0.60 -> 0.65 at its 8 nt joint. `docs/HINGE.md`.

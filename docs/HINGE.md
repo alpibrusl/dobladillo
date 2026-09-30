@@ -222,3 +222,39 @@ is the verdict E4 needs. Not run; it waits for the maintainer.
 
 Data: `dobladillo-runs/hinge-closed-start/` (`analysis.json`, `analyse.log`,
 `queue.log`).
+
+### Latch formed first (2026-09-30)
+
+The same folded starts, with ONE change: stage 2 (trapped) also trapped the 8
+designed latch pairs (GCATGCAT), so the latch formed before release. Stage 3
+and production have no traps. Controls: the locked-open runs above. All pass
+`check_run`. Data: `dobladillo-runs/hinge-latch-formed/`.
+
+| joint | latch pairs, end of trapped stage | latch pairs in production (of 8) | latch-formed angle, by eighths (°) | control angle (°) | reading |
+|---|---|---|---|---|---|
+| 4 nt | 8 | mean 1.4; any pair in 65% of frames | 28 36 40 38 33 30 35 35 | 175 (flat at once) | holds partly: the latch frays, the hinge stays near 35° |
+| 8 nt | 8 | 8 in every frame | 17 17 17 18 18 17 21 18 | 32 → 124 | **latch holds, control opens** |
+| 16 nt | 7 (of 8) | 0 from release on | 22 26 40 46 60 61 76 96 | 29 → 47 | latch lost on release; opens |
+| 32 nt | 8 | 8 in every frame | 16 15 15 14 16 17 17 14 | 26 → 87 | **latch holds, control opens** |
+
+By the reading guide fixed before the runs:
+
+- **8 nt and 32 nt: the latch holds.** A formed 8 bp latch keeps the hinge
+  closed for 60 ns while the same hinge without it opens. At 8 nt, E4's
+  joint, this is the case the guide calls "latch holds, control opens".
+- **4 nt: partial.** The shortest joint strains the latch (this joint also
+  started with an over-stretched bond); pairs fray and re-form, yet the hinge
+  stays far from the control's flat state.
+- **16 nt: not held from this start.** The latch never completed in the
+  trapped stage (7 of 8) and came apart on release. With one start per joint
+  this may be the start's geometry (it began more tightly folded, 3°) as much
+  as the joint; it is not read as "16 nt cannot hold".
+
+Limits, as above: oxDNA2 at a 0.5 M monovalent proxy for magnesium, ~60 ns,
+one start per design and joint, and a latch that was formed by force rather
+than found. "Holds for 60 ns" is not a measured free energy, and it says
+nothing about whether the latch finds its partner on the bench.
+
+Proposed, not applied (the guide's "latch holds, control opens" case at E4's
+8 nt joint): E4 P(success) 0.60 → 0.65, E4's joint kept at 8 nt; E3 unchanged
+(0.70). For the maintainer to decide.
