@@ -100,7 +100,7 @@ A run where no rung reads informatively is not a failed measurement. It says
 the offset is outside the reachable range, and the **joint length**, not the
 latch, is what has to change.
 
-## Closed-start runs (#17), 2026-09-29: prepared, not yet run
+## Closed-start runs (#17), 2026-09-29: prepared; results below (2026-09-30)
 
 The joint sweep started open and never came near closing in ~9 ns, so it
 could not say whether the latch reaches (`Reach.verdict` → `not_sampled`).
@@ -177,3 +177,48 @@ joint E4 will use (8 nt by default):
 - both open → E4 0.60 → 0.40 unless some joint length holds, in which case
   move E4 to it and leave 0.60; E3 0.70 → 0.65 (fewer closed particles to
   score).
+
+### Results (2026-09-30)
+
+Eight runs on the Metal backend, all passing `check_run` (at most 0.15% of
+designed pairs broken). Opening angle, 180° flat and 0° folded. Production is
+1e7 steps (~60 ns) in eighths; "latch pairs" counts latch base pairs within
+1.5 nm at any frame of any stage.
+
+| joint | design | start | end of release | production, by eighths (°) | latch pairs |
+|---|---|---|---|---|---|
+| 4 nt | latch | 10 | 51 | 68 109 136 161 174 169 170 162 | 0 |
+| 4 nt | locked open | 10 | 28 | 175 176 172 174 172 174 175 168 | 0 |
+| 8 nt | latch | 10 | 21 | 23 33 61 84 103 125 127 158 | 0 |
+| 8 nt | locked open | 10 | 35 | 32 37 44 65 85 84 96 124 | 0 |
+| 16 nt | latch | 3 | 18 | 19 20 28 43 46 47 49 57 | 0 |
+| 16 nt | locked open | 3 | 26 | 29 18 26 28 27 42 46 47 | 0 |
+| 32 nt | latch | 5 | 19 | 52 50 47 49 48 53 58 71 | 0 |
+| 32 nt | locked open | 5 | 22 | 26 39 43 47 61 76 86 87 | 0 |
+
+What the runs show:
+
+- **Nothing holds the fold.** Every hinge, latch or not, opens from its folded
+  start. The 4 nt joint springs open (its control is flat by the first eighth);
+  longer joints open slowly and are still opening at the end (the settling
+  check flags the angle in every production).
+- **The latch never formed.** Not one latch base pair in any run, although the
+  latch anchors started 5-9 nm apart. The two designs therefore behave alike
+  within run-to-run noise.
+
+The reading guide above, taken literally, gives "both open: the latch cannot
+hold at any joint length in this model". **The runs do not support that
+reading, and it is not applied.** The guide assumed the latch could engage;
+it covered "closed with no latch pair formed" but not this case, open with no
+latch pair ever formed. Nucleating a 12-base duplex takes far longer than
+~60 ns in oxDNA, so these runs test whether the fold holds WITHOUT a latch
+(it does not, at any joint length), not whether a formed latch holds.
+
+No change to E3 or E4 is proposed on this evidence. The test that decides it
+starts with the latch FORMED: traps between the latch partners during the
+trapped relaxation only, then released, against the same locked-open
+controls. A formed latch that keeps the hinge closed while the control opens
+is the verdict E4 needs. Not run; it waits for the maintainer.
+
+Data: `dobladillo-runs/hinge-closed-start/` (`analysis.json`, `analyse.log`,
+`queue.log`).

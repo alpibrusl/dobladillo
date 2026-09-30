@@ -294,3 +294,9 @@
   Lab record, Results and pass/fail criterion, with the folder name beside
   them, and each experiment page explains the three in "How an experiment is
   kept".
+- Hinge closed-start runs (#17), 8 runs on Metal: every hinge opens from a
+  folded start, with or without a latch, and no latch base pair ever formed.
+  The runs show the fold is not held without a latch; they do not test a
+  formed latch (nucleation is beyond ~60 ns). Pre-registered reading reported
+  literally and explained, not applied; next test (latch pre-formed) proposed.
+  `docs/HINGE.md`.
