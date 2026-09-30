@@ -316,3 +316,9 @@ details.legend dd { margin: 0; color: var(--muted); max-width: 62ch; }
   details.legend dl { grid-template-columns: 1fr; }
   details.legend dd { margin-bottom: .5rem; }
 }
+
+/* Field names in the instrument record stay whole on wide screens. */
+@media (min-width: 40.01rem) {
+  table.record th { min-width: 13.5rem; }
+  table.record th code { white-space: nowrap; }
+}
