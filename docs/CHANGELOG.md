@@ -326,3 +326,6 @@
   guide splits the work into six short sessions with where it is safe to stop
   and where it is not. E1 now says the kit anneals on its own program, not in
   our block: the two ramps differ.
+- The Flat sheet kit guide gains an optional HS-AFM section (what differs, what
+  to log per movie, and the one real-movie check of the `.asd` reader that K6
+  waits on) and a printable PDF, `docs/pdf/Tilibit-Flat-Sheet-Kit-Guide.pdf`.
