@@ -20,6 +20,7 @@ thermocycler) but has never folded DNA origami or used this toolchain.
 |---|---|---|
 | [`common-techniques.md`](common-techniques.md) | shared by all | read first |
 | [`E1-rectangle-afm.md`](E1-rectangle-afm.md) | E1 — does our first design fold? (with a positive control) | ready once the gate is written |
+| [`E1-flat-sheet-kit.md`](E1-flat-sheet-kit.md) | E1's positive control: the Tilibit Flat sheet kit, and a practice run, in six short sessions | ready: the kit is in hand |
 | [`E2-twist-pair.md`](E2-twist-pair.md) | E2 — is the twist correction needed? | ready once the gate is written |
 | [`E3-single-hinge.md`](E3-single-hinge.md) | E3 — does the hinge fold at all? | blocked: footprint prediction |
 | [`E8-patterned-rectangle.md`](E8-patterned-rectangle.md) | E8 — can we put a detail where we want it? | ready once E1 has reported (its Mg, reference height and plates); dry-run on synthetic scans (`e8_dryrun.py`) |

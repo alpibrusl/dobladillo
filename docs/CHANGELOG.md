@@ -319,3 +319,10 @@
   a preference on this computer (`~/.config/dobladillo/web.json`, or
   `$DOBLADILLO_CONFIG_DIR`), never part of the experiment folder, so turning it
   on or off changes nothing in the record.
+- E1 positive control walked through: `E1-flat-sheet-kit.md`, for the Tilibit
+  Flat sheet complete folding kit. Volumes and temperature program are the
+  supplier's own (read from their folding protocol and product sheets), halved
+  to a 50 µL reaction; the kit is both a practice run and E1's control, and the
+  guide splits the work into six short sessions with where it is safe to stop
+  and where it is not. E1 now says the kit anneals on its own program, not in
+  our block: the two ramps differ.
