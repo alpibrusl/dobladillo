@@ -17,7 +17,7 @@ says nothing could. What follows is kept as the record of why the export step
 existed; the reasoning about pyfmreader still holds.*
 
 This epic was scoped on a claim that turned out to be wrong.
-`alpibrupa/nanoindent`'s `pyfmreader` was supposed to solve the file formats.
+`LorenaRedondo/nanoindent`'s `pyfmreader` was supposed to solve the file formats.
 It does not: `loadJPKimg` accepts `jpk-force-map` and `jpk-qi-data` and returns
 None otherwise, and `loadNANOSCimg` reads force-volume offsets out of a
 Nanoscope header. Both extract the topography recorded *alongside a force

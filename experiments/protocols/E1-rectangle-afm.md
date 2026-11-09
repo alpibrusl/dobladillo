@@ -143,8 +143,7 @@ MgCl₂ (13 mM), water to 50 µL. It shows where unfolded scaffold runs.
 And fold the **positive control** (see "The positive control" above):
 
 - **Kit:** exactly per its supplier's protocol, in its own tube. The
-  Tilibit Flat sheet kit is walked through, with its volumes, in
-  [`E1-flat-sheet-kit.md`](E1-flat-sheet-kit.md).
+  Tilibit Flat sheet kit follows its supplier's own sheets.
 - **Published staple set:** one 50 µL reaction like tube 5 (13 mM), with its
   own pool in place of ours.
 
@@ -158,7 +157,7 @@ thermocycler, run the program in common-techniques §3: 65 °C for 15 min, then
 
 **The kit control is annealed separately**, on its supplier's own program (the
 Tilibit Flat sheet's ramp differs from ours: see
-[`E1-flat-sheet-kit.md`](E1-flat-sheet-kit.md) §3). Run it straight after ours,
+the supplier's folding protocol). Run it straight after ours,
 or in a second cycler, and keep it cold until the gel.
 
 **Start the gel casting now** so it has set when the fold finishes.

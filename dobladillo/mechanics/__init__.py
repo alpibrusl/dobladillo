@@ -1,4 +1,4 @@
-"""Indentation mechanics of our own plates, via `alpibrupa/nanoindent`.
+"""Indentation mechanics of our own plates, via `LorenaRedondo/nanoindent`.
 
 Nothing in here computes contact mechanics. That stack -- Hertz, the
 Dimitriadis and Garcia bottom-effect corrections, Chadwick's thin-layer

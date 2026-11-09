@@ -369,7 +369,7 @@ latch binds every other latch — three hinges give six cross-talk pairs — so 
 is one interface asked to mean N things, and no sequence optimisation fixes
 that because they *are* the same sequence.
 
-This invalidates arithmetic done before the module existed. `docs/COMMERCIAL.md`
+This invalidates arithmetic done before the module existed. an earlier costing (not published here)
 costed a 3×4 coupled film as twelve hinges on one shared core, which is right
 about the scaffold and wrong about the interfaces: it needs **twelve orthogonal
 latch channels**, not one latch. That is a different and harder design problem
@@ -461,7 +461,7 @@ alignment — and the parts that worked are the ones nobody else has.
 - `self_structure` is declared and reported as not checked. It needs a
   thermodynamics backend (the `thermo` extra).
 
-## alpibrupa/nanoindent
+## LorenaRedondo/nanoindent
 
 A mature AFM package already in the owner's hands, and it changes two things.
 

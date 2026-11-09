@@ -319,13 +319,6 @@
   a preference on this computer (`~/.config/dobladillo/web.json`, or
   `$DOBLADILLO_CONFIG_DIR`), never part of the experiment folder, so turning it
   on or off changes nothing in the record.
-- E1 positive control walked through: `E1-flat-sheet-kit.md`, for the Tilibit
-  Flat sheet complete folding kit. Volumes and temperature program are the
-  supplier's own (read from their folding protocol and product sheets), halved
-  to a 50 µL reaction; the kit is both a practice run and E1's control, and the
-  guide splits the work into six short sessions with where it is safe to stop
-  and where it is not. E1 now says the kit anneals on its own program, not in
-  our block: the two ramps differ.
-- The Flat sheet kit guide gains an optional HS-AFM section (what differs, what
-  to log per movie, and the one real-movie check of the `.asd` reader that K6
-  waits on) and a printable PDF, `docs/pdf/Tilibit-Flat-Sheet-Kit-Guide.pdf`.
+- E1's positive control is a commercial folding kit, run on its supplier's own
+  program rather than ours; E1 now says the two ramps differ. The bench guide
+  for it is not part of this repository.

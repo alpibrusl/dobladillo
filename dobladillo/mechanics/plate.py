@@ -53,7 +53,7 @@ _PROBE_MODULUS_MPA: Final = 300.0
 _POISSON: Final = 0.5
 
 NANOINDENT_NOTE: Final = """\
-Contact mechanics come from alpibrupa/nanoindent, which is a private package
+Contact mechanics come from LorenaRedondo/nanoindent, which is not on a package index
 and therefore an optional extra here (`pip install -e '.[mechanics]'` will not
 reach it; install nanoindent from its own checkout). Without it this module
 still reports thickness, the thin-film parameter and the regime, because those

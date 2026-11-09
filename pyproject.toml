@@ -51,7 +51,7 @@ imaging = [
     # imported directly. See tests/test_licences.py.
     "scikit-image>=0.22",
 ]
-# Indentation mechanics. alpibrupa/nanoindent is private and not on an index,
+# Indentation mechanics. LorenaRedondo/nanoindent is not on an index,
 # so this extra cannot install it; it is declared to record the dependency and
 # to keep `dobladillo.mechanics` honest about needing something it cannot pull.
 # Install nanoindent from its own checkout. See mechanics.NANOINDENT_NOTE.

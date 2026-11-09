@@ -1,7 +1,7 @@
 """The geometry side is tested here; the mechanics side is tested against the
 package that owns it, whenever that package is importable.
 
-`nanoindent` is private and is not installed in CI, so the solver tests skip
+`nanoindent` is not on a package index and is not installed in CI, so the solver tests skip
 there. That is deliberate: this project must not carry a second, unvalidated
 copy of contact mechanics just so a test can run offline. What it does carry is
 `MEASURED_FACTORS`, and the point of the skipped tests is that the day anyone
@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - environment dependent
     has_nanoindent = False
 
 needs_nanoindent = pytest.mark.skipif(
-    not has_nanoindent, reason="alpibrupa/nanoindent is private and not installed here"
+    not has_nanoindent, reason="LorenaRedondo/nanoindent is not installed here"
 )
 
 TIP = Tip(radius_nm=10.0, depth_nm=0.4)

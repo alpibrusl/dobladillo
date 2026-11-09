@@ -42,7 +42,7 @@ partner's pipeline is already applying a bottom-effect correction, which is
 also a useful thing to learn.
 
 **P(success) 0.80.** The physics is settled and the instrument stack exists in
-`alpibrupa/nanoindent`. The risk is not the analysis: it is whether a
+`LorenaRedondo/nanoindent`. The risk is not the analysis: it is whether a
 single-layer origami plate survives indentation at all, and whether it stays
 adsorbed. Neither is predictable from here.
 

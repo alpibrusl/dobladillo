@@ -206,7 +206,7 @@ instrument wrote.
 
 *This section used to say the opposite* -- that native formats could not be
 read and every partner should export Gwyddion Simple Field. That was wrong.
-The earlier plan had been to reuse `alpibrupa/nanoindent`'s readers, which
+The earlier plan had been to reuse `LorenaRedondo/nanoindent`'s readers, which
 turned out to read only the topography recorded alongside a *force volume*
 (`jpk-force-map`, `jpk-qi-data`, Nanoscope FV offsets), not a plain
 tapping-mode scan, and from there the conclusion was generalised to "no native

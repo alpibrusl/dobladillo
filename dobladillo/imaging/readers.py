@@ -192,7 +192,7 @@ def write_gsf(image: HeightMap, path: Path, *, title: str = "") -> Path:
 def read_jpk_force_map(path: Path, *, channel: str = "height") -> HeightMap:
     """The topography recorded alongside a JPK force map or QI scan.
 
-    Through `alpibrupa/nanoindent`'s vendored pyfmreader, which is a byte for
+    Through `LorenaRedondo/nanoindent`'s vendored pyfmreader, which is a byte for
     byte snapshot of a reader whose output appears in published tables. It
     handles `jpk-force-map` and `jpk-qi-data` only; a plain topography scan is
     not one of those, and there is no path to it here.
@@ -202,7 +202,7 @@ def read_jpk_force_map(path: Path, *, channel: str = "height") -> HeightMap:
         from nanoindent.dynamo_v0.pyfmreader.pyfmreader import loadfile
     except ImportError as exc:  # pragma: no cover - depends on the environment
         raise UnreadableScan(
-            "reading JPK force maps needs alpibrupa/nanoindent installed.\n\n" + EXPORT_INSTRUCTION
+            "reading JPK force maps needs LorenaRedondo/nanoindent installed.\n\n" + EXPORT_INSTRUCTION
         ) from exc
 
     uff = loadfile(str(path))

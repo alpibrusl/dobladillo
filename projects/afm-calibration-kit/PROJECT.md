@@ -122,8 +122,7 @@ In scope:
   buffer: E1 expects 1–1.5 nm dry for a 2 nm sheet, and nobody here has
   measured how tall the hairpins stand. Heights are reported, never
   certified. For Z, use a certified step-height standard. Mechanical
-  calibration of Z-dependent quantities is E7's line (`docs/COMMERCIAL.md`
-  §1), not this project's.
+  calibration of Z-dependent quantities is E7's line (an earlier commercial note, not published here), not this project's.
 - **Not SI-traceable until certified.** Until K8 has run, nothing from this
   kit may be described as traceable, a standard, or certified, and every
   value it produces carries the design value's uncertainty and K5's spread.

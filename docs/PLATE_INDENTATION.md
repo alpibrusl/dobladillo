@@ -4,7 +4,7 @@ Epic #3 offers an AFM group *calibrated nanomechanical test objects*. This is
 what makes them worth having, and it is not the thing the roadmap assumed.
 
 Numbers here are produced by `dobladillo.mechanics`, which is a thin bridge to
-`alpibrupa/nanoindent`. No contact mechanics are implemented in this project.
+`LorenaRedondo/nanoindent`. No contact mechanics are implemented in this project.
 
 ## The problem
 
