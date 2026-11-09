@@ -1,6 +1,6 @@
 # Epic 2 — the bistable hinge
 
-[Issue #2](https://github.com/alpibrupa/dobladillo/issues/2). Four experiments,
+Tracking issue #2 (kept in the maintainers\' private tracker). Four experiments,
 E3 through E6, and the whole Hamiltonian programme runs through them.
 
 The part is built and lints clean (`dobladillo build hinge`, `docs/HINGE.md`).

@@ -1,6 +1,6 @@
 # Epic 1 — the theory pipeline and its synthetic-data gate
 
-[Issue #1](https://github.com/alpibrupa/dobladillo/issues/1). **Mostly done, and
+Tracking issue #1 (kept in the maintainers\' private tracker). **Mostly done, and
 it has already paid for itself three times.**
 
 No experiment of its own. It is the gate on tens of thousands of euros of

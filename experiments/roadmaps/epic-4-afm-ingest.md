@@ -1,6 +1,6 @@
 # Epic 4 — AFM ingest
 
-[Issue #4](https://github.com/alpibrupa/dobladillo/issues/4). **Done.** No
+Tracking issue #4 (kept in the maintainers\' private tracker). **Done.** No
 experiment of its own; it is what makes E1, E2, E3 and E7 measurable.
 
 ## What it is

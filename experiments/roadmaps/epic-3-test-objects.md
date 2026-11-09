@@ -1,6 +1,6 @@
 # Epic 3 — calibrated nanomechanical test objects
 
-[Issue #3](https://github.com/alpibrupa/dobladillo/issues/3). One experiment,
+Tracking issue #3 (kept in the maintainers\' private tracker). One experiment,
 **E7**, and it is the only one that is not on the critical path.
 
 ---
